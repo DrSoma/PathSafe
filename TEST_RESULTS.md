@@ -33,8 +33,8 @@
 - **Affected:** NDPI, SVS
 - **Symptom:** `pathsafe verify` reported LabelImage/MacroImage as PHI even after anonymization
 - **Root Cause:** `_scan_label_macro()` checked `data_size > 0` but after blanking, image data is still allocated (just filled with zeros/blank JPEG header)
-- **Fix:** Added `is_ifd_image_blanked()` function to `tiff.py` that reads the first 8 bytes of strip/tile data and checks for blank JPEG pattern (FFD8FFD9 + zeros) or all-zeros. Updated `_scan_label_macro()` in both `ndpi.py` and `svs.py` to call this check before reporting findings.
-- **Files Modified:** `pathsafe/tiff.py`, `pathsafe/formats/ndpi.py`, `pathsafe/formats/svs.py`
+- **Fix:** Added `is_ifd_image_blanked()` function to `pathsafe/tiff/blanking.py` that reads the first 8 bytes of strip/tile data and checks for blank JPEG pattern (FFD8FFD9 + zeros) or all-zeros. Updated `_scan_label_macro()` in both `ndpi.py` and `svs.py` to call this check before reporting findings.
+- **Files Modified:** `pathsafe/tiff/blanking.py`, `pathsafe/formats/ndpi.py`, `pathsafe/formats/svs.py`
 
 ### Bug 2: Already-Clean Files Re-Blanked on Second Pass
 - **Affected:** NDPI, SVS
@@ -250,7 +250,7 @@ Following the exhaustive code audit, 12 critical/high/medium issues were identif
 | 3 | CRITICAL | DICOM missing ~30+ PS3.15 required tags | Added PatientAge, StudyDescription, SeriesDescription, AcquisitionTime, and 20+ more tags | PASS |
 | 4 | CRITICAL | DICOM no UID remapping | Added deterministic UID remapping for SOPInstanceUID, StudyInstanceUID, SeriesInstanceUID | PASS |
 | 5 | CRITICAL | DICOM sequences (VR=SQ) not traversed | Added recursive sequence scanning for nested PHI (InstitutionName, PersonName, etc.) | PASS |
-| 6 | HIGH | XMP metadata (tag 700) not checked | Added `scan_extra_metadata_tags()` to tiff.py, integrated in NDPI/SVS/TIFF handlers | PASS |
+| 6 | HIGH | XMP metadata (tag 700) not checked | Added `scan_extra_metadata_tags()` to `pathsafe/tiff/blanking.py`, integrated in NDPI/SVS/TIFF handlers | PASS |
 | 7 | HIGH | EXIF UserComment (tag 37510), Artist (315), Copyright (33432), IPTC (33723) not checked | Same fix as #6 -- all extra metadata tags blanked across all handlers | PASS |
 | 8 | HIGH | Regex patterns too institution-specific (only AS-/AC-) | Added SP-, H-, S- accession prefixes and SSN pattern with proper lookbehind | PASS |
 | 9 | HIGH | Log file handle leak in cli.py | Wrapped in try/finally block | PASS |
@@ -285,7 +285,7 @@ Increased from 100KB to 256KB to catch PHI patterns at higher file offsets.
 
 | File | Change |
 |------|--------|
-| `pathsafe/tiff.py` | Added `is_ifd_image_blanked()`, `scan_extra_metadata_tags()`, `blank_extra_metadata_tag()`, SLONG8 type, BigTIFF sanity cap, short-read guard, increased iter_ifds to 500 |
+| `pathsafe/tiff/` | Added `is_ifd_image_blanked()`, `scan_extra_metadata_tags()`, `blank_extra_metadata_tag()` (blanking.py), SLONG8 type, BigTIFF sanity cap, short-read guard (parser.py), increased iter_ifds to 500 |
 | `pathsafe/formats/ndpi.py` | Added SCANNER_PROPS scanning/anonymizing, extra metadata tags, false-clean fix |
 | `pathsafe/formats/svs.py` | Added extra metadata tag scanning/anonymizing |
 | `pathsafe/formats/dicom.py` | Expanded PS3.15 tags, UID remapping, sequence traversal, PatientIdentityRemoved flag, None value guard |
