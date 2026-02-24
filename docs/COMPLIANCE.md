@@ -100,7 +100,7 @@ PathSafe uses the following regex patterns to detect accession numbers in raw bi
 
 Whole-slide image files often contain embedded photographs of the physical slide label (label image) and an overview photograph of the entire slide (macro image). These images can contain patient-identifying information printed or handwritten on the slide label.
 
-PathSafe blanks label and macro images by overwriting their pixel data with a minimal valid JPEG header (`\xFF\xD8\xFF\xD9`) followed by zero bytes. This preserves the TIFF file structure while destroying all visual content.
+PathSafe blanks label and macro images by overwriting their pixel data with a minimal valid 1x1 white JPEG (630 bytes, compatible with libjpeg/OpenSlide) followed by zero bytes. This preserves the TIFF file structure while destroying all visual content.
 
 | Format | Label Detection Method | Macro Detection Method |
 |---|---|---|
@@ -173,6 +173,17 @@ For each anonymized file, the certificate records:
 - **Pattern coverage**: PHI detection relies on known accession number patterns. Custom patterns for your institution should be added to the scanner configuration.
 - **DICOM completeness**: DICOM anonymization covers standard tags and private tags. Application-specific sequences may need additional handling depending on the imaging vendor.
 - **File integrity**: PathSafe modifies files at the byte level, preserving TIFF structure. However, always maintain backups of original files before in-place anonymization.
+
+## Anonymization Depth (Bisson et al. 2023)
+
+PathSafe implements **Level IV** anonymization as defined by Bisson et al. in ["Anonymization of whole slide images in histopathology for research and education"](https://doi.org/10.1177/20552076231171475) (Digital Health, 2023). This covers:
+
+- **Level I**: Filename PHI detection (accession number patterns in filenames)
+- **Level II**: Associated image dereferencing
+- **Level III**: Label and macro image blanking (pixel data destroyed)
+- **Level IV**: Complete metadata removal (scanner serial numbers, acquisition dates, operator names, barcodes, device identifiers, and all format-specific PHI fields)
+
+Level V (spatial coherence removal to prevent tissue-based re-identification) is not currently implemented by any available tool and remains an open research problem.
 
 ## Regulatory Context
 

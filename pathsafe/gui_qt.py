@@ -53,7 +53,7 @@ DARK_QSS = """
 QMainWindow, QWidget {
     background-color: #1e1e2e;
     color: #cdd6f4;
-    font-size: 13px;
+    font-size: 14px;
 }
 QGroupBox {
     border: 1px solid #45475a;
@@ -73,7 +73,8 @@ QLineEdit {
     color: #cdd6f4;
     border: 1px solid #45475a;
     border-radius: 4px;
-    padding: 6px 8px;
+    padding: 8px 10px;
+    font-size: 14px;
     selection-background-color: #585b70;
 }
 QLineEdit:focus {
@@ -290,7 +291,7 @@ LIGHT_QSS = """
 QMainWindow, QWidget {
     background-color: #f5f5f5;
     color: #1e1e2e;
-    font-size: 13px;
+    font-size: 14px;
 }
 QGroupBox {
     border: 1px solid #c0c0c0;
@@ -310,7 +311,8 @@ QLineEdit {
     color: #1e1e2e;
     border: 1px solid #c0c0c0;
     border-radius: 4px;
-    padding: 6px 8px;
+    padding: 8px 10px;
+    font-size: 14px;
     selection-background-color: #a8d0f0;
 }
 QLineEdit:focus {
@@ -853,6 +855,10 @@ class AnonymizeWorker(QThread):
                 'dry_run': self.dry_run,
                 'integrity_verified': integrity_verified,
                 'integrity_failed': integrity_failed,
+                'output_paths': [
+                    str(r.output_path) for r in batch_result.results
+                    if not r.error
+                ],
             })
             if batch_result.files_errored == 0:
                 self.signals.status.emit('Anonymization complete')
@@ -869,16 +875,22 @@ class AnonymizeWorker(QThread):
 class VerifyWorker(QThread):
     """Background thread for verifying files."""
 
-    def __init__(self, input_path, signals, format_filter=None):
+    def __init__(self, input_path, signals, format_filter=None,
+                 file_list=None):
         super().__init__()
         self.input_path = input_path
         self.signals = signals
         self.format_filter = format_filter
+        self.file_list = file_list  # specific files to verify (from last anonymize)
 
     def run(self):
         try:
-            files = collect_wsi_files(self.input_path,
-                                      format_filter=self.format_filter)
+            if self.file_list:
+                # Verify only the specific files from the last anonymize run
+                files = [Path(p) for p in self.file_list if Path(p).exists()]
+            else:
+                files = collect_wsi_files(self.input_path,
+                                          format_filter=self.format_filter)
             total = len(files)
             if total == 0:
                 self.signals.log.emit(html_warning('No WSI files found.'))
@@ -895,26 +907,45 @@ class VerifyWorker(QThread):
             clean = 0
             dirty = 0
 
-            def progress(i, total_files, filepath, result):
-                pct = i / total_files * 100
-                self.signals.progress.emit(pct)
-                self.signals.status.emit(
-                    f'Verifying {i}/{total_files}: {filepath.name}')
+            if self.file_list:
+                # Verify individual files directly
+                for i, filepath in enumerate(files):
+                    handler = get_handler(filepath)
+                    result = handler.scan(filepath)
+                    pct = (i + 1) / total * 100
+                    self.signals.progress.emit(pct)
+                    self.signals.status.emit(
+                        f'Verifying {i + 1}/{total}: {filepath.name}')
+                    if result.is_clean:
+                        clean += 1
+                    else:
+                        dirty += 1
+                        findings_str = ', '.join(
+                            f.tag_name for f in result.findings)
+                        self.signals.log.emit(html_error(
+                            f'  PHI FOUND: {filepath.name} — '
+                            f'{findings_str}'))
+            else:
+                def progress(i, total_files, filepath, result):
+                    pct = i / total_files * 100
+                    self.signals.progress.emit(pct)
+                    self.signals.status.emit(
+                        f'Verifying {i}/{total_files}: {filepath.name}')
 
-            results = verify_batch(
-                self.input_path, progress_callback=progress,
-                format_filter=self.format_filter)
+                results = verify_batch(
+                    self.input_path, progress_callback=progress,
+                    format_filter=self.format_filter)
 
-            for result in results:
-                if result.is_clean:
-                    clean += 1
-                else:
-                    dirty += 1
-                    findings_str = ', '.join(
-                        f.tag_name for f in result.findings)
-                    self.signals.log.emit(html_error(
-                        f'  PHI FOUND: {result.filepath.name} — '
-                        f'{findings_str}'))
+                for result in results:
+                    if result.is_clean:
+                        clean += 1
+                    else:
+                        dirty += 1
+                        findings_str = ', '.join(
+                            f.tag_name for f in result.findings)
+                        self.signals.log.emit(html_error(
+                            f'  PHI FOUND: {result.filepath.name} — '
+                            f'{findings_str}'))
 
             # Summary
             self.signals.log.emit(html_separator())
@@ -1196,8 +1227,8 @@ class DropZoneWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setMinimumHeight(70)
-        self.setMaximumHeight(80)
+        self.setMinimumHeight(60)
+        self.setMaximumHeight(70)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
@@ -1206,7 +1237,7 @@ class DropZoneWidget(QWidget):
         self._icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._icon_label)
 
-        self._hint_label = QLabel("or use the Browse buttons below")
+        self._hint_label = QLabel("or use Step 1 to browse")
         self._hint_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._hint_label)
 
@@ -1348,9 +1379,19 @@ class PathSafeWindow(QMainWindow):
 
         self._worker = None
         self._last_dir = str(Path.home())
+        self._last_anonymized_paths = []  # output paths from last anonymize run
         self._settings = QSettings('PathSafe', 'PathSafe')
         self._current_theme = self._settings.value('theme', 'dark')
         self._scan_results_json = None
+        self._step_completed = set()  # track completed steps {1, 2, 3}
+        self._step_labels = {
+            1: ('Step 1', 'Select Files'),
+            2: ('Step 2', 'Scan for PHI'),
+            3: ('Step 3', 'Select File Output'),
+            4: ('Step 4', 'Anonymize'),
+            5: ('Step 5', 'Verify'),
+        }
+        self._step_buttons = {}  # populated in _build_ui
 
         self._build_menu_bar()
         self._build_ui()
@@ -1462,11 +1503,86 @@ class PathSafeWindow(QMainWindow):
         layout.setContentsMargins(14, 8, 14, 8)
         layout.setSpacing(8)
 
-        # --- Step Indicator ---
-        self.step_indicator = StepIndicator()
-        layout.addWidget(self.step_indicator)
+        # === Top section: step panel (left) + controls (right) ===
+        top_split = QHBoxLayout()
+        top_split.setSpacing(10)
 
-        # --- Input Group (drop zone + input path only) ---
+        # --- Left: Workflow step buttons ---
+        step_group = QGroupBox('Workflow')
+        step_layout = QVBoxLayout(step_group)
+        step_layout.setSpacing(6)
+
+        self.btn_select = QPushButton('Step 1\nSelect Files')
+        self.btn_select.setObjectName('btn_info')
+        self.btn_select.setToolTip(
+            "Browse for WSI files or a folder to process.")
+        self.btn_select.clicked.connect(self._browse_input_file_or_folder)
+        step_layout.addWidget(self.btn_select)
+
+        self.btn_scan = QPushButton('Step 2\nScan for PHI')
+        self.btn_scan.setObjectName('btn_scan')
+        self.btn_scan.setToolTip(
+            "Scan files to detect patient information (PHI)\n"
+            "without modifying anything. [Ctrl+S]")
+        self.btn_scan.clicked.connect(self._run_scan)
+        step_layout.addWidget(self.btn_scan)
+
+        self.btn_output = QPushButton('Step 3\nSelect File Output')
+        self.btn_output.setObjectName('btn_convert')
+        self.btn_output.setToolTip(
+            "Choose the output folder where anonymized\n"
+            "copies will be saved.")
+        self.btn_output.clicked.connect(self._browse_output_dir_step)
+        step_layout.addWidget(self.btn_output)
+
+        self.btn_anonymize = QPushButton('Step 4\nAnonymize')
+        self.btn_anonymize.setObjectName('btn_anonymize')
+        self.btn_anonymize.setToolTip(
+            "Remove all detected patient information from files. [Ctrl+R]")
+        self.btn_anonymize.clicked.connect(self._run_anonymize)
+        step_layout.addWidget(self.btn_anonymize)
+
+        self.btn_verify = QPushButton('Step 5\nVerify')
+        self.btn_verify.setObjectName('btn_verify')
+        self.btn_verify.setToolTip(
+            "Re-scan files to confirm all patient information\n"
+            "has been removed. [Ctrl+E]")
+        self.btn_verify.clicked.connect(self._run_verify)
+        step_layout.addWidget(self.btn_verify)
+
+        self.btn_stop = QPushButton('Stop')
+        self.btn_stop.setObjectName('btn_stop')
+        self.btn_stop.setEnabled(False)
+        self.btn_stop.setToolTip(
+            "Stop the current operation after the\n"
+            "current file finishes. [Escape]")
+        self.btn_stop.clicked.connect(self._request_stop)
+        step_layout.addWidget(self.btn_stop)
+
+        # Step buttons fill equally within the group
+        for btn in (self.btn_select, self.btn_scan, self.btn_output,
+                    self.btn_anonymize, self.btn_verify):
+            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.btn_stop.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        step_layout.setStretchFactor(self.btn_select, 3)
+        step_layout.setStretchFactor(self.btn_scan, 3)
+        step_layout.setStretchFactor(self.btn_output, 3)
+        step_layout.setStretchFactor(self.btn_anonymize, 3)
+        step_layout.setStretchFactor(self.btn_verify, 3)
+        step_layout.setStretchFactor(self.btn_stop, 2)
+
+        step_group.setFixedWidth(170)
+        self._step_buttons = {
+            1: self.btn_select, 2: self.btn_scan, 3: self.btn_output,
+            4: self.btn_anonymize, 5: self.btn_verify,
+        }
+        top_split.addWidget(step_group)
+
+        # --- Right: Input + options ---
+        controls_layout = QVBoxLayout()
+        controls_layout.setSpacing(10)
+
+        # Input Group (drop zone + path row)
         paths_group = QGroupBox('Input')
         paths_layout = QVBoxLayout(paths_group)
 
@@ -1474,7 +1590,6 @@ class PathSafeWindow(QMainWindow):
         self.drop_zone.pathDropped.connect(self._on_path_dropped)
         paths_layout.addWidget(self.drop_zone)
 
-        # Input row
         input_row = QHBoxLayout()
         self.input_edit = QLineEdit()
         self.input_edit.setPlaceholderText('Path to WSI file or folder...')
@@ -1483,39 +1598,50 @@ class PathSafeWindow(QMainWindow):
             "or a folder containing WSI files.\n"
             "You can also drag and drop files here.")
         input_row.addWidget(self.input_edit, 1)
-        btn_file = QPushButton('File')
-        btn_file.setFixedWidth(70)
-        btn_file.clicked.connect(self._browse_input_file)
-        input_row.addWidget(btn_file)
-        btn_folder = QPushButton('Folder')
-        btn_folder.setFixedWidth(70)
-        btn_folder.clicked.connect(self._browse_input_dir)
-        input_row.addWidget(btn_folder)
         paths_layout.addLayout(input_row)
 
-        layout.addWidget(paths_group)
+        controls_layout.addWidget(paths_group)
 
-        # --- Tab Widget ---
+        # Tab Widget (Anonymize / Convert)
         self.tabs = QTabWidget()
-        layout.addWidget(self.tabs)
+        controls_layout.addWidget(self.tabs, 1)
 
         self._build_anonymize_tab()
         self._build_convert_tab()
 
-        # --- Progress ---
+        top_split.addLayout(controls_layout, 1)
+
+        # Wrap top section in a widget with max height so log gets priority
+        top_widget = QWidget()
+        top_widget.setLayout(top_split)
+        top_widget.setMaximumHeight(430)
+        layout.addWidget(top_widget)
+
+        # === Progress bar (full width) ===
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         layout.addWidget(self.progress_bar)
 
-        # --- Log ---
+        # === Log panel (full width) ===
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QFont('monospace', 10))
+        log_font = QFont()
+        for family in ('JetBrains Mono', 'Cascadia Code', 'Fira Code',
+                        'Source Code Pro', 'Consolas', 'Ubuntu Mono',
+                        'DejaVu Sans Mono', 'monospace'):
+            log_font.setFamily(family)
+            if log_font.exactMatch():
+                break
+        log_font.setPointSize(11)
+        log_font.setStyleHint(QFont.Monospace)
+        self.log_text.setFont(log_font)
+        self.log_text.setStyleSheet(
+            self.log_text.styleSheet() + 'QTextEdit { line-height: 140%; padding: 6px; }')
         layout.addWidget(self.log_text, 1)
 
-        # --- Export buttons ---
+        # === Export buttons ===
         export_row = QHBoxLayout()
         self.btn_save_log = QPushButton('Save Log')
         self.btn_save_log.setToolTip("Save the log output as an HTML file.")
@@ -1549,10 +1675,6 @@ class PathSafeWindow(QMainWindow):
             "Where anonymized copies will be saved.\n"
             "Only needed in Copy mode.")
         output_row.addWidget(self.output_edit, 1)
-        btn_out = QPushButton('Browse')
-        btn_out.setFixedWidth(80)
-        btn_out.clicked.connect(self._browse_output_dir)
-        output_row.addWidget(btn_out)
         anon_layout.addLayout(output_row)
 
         # --- Options ---
@@ -1574,14 +1696,6 @@ class PathSafeWindow(QMainWindow):
         mode_group.addButton(self.radio_inplace)
         opts_layout.addWidget(self.radio_copy)
         opts_layout.addWidget(self.radio_inplace)
-
-        opts_layout.addSpacing(20)
-        self.check_verify = QCheckBox('Verify after')
-        self.check_verify.setChecked(True)
-        self.check_verify.setToolTip(
-            "After anonymization, re-scan each file to confirm\n"
-            "all patient information has been removed.")
-        opts_layout.addWidget(self.check_verify)
 
         opts_layout.addSpacing(20)
         opts_layout.addWidget(QLabel('Workers:'))
@@ -1637,6 +1751,7 @@ class PathSafeWindow(QMainWindow):
         compliance_layout.addWidget(self.check_checklist)
 
         self.check_verify_integrity = QCheckBox('Verify image integrity')
+        self.check_verify_integrity.setChecked(True)
         self.check_verify_integrity.setToolTip(
             "Verify image tile data integrity via SHA-256 checksums\n"
             "before and after anonymization. Proves diagnostic image\n"
@@ -1644,62 +1759,7 @@ class PathSafeWindow(QMainWindow):
         compliance_layout.addWidget(self.check_verify_integrity)
 
         compliance_layout.addStretch()
-        anon_layout.addWidget(compliance_group)
-
-        # --- Action Buttons ---
-        btn_layout = QHBoxLayout()
-
-        self.btn_scan = QPushButton('  Scan for PHI')
-        self.btn_scan.setObjectName('btn_scan')
-        self.btn_scan.setMinimumHeight(38)
-        self.btn_scan.setToolTip(
-            "Scan files to detect patient information (PHI)\n"
-            "without modifying anything. [Ctrl+S]")
-        self.btn_scan.clicked.connect(self._run_scan)
-        btn_layout.addWidget(self.btn_scan)
-
-        self.btn_anonymize = QPushButton('  Anonymize')
-        self.btn_anonymize.setObjectName('btn_anonymize')
-        self.btn_anonymize.setMinimumHeight(38)
-        self.btn_anonymize.setToolTip(
-            "Remove all detected patient information from files. [Ctrl+R]")
-        self.btn_anonymize.clicked.connect(self._run_anonymize)
-        btn_layout.addWidget(self.btn_anonymize)
-
-        self.btn_verify = QPushButton('  Verify')
-        self.btn_verify.setObjectName('btn_verify')
-        self.btn_verify.setMinimumHeight(38)
-        self.btn_verify.setToolTip(
-            "Re-scan files to confirm all patient information\n"
-            "has been removed. [Ctrl+E]")
-        self.btn_verify.clicked.connect(self._run_verify)
-        btn_layout.addWidget(self.btn_verify)
-
-        self.btn_info = QPushButton('  Info')
-        self.btn_info.setObjectName('btn_info')
-        self.btn_info.setMinimumHeight(38)
-        self.btn_info.setToolTip(
-            "Show detailed format and metadata information\n"
-            "for a single file. [Ctrl+I]")
-        self.btn_info.clicked.connect(self._run_info)
-        btn_layout.addWidget(self.btn_info)
-
-        self.btn_stop = QPushButton('  Stop')
-        self.btn_stop.setObjectName('btn_stop')
-        self.btn_stop.setMinimumHeight(38)
-        self.btn_stop.setEnabled(False)
-        self.btn_stop.setToolTip(
-            "Stop the current operation after the\n"
-            "current file finishes. [Escape]")
-        self.btn_stop.clicked.connect(self._request_stop)
-        btn_layout.addWidget(self.btn_stop)
-
-        # Let buttons expand to fill available space
-        for btn in (self.btn_scan, self.btn_anonymize, self.btn_verify,
-                    self.btn_info, self.btn_stop):
-            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        anon_layout.addLayout(btn_layout)
+        anon_layout.addWidget(compliance_group, 1)
 
         self.tabs.addTab(anon_tab, 'Anonymize')
 
@@ -1865,6 +1925,22 @@ class PathSafeWindow(QMainWindow):
 
     # --- Browse ---
 
+    def _browse_input_file_or_folder(self):
+        """Step 1 button: let user choose between file or folder."""
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle('Select Input')
+        dlg.setText('What would you like to open?')
+        dlg.setIcon(QMessageBox.Question)
+        btn_file = dlg.addButton('Files', QMessageBox.AcceptRole)
+        btn_folder = dlg.addButton('Folder', QMessageBox.AcceptRole)
+        dlg.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        if clicked == btn_file:
+            self._browse_input_file()
+        elif clicked == btn_folder:
+            self._browse_input_dir()
+
     def _browse_input_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, 'Select WSI file', self._last_dir,
@@ -1872,8 +1948,7 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.input_edit.setText(path)
             self._last_dir = str(Path(path).parent)
-            self.step_indicator.set_step(0)
-            self.step_indicator.mark_completed(0)
+            self._mark_step_completed(1)
 
     def _browse_input_dir(self):
         path = QFileDialog.getExistingDirectory(
@@ -1881,8 +1956,7 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.input_edit.setText(path)
             self._last_dir = path
-            self.step_indicator.set_step(0)
-            self.step_indicator.mark_completed(0)
+            self._mark_step_completed(1)
 
     def _browse_output_dir(self):
         path = QFileDialog.getExistingDirectory(
@@ -1890,6 +1964,10 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.output_edit.setText(path)
             self._last_dir = path
+            self._mark_step_completed(3)
+
+    def _browse_output_dir_step(self):
+        self._browse_output_dir()
 
     def _browse_convert_output(self):
         path = QFileDialog.getExistingDirectory(
@@ -1903,8 +1981,7 @@ class PathSafeWindow(QMainWindow):
         if p.exists():
             self.input_edit.setText(path)
             self._last_dir = str(p.parent if p.is_file() else p)
-            self.step_indicator.set_step(0)
-            self.step_indicator.mark_completed(0)
+            self._mark_step_completed(1)
 
     # --- Logging ---
 
@@ -1998,6 +2075,11 @@ class PathSafeWindow(QMainWindow):
             elapsed = data.get('time', '?')
             cert = data.get('certificate', '')
             dry_run = data.get('dry_run', False)
+
+            # Store output paths so Verify can check just these files
+            output_paths = data.get('output_paths', [])
+            if output_paths:
+                self._last_anonymized_paths = output_paths
 
             if dry_run:
                 icon = QMessageBox.Information
@@ -2125,14 +2207,33 @@ class PathSafeWindow(QMainWindow):
         box.setText(msg)
         box.exec()
 
+    # --- Step state ---
+
+    def _mark_step_completed(self, step):
+        """Mark a workflow step as completed and update its button text."""
+        self._step_completed.add(step)
+        btn = self._step_buttons.get(step)
+        if btn and step in self._step_labels:
+            num, name = self._step_labels[step]
+            btn.setText(f'{num} [Done]\n{name}')
+
+    def _reset_step(self, step):
+        """Reset a step button to its default text."""
+        self._step_completed.discard(step)
+        btn = self._step_buttons.get(step)
+        if btn and step in self._step_labels:
+            num, name = self._step_labels[step]
+            btn.setText(f'{num}\n{name}')
+
     # --- Run state ---
 
     def _set_running(self, running):
-        # Anonymize tab controls
+        # Step buttons
+        self.btn_select.setEnabled(not running)
         self.btn_scan.setEnabled(not running)
+        self.btn_output.setEnabled(not running)
         self.btn_anonymize.setEnabled(not running)
         self.btn_verify.setEnabled(not running)
-        self.btn_info.setEnabled(not running)
         self.btn_stop.setEnabled(running)
         self._scan_action.setEnabled(not running)
         self._anonymize_action.setEnabled(not running)
@@ -2147,7 +2248,6 @@ class PathSafeWindow(QMainWindow):
         self.drop_zone.setEnabled(not running)
         self.radio_copy.setEnabled(not running)
         self.radio_inplace.setEnabled(not running)
-        self.check_verify.setEnabled(not running)
         self.slider_workers.setEnabled(not running)
         self.combo_format_filter.setEnabled(not running)
         self.check_dry_run.setEnabled(not running)
@@ -2207,8 +2307,6 @@ class PathSafeWindow(QMainWindow):
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
-        self.step_indicator.set_step(1)
-
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
@@ -2217,7 +2315,7 @@ class PathSafeWindow(QMainWindow):
 
         def on_done():
             self._on_finished()
-            self.step_indicator.mark_completed(1)
+            self._mark_step_completed(2)
 
         signals.finished.connect(on_done)
 
@@ -2257,8 +2355,6 @@ class PathSafeWindow(QMainWindow):
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
-        self.step_indicator.set_step(2)
-
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
@@ -2267,13 +2363,13 @@ class PathSafeWindow(QMainWindow):
 
         def on_done():
             self._on_finished()
-            self.step_indicator.mark_completed(2)
+            self._mark_step_completed(4)
 
         signals.finished.connect(on_done)
 
         self._worker = AnonymizeWorker(
             input_p, output_dir,
-            self.check_verify.isChecked(),
+            True,
             self.slider_workers.value(),
             signals,
             reset_timestamps=self.check_reset_timestamps.isChecked(),
@@ -2287,14 +2383,24 @@ class PathSafeWindow(QMainWindow):
     # --- Verify ---
 
     def _run_verify(self):
-        input_p = self._validate_input()
-        if not input_p:
+        # If we just anonymized files, verify only those specific outputs
+        file_list = None
+        if self._last_anonymized_paths:
+            file_list = self._last_anonymized_paths
+            verify_path = Path(self._last_anonymized_paths[0]).parent
+        elif self.radio_copy.isChecked():
+            out = self.output_edit.text().strip()
+            if out and Path(out).exists():
+                verify_path = Path(out)
+            else:
+                verify_path = self._validate_input()
+        else:
+            verify_path = self._validate_input()
+        if not verify_path:
             return
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
-        self.step_indicator.set_step(3)
-
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
@@ -2303,13 +2409,15 @@ class PathSafeWindow(QMainWindow):
 
         def on_done():
             self._on_finished()
-            self.step_indicator.mark_completed(3)
+            self._mark_step_completed(5)
+            self._last_anonymized_paths = []  # clear after verify
 
         signals.finished.connect(on_done)
 
         self._worker = VerifyWorker(
-            input_p, signals,
-            format_filter=self._get_format_filter())
+            verify_path, signals,
+            format_filter=self._get_format_filter(),
+            file_list=file_list)
         self._worker.start()
 
     # --- Info ---
@@ -2402,7 +2510,6 @@ class PathSafeWindow(QMainWindow):
         self._current_theme = theme
         qss = DARK_QSS if theme == 'dark' else LIGHT_QSS
         QApplication.instance().setStyleSheet(qss)
-        self.step_indicator.set_theme(theme)
         self.drop_zone.set_theme(theme)
         set_html_theme(theme)
         self._dark_action.setChecked(theme == 'dark')

@@ -304,9 +304,45 @@ def read_tag_long_array(f: BinaryIO, header: TIFFHeader,
     return list(struct.unpack(fmt, data))
 
 
-# Minimal valid JPEG: SOI + EOI markers (4 bytes). Decoders treat this
-# as a valid empty image. We pad the rest with zeros.
-_BLANK_JPEG = b'\xFF\xD8\xFF\xD9'
+# Minimal valid JPEG: a 1x1 white pixel with full JFIF headers, quantization
+# tables, Huffman tables, and scan data (630 bytes).  All JPEG decoders
+# (including libjpeg used by OpenSlide) can parse this, unlike the bare
+# SOI+EOI (FFD8FFD9) which many decoders reject as "no image".
+# We pad the remaining strip/tile bytes with zeros after writing this.
+_BLANK_JPEG = (
+    b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01'
+    b'\x00\x01\x00\x00\xff\xdb\x00C\x00' + b'\xff' * 64
+    + b'\xff\xdb\x00C\x01' + b'\xff' * 64
+    + b'\xff\xc0\x00\x11\x08\x00\x01\x00\x01\x03\x01"\x00\x02\x11\x01\x03\x11\x01'
+    b'\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00'
+    b'\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b'
+    b'\xff\xc4\x00\xb5\x10\x00\x02\x01\x03\x03\x02\x04\x03\x05\x05\x04'
+    b'\x04\x00\x00\x01}\x01\x02\x03\x00\x04\x11\x05\x12!1A\x06\x13Qa'
+    b'\x07"q\x142\x81\x91\xa1\x08#B\xb1\xc1\x15R\xd1\xf0$3br\x82'
+    b'\x09\x0a\x16\x17\x18\x19\x1a%&\'()*456789:CDEFGHIJSTUVWXY'
+    b'Zcdefghijstuvwxyz\x83\x84\x85\x86\x87\x88\x89\x8a\x92\x93\x94'
+    b'\x95\x96\x97\x98\x99\x9a\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xb2'
+    b'\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9'
+    b'\xca\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xe1\xe2\xe3\xe4\xe5\xe6'
+    b'\xe7\xe8\xe9\xea\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa'
+    b'\xff\xc4\x00\x1f\x01\x00\x03\x01\x01\x01\x01\x01\x01\x01\x01\x01'
+    b'\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b'
+    b'\xff\xc4\x00\xb5\x11\x00\x02\x01\x02\x04\x04\x03\x04\x07\x05\x04'
+    b'\x04\x00\x01\x02w\x00\x01\x02\x03\x11\x04\x05!1\x06\x12AQ\x07aq'
+    b'\x13"2\x81\x08\x14B\x91\xa1\xb1\xc1\x09#3R\xf0\x15br\xd1\x0a'
+    b'\x16$4\xe1%\xf1\x17\x18\x19\x1a&\'()*56789:CDEFGHIJSTUVWXY'
+    b'Zcdefghijstuvwxyz\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x92\x93'
+    b'\x94\x95\x96\x97\x98\x99\x9a\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa'
+    b'\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xc2\xc3\xc4\xc5\xc6\xc7\xc8'
+    b'\xc9\xca\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xe2\xe3\xe4\xe5\xe6'
+    b'\xe7\xe8\xe9\xea\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa'
+    b'\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00?\x00\x92\x8a(\xa0\x0f'
+    b'\xff\xd9'
+)
+
+# Legacy 4-byte blank (SOI + EOI) — used for detecting files blanked by
+# older PathSafe versions that wrote only these 4 bytes.
+_LEGACY_BLANK_JPEG = b'\xFF\xD8\xFF\xD9'
 
 
 def blank_ifd_image_data(f: BinaryIO, header: TIFFHeader,
@@ -376,9 +412,8 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
                          entries: List[IFDEntry]) -> bool:
     """Check if the image data in an IFD has been blanked.
 
-    Returns True if the first strip/tile starts with the blank JPEG
-    header (FFD8FFD9) followed by zeros, indicating it was already
-    anonymized by PathSafe.
+    Detects both current format (630-byte minimal JPEG + zeros) and
+    legacy format (4-byte SOI+EOI + zeros) written by older versions.
     """
     offset_entry = None
     count_entry = None
@@ -402,20 +437,35 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
     if not offsets or not counts:
         return False
 
-    # Check first strip/tile
     first_off = offsets[0]
     first_cnt = counts[0]
-    if first_cnt < len(_BLANK_JPEG) + 4:
+    if first_cnt < 8:
         return False
 
     f.seek(first_off)
     head = f.read(min(first_cnt, 8))
-    # Blank = starts with FFD8FFD9 + zeros
-    if head[:4] == _BLANK_JPEG and head[4:] == b'\x00' * len(head[4:]):
-        return True
-    # Or all zeros
+
+    # All zeros = blanked
     if head == b'\x00' * len(head):
         return True
+
+    # Must start with JPEG SOI marker
+    if head[:2] != b'\xFF\xD8':
+        return False
+
+    # Legacy format: SOI + EOI (FFD8FFD9) + zeros
+    if head[:4] == _LEGACY_BLANK_JPEG and head[4:] == b'\x00' * len(head[4:]):
+        return True
+
+    # Current format: 630-byte minimal JPEG + zeros.
+    # A real macro/label image has dense JPEG data throughout, so check
+    # for zeros right after our known JPEG length.
+    if first_cnt > len(_BLANK_JPEG) + 8:
+        f.seek(first_off + len(_BLANK_JPEG))
+        trail = f.read(8)
+        if trail == b'\x00' * len(trail):
+            return True
+
     return False
 
 

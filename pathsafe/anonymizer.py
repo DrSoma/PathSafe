@@ -175,6 +175,15 @@ def collect_wsi_files(path: Path, format_filter: Optional[str] = None) -> List[P
         format_filter: If set, only collect files of this format ("ndpi", "svs", etc).
     """
     if path.is_file():
+        if format_filter:
+            ext_map = {
+                'ndpi': {'.ndpi'}, 'svs': {'.svs'}, 'tiff': {'.tif', '.tiff'},
+                'mrxs': {'.mrxs'}, 'bif': {'.bif'}, 'scn': {'.scn'},
+                'dicom': {'.dcm', '.dicom'},
+            }
+            allowed = ext_map.get(format_filter, WSI_EXTENSIONS)
+            if path.suffix.lower() not in allowed:
+                return []
         return [path]
 
     extensions = WSI_EXTENSIONS

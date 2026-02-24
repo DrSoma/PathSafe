@@ -247,6 +247,40 @@ For any TIFF-based slide file not covered above (including Philips TIFF, QPTIFF,
 
 ---
 
+# Anonymization Depth
+
+Bisson et al. (2023) defined five levels of whole-slide image anonymization in their peer-reviewed study ["Anonymization of whole slide images in histopathology for research and education"](https://doi.org/10.1177/20552076231171475):
+
+| Level | Description | What it covers |
+|-------|-------------|----------------|
+| **I** | Filename de-identification | Remove patient identifiers from file and folder names |
+| **II** | Dereference associated images | Unlink label and macro image pointers so they are not directly accessible |
+| **III** | Delete associated images | Destroy the label and macro image pixel data entirely |
+| **IV** | Remove all metadata | Remove all sensitive metadata including scanner serial numbers, acquisition dates, operator names, barcodes, and device identifiers |
+| **V** | Spatial coherence removal | Alter the diagnostic image itself to prevent re-identification through tissue pattern matching (unsolved research problem) |
+
+PathSafe implements **Level IV** anonymization. The table below shows how PathSafe compares to other open-source tools:
+
+| Capability | PathSafe | [anonymize-slide](https://github.com/bgilbert/anonymize-slide) | [EMPAIA wsi-anon](https://gitlab.com/empaia/integration/wsi-anon) |
+|------------|----------|-----------------|-----------------|
+| Level I (filename detection) | Yes | No | No |
+| Level II (dereference images) | Yes | No | Yes |
+| Level III (blank label/macro) | Yes | Yes | Yes |
+| Level IV (all metadata) | Yes | No | Partial |
+| Format-specific deep parsing | Yes (structured tag fields) | No | String replacement only |
+| Multi-IFD scanning | All IFDs with deduplication | Stops at first match | Unknown |
+| Extra metadata tags (XMP, IPTC, EXIF, etc.) | Yes (9 tag types) | No | No |
+| Regex safety scan (binary header) | Yes (first 100KB) | No | No |
+| Post-anonymization verification | Yes (re-scan + report) | No | No |
+| Image integrity verification | Yes (SHA-256 per IFD) | No | No |
+| Compliance certificate | Yes (JSON audit trail) | No | No |
+| Formats supported | 7 (NDPI, SVS, MRXS, BIF, SCN, DICOM, generic TIFF) | 3 (SVS, NDPI, MRXS) | Multiple |
+| GUI | Yes (PySide6) | No | No |
+
+Level V (spatial coherence removal) is not implemented by any current tool. It remains an open research problem because the tissue features that enable re-identification are the same features that make slides diagnostically useful.
+
+---
+
 # Command Line Reference
 
 ```
