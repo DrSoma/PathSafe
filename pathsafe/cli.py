@@ -592,7 +592,8 @@ def info(path):
 
     click.echo(cli_header(f'File: {filepath.name}'))
     click.echo(f'  Format: {cli_bold(fmt)}')
-    click.echo(f'  Size:   {cli_bold(f"{file_info.get("file_size", 0) / 1e6:.1f} MB")}')
+    size_mb = file_info.get('file_size', 0) / 1e6
+    click.echo(f'  Size:   {cli_bold(f"{size_mb:.1f} MB")}')
 
     for key, value in file_info.items():
         if key not in ('format', 'filename', 'file_size'):
