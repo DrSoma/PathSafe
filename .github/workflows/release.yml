@@ -1,0 +1,130 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    name: Build Windows Installer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller pathsafe.spec
+
+      - name: Rename GUI executable
+        run: |
+          copy dist\pathsafe-gui.exe dist\pathsafe-gui-windows.exe
+        shell: cmd
+
+      - name: Generate SHA256
+        run: |
+          certutil -hashfile dist\pathsafe-gui-windows.exe SHA256 > dist\pathsafe-gui-windows.exe.sha256
+        shell: cmd
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/pathsafe-gui-windows.exe
+            dist/pathsafe-gui-windows.exe.sha256
+
+  build-macos:
+    runs-on: macos-latest
+    name: Build macOS Installer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller pathsafe.spec
+
+      - name: Build DMG
+        run: |
+          chmod +x installer/build_macos_dmg.sh
+          ./installer/build_macos_dmg.sh
+
+      - name: Rename DMG
+        run: mv dist/PathSafe-1.0.0.dmg dist/pathsafe-gui-macos.dmg
+
+      - name: Generate SHA256
+        run: shasum -a 256 dist/pathsafe-gui-macos.dmg > dist/pathsafe-gui-macos.dmg.sha256
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/pathsafe-gui-macos.dmg
+            dist/pathsafe-gui-macos.dmg.sha256
+
+  build-linux:
+    runs-on: ubuntu-latest
+    name: Build Linux Installer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      - name: Install Linux display libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-cursor0 libegl1 libfuse2
+
+      - name: Build with PyInstaller
+        run: pyinstaller pathsafe.spec
+
+      - name: Build AppImage
+        run: |
+          chmod +x installer/build_appimage.sh
+          ./installer/build_appimage.sh
+
+      - name: Rename AppImage
+        run: mv dist/PathSafe-1.0.0-x86_64.AppImage dist/pathsafe-gui-linux.AppImage
+
+      - name: Generate SHA256
+        run: sha256sum dist/pathsafe-gui-linux.AppImage > dist/pathsafe-gui-linux.AppImage.sha256
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/pathsafe-gui-linux.AppImage
+            dist/pathsafe-gui-linux.AppImage.sha256
