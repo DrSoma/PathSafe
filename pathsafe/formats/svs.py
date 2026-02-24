@@ -367,24 +367,23 @@ class SVSHandler(FormatHandler):
                     if entry.tag_id == 270:
                         raw = read_tag_value_bytes(f, entry)
                         value = raw.rstrip(b'\x00').decode('ascii', errors='replace')
-                        fields = _parse_tag270(value)
 
+                        # Split on pipe, anonymize PHI fields, rejoin
+                        parts = value.split('|')
                         modified = False
-                        new_value = value
-                        for field_name in SVS_PHI_FIELDS:
-                            if field_name not in fields:
+                        for i, part in enumerate(parts):
+                            if '=' not in part:
                                 continue
-                            field_val = fields[field_name]
+                            key, _, val = part.partition('=')
+                            field_name = key.strip()
+                            field_val = val.strip()
+                            if field_name not in SVS_PHI_FIELDS:
+                                continue
                             if _is_field_anonymized(field_name, field_val):
                                 continue
 
-                            # Replace field value with X's of same length
                             anon_val = _anonymize_field(field_name, field_val)
-                            new_value = new_value.replace(
-                                f'{field_name} = {field_val}',
-                                f'{field_name} = {anon_val}',
-                                1,
-                            )
+                            parts[i] = f'{key}={" " + anon_val}'
                             modified = True
                             cleared.append(PHIFinding(
                                 offset=entry.value_offset,
@@ -396,6 +395,7 @@ class SVSHandler(FormatHandler):
                             ))
 
                         if modified:
+                            new_value = '|'.join(parts)
                             new_bytes = new_value.encode('ascii', errors='replace')
                             # Pad/truncate to original size
                             if len(new_bytes) < entry.total_size:

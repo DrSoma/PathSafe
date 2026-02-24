@@ -204,6 +204,7 @@ PathSafe removes these categories of PHI:
 - **Slide identifiers**: MRXS slide names, barcodes, IDs
 - **Extra metadata**: XMP, EXIF UserComment, IPTC, Copyright, ImageUniqueID
 - **Social Security numbers**: Detected via pattern matching as a HIPAA safe harbor measure
+- **Date of birth**: DOB patterns detected in filenames and metadata
 
 All tags are scanned across **every IFD** (image layer) in the file, not just the first one.
 

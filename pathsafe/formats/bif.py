@@ -44,6 +44,9 @@ XMP_PHI_ATTRIBUTES = {
     'BarCode1', 'BarCode2', 'BarCodeType1', 'BarCodeType2',
     'ScanDate', 'ScanTime', 'BaseFileName',
     'UniqueID', 'DeviceSerialNumber', 'OperatorID',
+    # Additional Ventana iScan attributes that may contain PHI
+    'PatientName', 'CaseID', 'SampleID',
+    'LabelText', 'Comment', 'Description',
 }
 
 DATE_TAGS = {

@@ -549,34 +549,59 @@ class NDPIHandler(FormatHandler):
         return cleared
 
     def _scan_companion_files(self, filepath: Path) -> List[PHIFinding]:
-        """Detect .ndpa companion files that may contain PHI.
+        """Detect companion files that may contain PHI.
 
-        NDPA files are XML annotation files that frequently contain patient IDs,
-        case numbers, operator names, and timestamps.
+        Hamamatsu scanners produce several companion file types:
+        - .ndpa: XML annotation files (patient IDs, case numbers, timestamps)
+        - .ndpis: slide show / annotation session files
+        - _N.ndpa: per-user annotation files (e.g., slide.ndpi_1.ndpa)
         """
         findings = []
-        ndpa_path = Path(str(filepath) + '.ndpa')
-        if ndpa_path.exists():
+        for companion in _find_companion_files(filepath):
             findings.append(PHIFinding(
-                offset=0, length=os.path.getsize(ndpa_path),
+                offset=0, length=os.path.getsize(companion),
                 tag_id=None,
-                tag_name='CompanionFile:NDPA',
-                value_preview=f'{ndpa_path.name} (XML annotations — may contain PHI)',
+                tag_name=f'CompanionFile:{companion.suffix.lstrip(".")}',
+                value_preview=f'{companion.name} (may contain PHI)',
                 source='companion_file',
             ))
         return findings
 
     def _anonymize_companion_files(self, filepath: Path) -> List[PHIFinding]:
-        """Delete .ndpa companion files that contain PHI."""
+        """Delete companion files that contain PHI."""
         cleared = []
-        ndpa_path = Path(str(filepath) + '.ndpa')
-        if ndpa_path.exists():
-            size = os.path.getsize(ndpa_path)
-            ndpa_path.unlink()
+        for companion in _find_companion_files(filepath):
+            size = os.path.getsize(companion)
+            companion.unlink()
             cleared.append(PHIFinding(
                 offset=0, length=size, tag_id=None,
-                tag_name='CompanionFile:NDPA',
-                value_preview=f'deleted {ndpa_path.name}',
+                tag_name=f'CompanionFile:{companion.suffix.lstrip(".")}',
+                value_preview=f'deleted {companion.name}',
                 source='companion_file',
             ))
         return cleared
+
+
+def _find_companion_files(filepath: Path) -> List[Path]:
+    """Find all companion files for an NDPI file.
+
+    Searches for:
+    - slide.ndpi.ndpa (primary annotations)
+    - slide.ndpi_1.ndpa, slide.ndpi_2.ndpa, ... (per-user annotations)
+    - slide.ndpi.ndpis (slide show sessions)
+    """
+    companions = []
+    parent = filepath.parent
+    name = filepath.name  # e.g., "slide.ndpi"
+
+    # Exact companion: slide.ndpi.ndpa, slide.ndpi.ndpis
+    for ext in ('.ndpa', '.ndpis'):
+        candidate = parent / (name + ext)
+        if candidate.exists():
+            companions.append(candidate)
+
+    # Multi-annotation: slide.ndpi_1.ndpa, slide.ndpi_2.ndpa, ...
+    for candidate in sorted(parent.glob(f'{name}_*.ndpa')):
+        companions.append(candidate)
+
+    return companions

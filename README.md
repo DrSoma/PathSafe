@@ -176,9 +176,9 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Extra metadata | Tags 270, 305, 315, 316, 700, 33723, 37510, 42016 - all IFDs | Institutional info, operator names, XMP, EXIF, IPTC |
 | Scan dates | DateTime tags (306, 36867, 36868) - all IFDs | Dates can be used to re-identify patients when combined with other records |
 | Macro/label image | Embedded overview photo | A photograph of the entire slide, including the label with patient info |
-| Companion files | .ndpa annotation files | XML annotation files that may reference patient identifiers |
-| Filename patterns | Accession numbers in filenames | Filenames like `AS-24-123456.ndpi` contain case numbers |
-| Remaining patterns | Binary scan of header (1MB) | A safety net that catches accession numbers, MRNs, SSNs, and dates embedded elsewhere |
+| Companion files | .ndpa, .ndpis, multi-annotation (_N.ndpa) | XML annotation and session files that may reference patient identifiers |
+| Filename patterns | Accession numbers, MRNs, DOB in filenames | Filenames like `AS-24-123456.ndpi` contain case numbers |
+| Remaining patterns | Binary scan of header (1MB) | A safety net that catches accession numbers, MRNs, SSNs, DOB, and dates embedded elsewhere |
 
 ## SVS (Aperio)
 
@@ -213,6 +213,7 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Scan dates | XMP tag: iScan ScanDate/ScanTime + DateTime tags | Cross-referenceable with clinical records |
 | Device/operator info | XMP tag: DeviceSerialNumber, OperatorID, UniqueID | Institutional fingerprints |
 | Base filename | XMP tag: BaseFileName | May contain patient identifiers |
+| Patient/case info | XMP tag: PatientName, CaseID, SampleID, LabelText, Comment, Description | Direct identifiers from Ventana iScan XMP namespace |
 | Label/macro image | IFDs labeled "Label Image" or "Macro" | Photographed slide labels with patient info |
 | Remaining patterns | Binary scan of header (1MB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
 
@@ -221,8 +222,9 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
 | Barcode | ImageDescription XML: barcode element | Slide barcode containing case identifiers |
-| Creation date | ImageDescription XML: creationDate element | Cross-referenceable timestamp |
-| Device info | ImageDescription XML: device/model/version | Institutional fingerprints |
+| Creation date | ImageDescription XML: creationDate, acquisitionDate/Time | Cross-referenceable timestamps |
+| Device info | ImageDescription XML: device/model/version/serialNumber | Institutional fingerprints |
+| Slide/user info | ImageDescription XML: slideName, description, user, operator, institution, uniqueID | Direct patient or operator identifiers |
 | Label/macro image | Separate TIFF IFDs | Photographed slide labels |
 | Remaining patterns | Binary scan of header (1MB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
 
@@ -268,7 +270,7 @@ PathSafe implements **Level IV** anonymization. The table below shows how PathSa
 | Format-specific deep parsing | Yes (structured tag fields) | No | String replacement only |
 | Multi-IFD scanning | All IFDs with deduplication | Stops at first match | Unknown |
 | Extra metadata tags (XMP, IPTC, EXIF, etc.) | Yes (9 tag types) | No | No |
-| Regex safety scan (binary header) | Yes (first 1MB, 17+ pattern types) | No | No |
+| Regex safety scan (binary header) | Yes (first 1MB, 18+ pattern types) | No | No |
 | Post-anonymization verification | Yes (re-scan + report) | No | No |
 | Image integrity verification | Yes (SHA-256 per IFD) | No | No |
 | Compliance certificate | Yes (JSON audit trail) | No | No |

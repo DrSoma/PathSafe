@@ -22,6 +22,7 @@ from typing import List, Tuple
 #   CH12345       (CHUM-style)
 #   00000AS12345  (padded barcodes)
 #   MRN-12345678  (medical record numbers)
+#   DOB-19800115  (date of birth in filenames)
 PHI_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     # 2-digit year formats: XX-YY-NNNNN
     (re.compile(rb'AS-\d\d-\d{3,}'), 'Accession_AS'),
@@ -44,6 +45,8 @@ PHI_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(rb'MRN[-:# ]?\d{5,}'), 'MRN_Pattern'),
     # SSN pattern (unlikely in WSI but HIPAA safe harbor identifier)
     (re.compile(rb'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)'), 'SSN_Pattern'),
+    # Date of birth in filenames/metadata
+    (re.compile(rb'DOB[-_:# ]?(?:19|20)\d{2}[-/]?\d{2}[-/]?\d{2}'), 'DOB_Pattern'),
 ]
 
 # Date patterns (byte-level) — these match common date formats in metadata.
@@ -76,6 +79,8 @@ PHI_STRING_PATTERNS: List[Tuple[re.Pattern, str]] = [
     # Medical Record Number
     (re.compile(r'MRN[-:# ]?\d{5,}'), 'MRN_Pattern'),
     (re.compile(r'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)'), 'SSN_Pattern'),
+    # Date of birth in filenames/metadata
+    (re.compile(r'DOB[-_:# ]?(?:19|20)\d{2}[-/]?\d{2}[-/]?\d{2}'), 'DOB_Pattern'),
 ]
 
 # Anonymized date sentinel — dates that have already been zeroed

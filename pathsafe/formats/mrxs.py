@@ -90,7 +90,7 @@ class MRXSHandler(FormatHandler):
                 elapsed = (time.monotonic() - t0) * 1000
                 return ScanResult(
                     filepath=filepath, format="mrxs", findings=[],
-                    is_clean=True, scan_time_ms=elapsed,
+                    is_clean=False, scan_time_ms=elapsed,
                     file_size=file_size,
                     error="No companion data directory found",
                 )
@@ -193,10 +193,14 @@ class MRXSHandler(FormatHandler):
         if not config.has_section('GENERAL'):
             return findings
 
+        # Build case-insensitive lookup: uppercase key -> actual INI key
+        general_keys = {k.upper(): k for k in config.options('GENERAL')}
+
         for field in GENERAL_PHI_FIELDS:
-            if not config.has_option('GENERAL', field):
+            actual_key = general_keys.get(field)
+            if actual_key is None:
                 continue
-            value = config.get('GENERAL', field).strip()
+            value = config.get('GENERAL', actual_key).strip()
             if not value or _is_anonymized(field, value):
                 continue
 
@@ -305,11 +309,15 @@ class MRXSHandler(FormatHandler):
         if not config.has_section('GENERAL'):
             return cleared
 
+        # Build case-insensitive lookup: uppercase key -> actual INI key
+        general_keys = {k.upper(): k for k in config.options('GENERAL')}
+
         modified = False
         for field in GENERAL_PHI_FIELDS:
-            if not config.has_option('GENERAL', field):
+            actual_key = general_keys.get(field)
+            if actual_key is None:
                 continue
-            value = config.get('GENERAL', field).strip()
+            value = config.get('GENERAL', actual_key).strip()
             if not value or _is_anonymized(field, value):
                 continue
 
@@ -319,7 +327,7 @@ class MRXSHandler(FormatHandler):
             else:
                 anon_value = 'X' * len(value)
 
-            config.set('GENERAL', field, anon_value)
+            config.set('GENERAL', actual_key, anon_value)
             modified = True
             cleared.append(PHIFinding(
                 offset=0, length=len(value), tag_id=None,
