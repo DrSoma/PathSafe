@@ -48,13 +48,13 @@ Before anonymizing, scan your files to see what PHI is present.
 pathsafe scan /path/to/your/slides/ --verbose
 ```
 
-This is read-only — it does not modify any files. You'll see output like:
+This is read-only and does not modify any files. You'll see output like:
 
 ```
 Scanning 500 file(s)...
-  [1/500] slide001.ndpi — 1 finding(s)
+  [1/500] slide001.ndpi - 1 finding(s)
     NDPI_BARCODE at offset 1234: AS-24-123456
-  [2/500] slide002.ndpi — 1 finding(s)
+  [2/500] slide002.ndpi - 1 finding(s)
     NDPI_BARCODE at offset 1234: AS-24-123457
   ...
 Summary: 500 files scanned, 0 clean, 500 with PHI (500 total findings)
@@ -71,7 +71,7 @@ pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/slides/ --certi
 You'll see progress:
 
 ```
-PathSafe v1.0.0 — copy anonymization
+PathSafe v1.0.0 - copy anonymization
 Processing 500 file(s)...
 
   [1/500] 2.5/s ETA 3m | slide001.ndpi | cleared 1 finding(s) [verified]
@@ -123,8 +123,8 @@ Expected output:
 
 ```
 Verifying 500 file(s)...
-  [1/500] slide001.ndpi — CLEAN
-  [2/500] slide002.ndpi — CLEAN
+  [1/500] slide001.ndpi - CLEAN
+  [2/500] slide002.ndpi - CLEAN
   ...
 Verification: 500 clean, 0 with remaining PHI
 All files verified clean.
@@ -153,21 +153,21 @@ pathsafe gui
 
 If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a modern Qt GUI with:
 
-- **Dark theme** — Catppuccin-inspired dark color scheme, easy on the eyes
-- **Drag-and-drop** — Drop files or folders directly onto the window
-- **Workflow step indicator** — Visual progress through Select Files > Scan > Anonymize > Verify
+- **Dark theme**: Catppuccin-inspired dark color scheme, easy on the eyes
+- **Drag-and-drop**: Drop files or folders directly onto the window
+- **Workflow step indicator**: Visual progress through Select Files > Scan > Anonymize > Verify
 - **Menu bar with keyboard shortcuts**:
-  - `Ctrl+O` — Open file
-  - `Ctrl+Shift+O` — Open folder
-  - `Ctrl+S` — Scan
-  - `Ctrl+R` — Anonymize
-  - `Ctrl+E` — Verify
-  - `Esc` — Stop current operation
-- **Tooltips** — Hover over any control for guidance
-- **Status bar** — Live file count and elapsed time
-- **Log panel** — Real-time output of what's happening
-- **Copy/in-place mode** — Select via radio buttons
-- **Workers** — Adjust parallel processing from the GUI
+ - `Ctrl+O`: Open file
+ - `Ctrl+Shift+O`: Open folder
+ - `Ctrl+S`: Scan
+ - `Ctrl+R`: Anonymize
+ - `Ctrl+E`: Verify
+ - `Esc`: Stop current operation
+- **Tooltips**: Hover over any control for guidance
+- **Status bar**: Live file count and elapsed time
+- **Log panel**: Real-time output of what's happening
+- **Copy/in-place mode**: Select via radio buttons
+- **Workers**: Adjust parallel processing from the GUI
 
 ### Tkinter GUI (Fallback)
 
@@ -192,13 +192,13 @@ If PySide6 is not installed, PathSafe falls back to a simpler Tkinter GUI with t
 
 PathSafe removes these categories of PHI:
 
-- **Accession numbers** — Found in TIFF metadata tags and binary data
-- **Patient names and IDs** — Found in DICOM tags
-- **Dates** — Scan dates, EXIF dates, study dates
-- **Operator/physician names** — Found in SVS and DICOM metadata
-- **Institution information** — Found in DICOM tags
-- **Label/macro images** — Photographed slide labels that may show patient information (NDPI and SVS)
-- **Slide identifiers** — MRXS slide names, barcodes, IDs
+- **Accession numbers**: Found in TIFF metadata tags and binary data
+- **Patient names and IDs**: Found in DICOM tags
+- **Dates**: Scan dates, EXIF dates, study dates
+- **Operator/physician names**: Found in SVS and DICOM metadata
+- **Institution information**: Found in DICOM tags
+- **Label/macro images**: Photographed slide labels that may show patient information (NDPI and SVS)
+- **Slide identifiers**: MRXS slide names, barcodes, IDs
 
 For a detailed breakdown by format, see the main [README](../README.md).
 

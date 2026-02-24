@@ -7,7 +7,8 @@ dist/
 build/
 *.egg
 .eggs/
-*.spec
+# Keep pathsafe.spec but ignore other spec files
+!pathsafe.spec
 .pytest_cache/
 .coverage
 htmlcov/

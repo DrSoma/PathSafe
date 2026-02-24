@@ -91,10 +91,10 @@ PathSafe ensures that whole-slide image (WSI) files are stripped of Protected He
 
 PathSafe uses the following regex patterns to detect accession numbers in raw binary data:
 
-- `AS-\d\d-\d{3,}` — Standard accession format
-- `AC-\d\d-\d{3,}` — Alternative accession format
-- `CH\d{5,}` — CH-prefix accession format
-- `00000AS\d+` — Zero-padded accession format
+- `AS-\d\d-\d{3,}`: Standard accession format
+- `AC-\d\d-\d{3,}`: Alternative accession format
+- `CH\d{5,}`: CH-prefix accession format
+- `00000AS\d+`: Zero-padded accession format
 
 ## Label and Macro Image Handling
 
@@ -143,12 +143,12 @@ pathsafe verify /path/to/anonymized/files/
 
 Each batch anonymization produces a JSON certificate containing:
 
-- **PathSafe version** — Software version used
-- **Certificate ID** — Unique UUID for this anonymization run
-- **Timestamp** — ISO 8601 UTC timestamp
-- **Mode** — "copy" or "inplace"
-- **Summary** — Total files, anonymized count, error count, verification status
-- **Per-file records** — Filename, format, SHA-256 hash after anonymization, findings cleared, verification status
+- **PathSafe version**: Software version used
+- **Certificate ID**: Unique UUID for this anonymization run
+- **Timestamp**: ISO 8601 UTC timestamp
+- **Mode**: "copy" or "inplace"
+- **Summary**: Total files, anonymized count, error count, verification status
+- **Per-file records**: Filename, format, SHA-256 hash after anonymization, findings cleared, verification status
 
 ### Certificate Storage
 
@@ -178,9 +178,9 @@ For each anonymized file, the certificate records:
 
 PathSafe supports compliance with:
 
-- **HIPAA Safe Harbor** (45 CFR 164.514(b)(2)) — Removal of identifiers from health information
-- **HIPAA Expert Determination** — When used as part of a broader de-identification workflow
-- **GDPR Article 89** — Processing for research purposes with appropriate safeguards
+- **HIPAA Safe Harbor** (45 CFR 164.514(b)(2)): Removal of identifiers from health information
+- **HIPAA Expert Determination**: When used as part of a broader de-identification workflow
+- **GDPR Article 89**: Processing for research purposes with appropriate safeguards
 - **Institutional Review Board (IRB)** requirements for de-identified data
 
 PathSafe is a tool that assists with de-identification. Compliance ultimately depends on institutional policies and the completeness of PHI detection patterns for your specific data.

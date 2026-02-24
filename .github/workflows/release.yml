@@ -1,0 +1,84 @@
+name: Build and Release
+
+# Builds standalone executables for Windows, Linux, and macOS
+# whenever you publish a release on GitHub.
+#
+# How to trigger:
+#   1. Go to your repo on GitHub
+#   2. Click "Releases" on the right sidebar
+#   3. Click "Draft a new release"
+#   4. Create a tag like "v1.0.0", add a title and description
+#   5. Click "Publish release"
+#   6. The executables will be built and attached automatically
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            cli_artifact: pathsafe-linux
+            gui_artifact: pathsafe-gui-linux
+          - os: windows-latest
+            name: Windows
+            cli_artifact: pathsafe-windows.exe
+            gui_artifact: pathsafe-gui-windows.exe
+          - os: macos-latest
+            name: macOS
+            cli_artifact: pathsafe-macos
+            gui_artifact: pathsafe-gui-macos
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.name }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+          pip install pyinstaller
+
+      # Linux needs display libraries for PySide6
+      - name: Install Linux display libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-cursor0 libegl1
+
+      - name: Build with PyInstaller
+        run: pyinstaller pathsafe.spec
+
+      # Rename outputs to platform-specific names
+      - name: Rename artifacts (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mv dist/pathsafe dist/${{ matrix.cli_artifact }}
+          mv dist/pathsafe-gui dist/${{ matrix.gui_artifact }}
+
+      - name: Rename artifacts (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mv dist/pathsafe.exe dist/${{ matrix.cli_artifact }}
+          mv dist/pathsafe-gui.exe dist/${{ matrix.gui_artifact }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/${{ matrix.cli_artifact }}
+            dist/${{ matrix.gui_artifact }}

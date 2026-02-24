@@ -4,7 +4,7 @@ One-click anonymize workflow: browse files, scan, anonymize, verify.
 Uses PySide6 (Qt6) for native look and crisp text on all platforms.
 
 Features:
-- Dark Catppuccin-inspired theme
+- Light and dark theme (switchable from View menu)
 - Drag-and-drop file/folder support
 - Workflow step indicator
 - Menu bar with keyboard shortcuts
@@ -17,10 +17,11 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize
+from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize, QSettings
 from PySide6.QtGui import (
     QFont, QTextCursor, QAction, QKeySequence, QColor,
     QPainter, QPen, QBrush, QDragEnterEvent, QDropEvent,
+    QActionGroup,
 )
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -214,6 +215,216 @@ QToolTip {
     padding: 4px 8px;
 }
 """
+
+LIGHT_QSS = """
+QMainWindow, QWidget {
+    background-color: #f5f5f5;
+    color: #1e1e2e;
+    font-size: 13px;
+}
+QGroupBox {
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    margin-top: 8px;
+    padding-top: 14px;
+    font-weight: bold;
+    color: #1a65c0;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+}
+QLineEdit {
+    background-color: #ffffff;
+    color: #1e1e2e;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 6px 8px;
+    selection-background-color: #a8d0f0;
+}
+QLineEdit:focus {
+    border: 1px solid #1a65c0;
+}
+QPushButton {
+    background-color: #e8e8e8;
+    color: #1e1e2e;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 6px 14px;
+    min-height: 24px;
+}
+QPushButton:hover {
+    background-color: #d0d0d0;
+    border-color: #a0a0a0;
+}
+QPushButton:pressed {
+    background-color: #b8b8b8;
+}
+QPushButton:disabled {
+    color: #a0a0a0;
+    background-color: #f0f0f0;
+    border-color: #d8d8d8;
+}
+QPushButton#btn_scan {
+    background-color: #dce8f5;
+    border-color: #1a65c0;
+    color: #1a65c0;
+    font-weight: bold;
+}
+QPushButton#btn_scan:hover {
+    background-color: #c5d8ee;
+}
+QPushButton#btn_anonymize {
+    background-color: #dcf0de;
+    border-color: #2e8b3e;
+    color: #2e8b3e;
+    font-weight: bold;
+}
+QPushButton#btn_anonymize:hover {
+    background-color: #c0e4c4;
+}
+QPushButton#btn_verify {
+    background-color: #dcf0ee;
+    border-color: #1a8a7a;
+    color: #1a8a7a;
+    font-weight: bold;
+}
+QPushButton#btn_verify:hover {
+    background-color: #c0e4e0;
+}
+QPushButton#btn_stop {
+    background-color: #f5dcdc;
+    border-color: #c03030;
+    color: #c03030;
+    font-weight: bold;
+}
+QPushButton#btn_stop:hover {
+    background-color: #eac4c4;
+}
+QRadioButton, QCheckBox {
+    color: #1e1e2e;
+    spacing: 6px;
+}
+QRadioButton::indicator, QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+}
+QSpinBox {
+    background-color: #ffffff;
+    color: #1e1e2e;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 4px;
+}
+QProgressBar {
+    background-color: #e0e0e0;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    text-align: center;
+    color: #1e1e2e;
+    min-height: 20px;
+}
+QProgressBar::chunk {
+    background-color: #1a65c0;
+    border-radius: 3px;
+}
+QTextEdit {
+    background-color: #ffffff;
+    color: #333333;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    selection-background-color: #a8d0f0;
+}
+QTabWidget::pane {
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+}
+QTabBar::tab {
+    background-color: #e8e8e8;
+    color: #666666;
+    border: 1px solid #c0c0c0;
+    padding: 6px 16px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background-color: #f5f5f5;
+    color: #1e1e2e;
+    border-bottom-color: #f5f5f5;
+}
+QStatusBar {
+    background-color: #ebebeb;
+    border-top: 1px solid #c0c0c0;
+    color: #666666;
+    padding: 2px;
+}
+QMenuBar {
+    background-color: #ebebeb;
+    color: #1e1e2e;
+    border-bottom: 1px solid #c0c0c0;
+}
+QMenuBar::item:selected {
+    background-color: #d0d0d0;
+}
+QMenu {
+    background-color: #f5f5f5;
+    color: #1e1e2e;
+    border: 1px solid #c0c0c0;
+}
+QMenu::item:selected {
+    background-color: #d0d0d0;
+}
+QToolBar {
+    background-color: #ebebeb;
+    border-bottom: 1px solid #c0c0c0;
+    spacing: 4px;
+    padding: 2px;
+}
+QToolTip {
+    background-color: #f5f5f5;
+    color: #1e1e2e;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+"""
+
+# Theme color constants for paintEvent widgets
+THEME_COLORS = {
+    'dark': {
+        'completed': '#a6e3a1',
+        'active': '#89b4fa',
+        'inactive_fill': '#313244',
+        'inactive_border': '#45475a',
+        'circle_inner': '#1e1e2e',
+        'text_dim': '#6c7086',
+        'text_bright': '#cdd6f4',
+        'drop_border': '#45475a',
+        'drop_bg': '#181825',
+        'drop_hover_border': '#89b4fa',
+        'drop_hover_bg': '#1e1e3e',
+        'drop_text': '#6c7086',
+        'drop_hint': '#585b70',
+    },
+    'light': {
+        'completed': '#2e8b3e',
+        'active': '#1a65c0',
+        'inactive_fill': '#e0e0e0',
+        'inactive_border': '#c0c0c0',
+        'circle_inner': '#f5f5f5',
+        'text_dim': '#888888',
+        'text_bright': '#1e1e2e',
+        'drop_border': '#c0c0c0',
+        'drop_bg': '#ebebeb',
+        'drop_hover_border': '#1a65c0',
+        'drop_hover_bg': '#dce8f5',
+        'drop_text': '#888888',
+        'drop_hint': '#aaaaaa',
+    },
+}
 
 
 # --- Worker Threads (unchanged) ---
@@ -457,22 +668,32 @@ class DropZoneWidget(QWidget):
 
         self._icon_label = QLabel("Drag files or folders here")
         self._icon_label.setAlignment(Qt.AlignCenter)
-        self._icon_label.setStyleSheet(
-            "QLabel { color: #6c7086; font-size: 14px; font-weight: bold; }")
         layout.addWidget(self._icon_label)
 
         self._hint_label = QLabel("or use the Browse buttons below")
         self._hint_label.setAlignment(Qt.AlignCenter)
-        self._hint_label.setStyleSheet(
-            "QLabel { color: #585b70; font-size: 11px; }")
         layout.addWidget(self._hint_label)
 
+        self._theme = 'dark'
+        self._apply_theme_colors()
+
+    def set_theme(self, theme):
+        self._theme = theme
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self):
+        c = THEME_COLORS[self._theme]
+        self._icon_label.setStyleSheet(
+            f"QLabel {{ color: {c['drop_text']}; font-size: 14px; "
+            f"font-weight: bold; }}")
+        self._hint_label.setStyleSheet(
+            f"QLabel {{ color: {c['drop_hint']}; font-size: 11px; }}")
         self._default_ss = (
-            "DropZoneWidget { border: 2px dashed #45475a; "
-            "border-radius: 10px; background-color: #181825; }")
+            f"DropZoneWidget {{ border: 2px dashed {c['drop_border']}; "
+            f"border-radius: 10px; background-color: {c['drop_bg']}; }}")
         self._hover_ss = (
-            "DropZoneWidget { border: 2px dashed #89b4fa; "
-            "border-radius: 10px; background-color: #1e1e3e; }")
+            f"DropZoneWidget {{ border: 2px dashed {c['drop_hover_border']}; "
+            f"border-radius: 10px; background-color: {c['drop_hover_bg']}; }}")
         self.setStyleSheet(self._default_ss)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -503,6 +724,11 @@ class StepIndicator(QFrame):
         self.setFixedHeight(56)
         self._current = 0
         self._completed = set()
+        self._theme = 'dark'
+
+    def set_theme(self, theme):
+        self._theme = theme
+        self.update()
 
     def set_step(self, index):
         self._current = index
@@ -518,6 +744,7 @@ class StepIndicator(QFrame):
         self.update()
 
     def paintEvent(self, event):
+        c = THEME_COLORS[self._theme]
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -534,26 +761,26 @@ class StepIndicator(QFrame):
             # Connecting line
             if i > 0:
                 prev_cx = int(spacing * (i - 1) + spacing / 2)
-                color = QColor('#a6e3a1') if (i - 1) in self._completed else QColor('#45475a')
+                color = QColor(c['completed']) if (i - 1) in self._completed else QColor(c['inactive_border'])
                 painter.setPen(QPen(color, 2))
                 painter.drawLine(prev_cx + r, cy, cx - r, cy)
 
             # Circle
             if i in self._completed:
-                painter.setBrush(QBrush(QColor('#a6e3a1')))
-                painter.setPen(QPen(QColor('#a6e3a1'), 2))
+                painter.setBrush(QBrush(QColor(c['completed'])))
+                painter.setPen(QPen(QColor(c['completed']), 2))
             elif i == self._current:
-                painter.setBrush(QBrush(QColor('#89b4fa')))
-                painter.setPen(QPen(QColor('#89b4fa'), 2))
+                painter.setBrush(QBrush(QColor(c['active'])))
+                painter.setPen(QPen(QColor(c['active']), 2))
             else:
-                painter.setBrush(QBrush(QColor('#313244')))
-                painter.setPen(QPen(QColor('#45475a'), 2))
+                painter.setBrush(QBrush(QColor(c['inactive_fill'])))
+                painter.setPen(QPen(QColor(c['inactive_border']), 2))
 
             painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
 
             # Number or check
             is_active = i in self._completed or i == self._current
-            painter.setPen(QPen(QColor('#1e1e2e' if is_active else '#6c7086')))
+            painter.setPen(QPen(QColor(c['circle_inner'] if is_active else c['text_dim'])))
             font = QFont('', 10)
             font.setBold(True)
             painter.setFont(font)
@@ -562,7 +789,7 @@ class StepIndicator(QFrame):
             painter.drawText(cx - tw // 2, cy + 5, text)
 
             # Label below
-            painter.setPen(QPen(QColor('#cdd6f4' if i == self._current else '#6c7086')))
+            painter.setPen(QPen(QColor(c['text_bright'] if i == self._current else c['text_dim'])))
             font = QFont('', 9)
             painter.setFont(font)
             tw = painter.fontMetrics().horizontalAdvance(label)
@@ -585,10 +812,13 @@ class PathSafeWindow(QMainWindow):
 
         self._worker = None
         self._last_dir = str(Path.home())
+        self._settings = QSettings('PathSafe', 'PathSafe')
+        self._current_theme = self._settings.value('theme', 'dark')
 
         self._build_menu_bar()
         self._build_ui()
         self._setup_status_bar()
+        self._apply_theme(self._current_theme)
 
     def _build_menu_bar(self):
         menu_bar = self.menuBar()
@@ -639,6 +869,26 @@ class PathSafeWindow(QMainWindow):
         self._stop_action.triggered.connect(self._request_stop)
         actions_menu.addAction(self._stop_action)
 
+        # View menu
+        view_menu = menu_bar.addMenu("&View")
+
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        self._dark_action = QAction("&Dark Theme", self)
+        self._dark_action.setCheckable(True)
+        self._dark_action.setChecked(self._current_theme == 'dark')
+        self._dark_action.triggered.connect(lambda: self._apply_theme('dark'))
+        theme_group.addAction(self._dark_action)
+        view_menu.addAction(self._dark_action)
+
+        self._light_action = QAction("&Light Theme", self)
+        self._light_action.setCheckable(True)
+        self._light_action.setChecked(self._current_theme == 'light')
+        self._light_action.triggered.connect(lambda: self._apply_theme('light'))
+        theme_group.addAction(self._light_action)
+        view_menu.addAction(self._light_action)
+
         # Help menu
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction("&About PathSafe", self)
@@ -674,11 +924,11 @@ class PathSafeWindow(QMainWindow):
             "You can also drag and drop files here.")
         input_row.addWidget(self.input_edit, 1)
         btn_file = QPushButton('File')
-        btn_file.setFixedWidth(60)
+        btn_file.setFixedWidth(70)
         btn_file.clicked.connect(self._browse_input_file)
         input_row.addWidget(btn_file)
         btn_folder = QPushButton('Folder')
-        btn_folder.setFixedWidth(60)
+        btn_folder.setFixedWidth(70)
         btn_folder.clicked.connect(self._browse_input_dir)
         input_row.addWidget(btn_folder)
         paths_layout.addLayout(input_row)
@@ -693,7 +943,7 @@ class PathSafeWindow(QMainWindow):
             "Only needed in Copy mode.")
         output_row.addWidget(self.output_edit, 1)
         btn_out = QPushButton('Browse')
-        btn_out.setFixedWidth(70)
+        btn_out.setFixedWidth(80)
         btn_out.clicked.connect(self._browse_output_dir)
         output_row.addWidget(btn_out)
         paths_layout.addLayout(output_row)
@@ -987,6 +1237,18 @@ class PathSafeWindow(QMainWindow):
 
         self._worker = VerifyWorker(input_p, signals)
         self._worker.start()
+
+    # --- Theme ---
+
+    def _apply_theme(self, theme):
+        self._current_theme = theme
+        qss = DARK_QSS if theme == 'dark' else LIGHT_QSS
+        QApplication.instance().setStyleSheet(qss)
+        self.step_indicator.set_theme(theme)
+        self.drop_zone.set_theme(theme)
+        self._dark_action.setChecked(theme == 'dark')
+        self._light_action.setChecked(theme == 'light')
+        self._settings.setValue('theme', theme)
 
     # --- About ---
 

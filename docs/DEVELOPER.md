@@ -22,9 +22,9 @@ Optional (openslide_utils.py)
 
 ### Core Layer
 
-- **`tiff.py`** — Low-level TIFF/BigTIFF binary parser using Python's `struct` module. Reads headers, IFD entries, tag values. Handles both byte orders and BigTIFF. Also provides label/macro image blanking utilities (`blank_ifd_image_data`, `get_ifd_image_size`, `get_ifd_image_data_size`).
-- **`scanner.py`** — PHI detection patterns (regex for accession numbers, dates). Provides `scan_bytes_for_phi()` and `scan_string_for_phi()`.
-- **`models.py`** — Dataclasses (`PHIFinding`, `ScanResult`, `AnonymizationResult`, `BatchResult`).
+- **`tiff.py`**: Low-level TIFF/BigTIFF binary parser using Python's `struct` module. Reads headers, IFD entries, tag values. Handles both byte orders and BigTIFF. Also provides label/macro image blanking utilities (`blank_ifd_image_data`, `get_ifd_image_size`, `get_ifd_image_data_size`).
+- **`scanner.py`**: PHI detection patterns (regex for accession numbers, dates). Provides `scan_bytes_for_phi()` and `scan_string_for_phi()`.
+- **`models.py`**: Dataclasses (`PHIFinding`, `ScanResult`, `AnonymizationResult`, `BatchResult`).
 
 ### Format Handlers
 
@@ -42,27 +42,27 @@ Handlers are registered in `formats/__init__.py` in priority order. The first ha
 
 ### Current Format Handlers
 
-- **`formats/ndpi.py`** — Hamamatsu NDPI: tag 65468 (barcode), 65427 (reference), DateTime, macro/barcode image blanking (via NDPI_SOURCELENS tag), regex safety scan.
-- **`formats/svs.py`** — Aperio SVS: tag 270 (ImageDescription) pipe-delimited key=value parsing for ScanScope ID, Filename, Date, Time, User. DateTime tags. Label/macro image blanking. Regex safety scan.
-- **`formats/mrxs.py`** — 3DHISTECH/MIRAX MRXS: Slidedat.ini parsing (configparser), SLIDE_ID, SLIDE_NAME, SLIDE_BARCODE, SLIDE_CREATIONDATETIME in [GENERAL] section. Regex safety scan of both .mrxs file and Slidedat.ini.
-- **`formats/dicom.py`** — DICOM WSI: uses `pydicom` (optional dependency). Blanks Type 2 tags (PatientName, PatientID, etc.), deletes Type 3 tags (PatientAddress, OtherPatientIDs, etc.), removes all private tags. Only loaded if pydicom is installed.
-- **`formats/generic_tiff.py`** — Fallback: scans all ASCII string tags for PHI patterns.
+- **`formats/ndpi.py`**: Hamamatsu NDPI: tag 65468 (barcode), 65427 (reference), DateTime, macro/barcode image blanking (via NDPI_SOURCELENS tag), regex safety scan.
+- **`formats/svs.py`**: Aperio SVS: tag 270 (ImageDescription) pipe-delimited key=value parsing for ScanScope ID, Filename, Date, Time, User. DateTime tags. Label/macro image blanking. Regex safety scan.
+- **`formats/mrxs.py`**: 3DHISTECH/MIRAX MRXS: Slidedat.ini parsing (configparser), SLIDE_ID, SLIDE_NAME, SLIDE_BARCODE, SLIDE_CREATIONDATETIME in [GENERAL] section. Regex safety scan of both .mrxs file and Slidedat.ini.
+- **`formats/dicom.py`**: DICOM WSI: uses `pydicom` (optional dependency). Blanks Type 2 tags (PatientName, PatientID, etc.), deletes Type 3 tags (PatientAddress, OtherPatientIDs, etc.), removes all private tags. Only loaded if pydicom is installed.
+- **`formats/generic_tiff.py`**: Fallback that scans all ASCII string tags for PHI patterns.
 
 ### Orchestration Layer
 
-- **`anonymizer.py`** — `anonymize_file()` handles copy-then-anonymize and in-place modes. `anonymize_batch()` processes directories with progress callbacks. Supports parallel processing via `ThreadPoolExecutor` (`workers` parameter).
-- **`verify.py`** — Re-scans files after anonymization.
-- **`report.py`** — Generates JSON compliance certificates with SHA-256 hashes.
+- **`anonymizer.py`**: `anonymize_file()` handles copy-then-anonymize and in-place modes. `anonymize_batch()` processes directories with progress callbacks. Supports parallel processing via `ThreadPoolExecutor` (`workers` parameter).
+- **`verify.py`**: Re-scans files after anonymization.
+- **`report.py`**: Generates JSON compliance certificates with SHA-256 hashes.
 
 ### Interface Layer
 
-- **`cli.py`** — Click-based CLI with `scan`, `anonymize`, `verify`, `info`, and `gui` subcommands.
-- **`gui_qt.py`** — PySide6 Qt GUI with Catppuccin dark theme, drag-and-drop, workflow step indicator, menu bar with keyboard shortcuts, tooltips, status bar. Runs operations in background threads via `QThread` workers.
-- **`gui.py`** — Tkinter GUI fallback. Same core functionality with simpler styling.
+- **`cli.py`**: Click-based CLI with `scan`, `anonymize`, `verify`, `info`, and `gui` subcommands.
+- **`gui_qt.py`**: PySide6 Qt GUI with Catppuccin dark theme, drag-and-drop, workflow step indicator, menu bar with keyboard shortcuts, tooltips, status bar. Runs operations in background threads via `QThread` workers.
+- **`gui.py`**: Tkinter GUI fallback. Same core functionality with simpler styling.
 
 ### Optional Utilities
 
-- **`openslide_utils.py`** — Optional integration with `openslide-python` for enhanced format detection and slide property reading. All functions gracefully return empty/None if OpenSlide is not installed.
+- **`openslide_utils.py`**: Optional integration with `openslide-python` for enhanced format detection and slide property reading. All functions gracefully return empty/None if OpenSlide is not installed.
 
 ## Label/Macro Image Handling
 
@@ -72,15 +72,15 @@ NDPI and SVS files can contain embedded label and macro images that photograph t
 
 The `tiff.py` module provides utilities for blanking image data:
 
-- **`blank_ifd_image_data()`** — Overwrites all strip/tile data in an IFD with a minimal valid JPEG (`\xFF\xD8\xFF\xD9`) followed by zero bytes, preserving TIFF structure.
-- **`get_ifd_image_size()`** — Reads image width/height from IFD tags.
-- **`get_ifd_image_data_size()`** — Calculates total strip/tile data size.
+- **`blank_ifd_image_data()`**: Overwrites all strip/tile data in an IFD with a minimal valid JPEG (`\xFF\xD8\xFF\xD9`) followed by zero bytes, preserving TIFF structure.
+- **`get_ifd_image_size()`**: Reads image width/height from IFD tags.
+- **`get_ifd_image_data_size()`**: Calculates total strip/tile data size.
 
 ### NDPI Label/Macro Detection
 
 NDPI uses the proprietary `NDPI_SOURCELENS` tag (65421) to mark special pages:
-- `SOURCELENS = -1.0` — Macro image (overview of the full slide)
-- `SOURCELENS = -2.0` — Barcode/label image
+- `SOURCELENS = -1.0`: Macro image (overview of the full slide)
+- `SOURCELENS = -2.0`: Barcode/label image
 
 ### SVS Label/Macro Detection
 
@@ -131,7 +131,7 @@ _HANDLERS = [
 
 4. Add the format to `WSI_EXTENSIONS` in `anonymizer.py` and `--format` choices in `cli.py`.
 
-5. The GUI will automatically pick up the new format — no changes needed there.
+5. The GUI will automatically pick up the new format, so no changes are needed there.
 
 ## Adding New PHI Patterns
 
@@ -192,16 +192,16 @@ pyinstaller pathsafe.spec
 ```
 
 This produces:
-- `dist/pathsafe` — CLI executable
-- `dist/pathsafe-gui` — GUI executable (no console window)
+- `dist/pathsafe`: CLI executable
+- `dist/pathsafe-gui`: GUI executable (no console window)
 
 ## Project Dependencies
 
 - **Core runtime**: Python 3.9+, `click` (CLI framework)
 - **File parsing**: Python stdlib only (`struct`, `re`, `pathlib`, `hashlib`)
-- **GUI (optional)**: `PySide6>=6.5` — install with `pip install pathsafe[gui]`
-- **DICOM (optional)**: `pydicom>=2.3` — install with `pip install pathsafe[dicom]`
-- **OpenSlide (optional)**: `openslide-python>=1.2` — install with `pip install pathsafe[openslide]`
+- **GUI (optional)**: `PySide6>=6.5`, installed with `pip install pathsafe[gui]`
+- **DICOM (optional)**: `pydicom>=2.3`, installed with `pip install pathsafe[dicom]`
+- **OpenSlide (optional)**: `openslide-python>=1.2`, installed with `pip install pathsafe[openslide]`
 - **Dev**: `pytest>=7.0`, `pytest-cov`
 - **Build**: PyInstaller for standalone executables
 
@@ -210,7 +210,7 @@ This produces:
 - Type hints on all public functions
 - Dataclasses for structured return values
 - No external dependencies for file parsing (security and portability)
-- Format handlers are self-contained — each knows how to detect, scan, and anonymize its format
+- Format handlers are self-contained, as each knows how to detect, scan, and anonymize its format
 - Optional dependencies use `try: import ... except ImportError` pattern with graceful fallbacks
 - GUI operations run in background threads (`QThread` for Qt, `threading.Thread` for Tkinter)
 - Parallel batch processing uses `ThreadPoolExecutor` (thread-safe stat updates via locks)
