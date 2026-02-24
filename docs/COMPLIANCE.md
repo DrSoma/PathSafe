@@ -184,3 +184,14 @@ PathSafe supports compliance with:
 - **Institutional Review Board (IRB)** requirements for de-identified data
 
 PathSafe is a tool that assists with de-identification. Compliance ultimately depends on institutional policies and the completeness of PHI detection patterns for your specific data.
+
+## Software Security
+
+PathSafe is designed with security in mind:
+
+- **No network access**: PathSafe never connects to the internet. All processing happens locally on the user's machine. No data leaves the system.
+- **No external dependencies for file parsing**: All TIFF/WSI file reading and writing uses Python's built-in `struct` module. There are no third-party C libraries that could introduce buffer overflow or memory corruption vulnerabilities.
+- **No code execution from files**: PathSafe never executes, evaluates, or deserializes any data found in slide files. It reads bytes at known offsets and overwrites them with sanitized values.
+- **Memory-safe implementation**: Python's memory safety model prevents buffer overflow attacks from maliciously crafted input files.
+- **Minimal dependency surface**: The only runtime dependency is `click` (CLI framework). Optional dependencies (PySide6, pydicom, openslide-python) are well-established, widely audited libraries.
+- **Open source**: The entire codebase is available for review. There is no hidden functionality or telemetry.

@@ -26,7 +26,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPushButton, QRadioButton,
-    QCheckBox, QSpinBox, QProgressBar, QTextEdit, QFileDialog,
+    QCheckBox, QSpinBox, QSlider, QProgressBar, QTextEdit, QFileDialog,
     QMessageBox, QButtonGroup, QSizePolicy, QTabWidget, QFrame,
     QToolBar,
 )
@@ -140,6 +140,28 @@ QSpinBox {
     border: 1px solid #45475a;
     border-radius: 4px;
     padding: 4px;
+}
+QSlider {
+    min-height: 28px;
+}
+QSlider::groove:horizontal {
+    height: 6px;
+    background-color: #313244;
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    width: 16px;
+    height: 16px;
+    margin: -5px 0;
+    background-color: #89b4fa;
+    border-radius: 8px;
+}
+QSlider::handle:horizontal:hover {
+    background-color: #b4d0fb;
+}
+QSlider::sub-page:horizontal {
+    background-color: #89b4fa;
+    border-radius: 3px;
 }
 QProgressBar {
     background-color: #313244;
@@ -316,6 +338,28 @@ QSpinBox {
     border: 1px solid #c0c0c0;
     border-radius: 4px;
     padding: 4px;
+}
+QSlider {
+    min-height: 28px;
+}
+QSlider::groove:horizontal {
+    height: 6px;
+    background-color: #d0d0d0;
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    width: 16px;
+    height: 16px;
+    margin: -5px 0;
+    background-color: #1a65c0;
+    border-radius: 8px;
+}
+QSlider::handle:horizontal:hover {
+    background-color: #2878d8;
+}
+QSlider::sub-page:horizontal {
+    background-color: #1a65c0;
+    border-radius: 3px;
 }
 QProgressBar {
     background-color: #e0e0e0;
@@ -980,15 +1024,21 @@ class PathSafeWindow(QMainWindow):
 
         opts_layout.addSpacing(20)
         opts_layout.addWidget(QLabel('Workers:'))
-        self.spin_workers = QSpinBox()
-        self.spin_workers.setRange(1, 16)
-        self.spin_workers.setValue(4)
-        self.spin_workers.setFixedWidth(60)
-        self.spin_workers.setToolTip(
+        self._workers_label = QLabel('4')
+        self._workers_label.setFixedWidth(20)
+        self._workers_label.setAlignment(Qt.AlignCenter)
+        self.slider_workers = QSlider(Qt.Horizontal)
+        self.slider_workers.setRange(1, 16)
+        self.slider_workers.setValue(4)
+        self.slider_workers.setFixedWidth(120)
+        self.slider_workers.setToolTip(
             "Number of files to process simultaneously.\n"
             "Higher values are faster but use more memory.\n"
             "Recommended: 2-4 for most systems.")
-        opts_layout.addWidget(self.spin_workers)
+        self.slider_workers.valueChanged.connect(
+            lambda v: self._workers_label.setText(str(v)))
+        opts_layout.addWidget(self.slider_workers)
+        opts_layout.addWidget(self._workers_label)
 
         opts_layout.addStretch()
         layout.addWidget(opts_group)
@@ -1208,7 +1258,7 @@ class PathSafeWindow(QMainWindow):
         self._worker = AnonymizeWorker(
             input_p, output_dir,
             self.check_verify.isChecked(),
-            self.spin_workers.value(),
+            self.slider_workers.value(),
             signals,
         )
         self._worker.start()
