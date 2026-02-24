@@ -82,15 +82,18 @@ pip install pathsafe
 | `pip install pathsafe[gui]` | Graphical interface (recommended) |
 | `pip install pathsafe[dicom]` | Support for DICOM WSI files |
 | `pip install pathsafe[openslide]` | Enhanced format detection via OpenSlide |
+| `pip install pathsafe[convert]` | Format conversion (OpenSlide + tifffile) |
 | `pip install pathsafe[all]` | All of the above |
 
 ---
 
 # How to Use PathSafe
 
-There are two ways to use PathSafe: the **graphical interface** (easier) or the **command line** (more flexible).
+There are two ways to use PathSafe: the **graphical interface** (easier, recommended for most users) or the **command line** (more flexible, better for scripting).
 
-## Option A: Graphical Interface (recommended for most users)
+For detailed, step-by-step instructions with screenshots of every option, see the **[full instructions guide](docs/INSTRUCTIONS.md)**.
+
+## Option A: Graphical Interface (recommended)
 
 Launch the GUI:
 
@@ -100,51 +103,65 @@ Launch the GUI:
 The interface walks you through four steps:
 
 1. **Select Files**: Browse for files or folders, or drag and drop them onto the window
-2. **Scan**: PathSafe checks your files and reports what patient data it found (nothing is changed yet)
-3. **Anonymize**: PathSafe removes all patient data (your originals are preserved by default)
-4. **Verify**: PathSafe re-scans the anonymized files to confirm everything was removed
+2. **Scan**: Click **Scan for PHI** -- PathSafe checks your files and reports what patient data it found (nothing is changed yet)
+3. **Anonymize**: Click **Anonymize** -- PathSafe copies your files to the output folder and removes all patient data from the copies (your originals are never touched)
+4. **Verify**: Click **Verify** -- PathSafe re-scans the anonymized files to confirm everything was removed
 
-The GUI includes a dark and light theme (switchable from the View menu), tooltips on every button, and keyboard shortcuts for common actions.
+A summary popup appears after each step telling you exactly what happened.
+
+### GUI Features
+
+| Feature | How to use it |
+|---------|---------------|
+| **Dark / Light theme** | View menu, or it remembers your last choice |
+| **Drag and drop** | Drop files or folders directly onto the window |
+| **Keyboard shortcuts** | Ctrl+S (scan), Ctrl+R (anonymize), Ctrl+E (verify), Ctrl+I (info), Ctrl+T (convert) |
+| **Parallel processing** | Adjust the Workers slider (2-4 recommended) |
+| **Dry run** | Check "Dry run" to preview without modifying anything |
+| **Verify image integrity** | Check in Compliance section -- proves diagnostic images were not altered using SHA-256 checksums |
+| **Compliance options** | Reset timestamps, attestation, assessment checklist -- all in the Compliance section |
+| **Save log / Export JSON** | Save your results for record-keeping (Actions menu or buttons) |
 
 ## Option B: Command Line
 
-### Step 1: Scan your files (nothing is modified)
+Three commands is all you need:
 
-```
+```bash
+# 1. Scan your files (nothing is changed)
 pathsafe scan /path/to/slides/ --verbose
-```
 
-This shows you what patient data is present without changing anything. Think of it as a preview.
-
-### Step 2: Anonymize (originals are preserved)
-
-```
+# 2. Anonymize (copies to a new folder, originals safe)
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/
-```
 
-This creates anonymized copies in the output folder. Your original files are untouched.
-
-If you want to modify files directly instead of copying (e.g., you already have backups):
-
-```
-pathsafe anonymize /path/to/slides/ --in-place
-```
-
-### Step 3: Verify the results
-
-```
+# 3. Verify the results
 pathsafe verify /path/to/clean/
 ```
 
-This re-scans every anonymized file and confirms that no patient data remains.
+### With full compliance documentation:
 
-### Step 4 (optional): Generate a compliance certificate
-
+```bash
+pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
+    --certificate certificate.json \
+    --checklist checklist.json \
+    --verify-integrity \
+    --reset-timestamps
 ```
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --certificate /path/to/clean/certificate.json
+
+This generates a compliance certificate, an assessment checklist, verifies that diagnostic images were not altered, and resets file timestamps.
+
+### In-place mode (modifies originals -- make sure you have backups):
+
+```bash
+pathsafe anonymize /path/to/slides/ --in-place
 ```
 
-The certificate is a JSON file that records exactly what was done to each file, useful for audits and regulatory compliance.
+### Format conversion (requires `pip install pathsafe[convert]`):
+
+```bash
+pathsafe convert slide.ndpi -o slide.tiff              # Convert to TIFF
+pathsafe convert slide.ndpi -o slide.tiff --anonymize   # Convert + anonymize
+pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
+```
 
 ---
 
@@ -155,29 +172,61 @@ The certificate is a JSON file that records exactly what was done to each file, 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
 | Accession numbers | Tag 65468 (NDPI_BARCODE) | This is the primary patient identifier in Hamamatsu files |
-| Reference strings | Tag 65427 (NDPI_REFERENCE) | May contain additional identifying information |
-| Scan dates | DateTime tags | Dates can be used to re-identify patients when combined with other records |
-| Macro image | Embedded overview photo | A photograph of the entire slide, including the label with patient info |
-| Barcode image | Embedded barcode photo | A photograph of the slide barcode, which encodes the accession number |
+| Reference strings | Tag 65427 (NDPI_REFERENCE) — scanned across **all** IFDs | May contain additional identifying information; present in every IFD |
+| Scanner serial number | Tag 65442 (NDPI_SERIAL_NUMBER) | Device fingerprint that could link slides to a specific institution |
+| Scanner properties | Tag 65449 (NDPI_SCANNER_PROPS): dates, serial numbers | Created/Updated timestamps, macro/NDP serial numbers |
+| Extra metadata | Tags 270, 305, 315, 316 (ImageDescription, Software, Artist, HostComputer) | Institutional info, operator names, host computer identifiers |
+| Scan dates | DateTime tags (306, 36867, 36868) | Dates can be used to re-identify patients when combined with other records |
+| Macro/label image | Embedded overview photo | A photograph of the entire slide, including the label with patient info |
+| Companion files | .ndpa annotation files | XML annotation files that may reference patient identifiers |
+| Filename patterns | Accession numbers in filenames | Filenames like `AS-24-123456.ndpi` contain case numbers |
 | Remaining patterns | Binary scan of header | A safety net that catches any accession numbers embedded elsewhere in the file |
 
 ## SVS (Aperio)
 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
-| Scanner ID, filename, operator name | ImageDescription metadata | Contains the operator who scanned the slide and the original filename |
-| Scan dates | DateTime tags | Dates can be cross-referenced with clinical records |
+| Scanner ID, filename, operator name | ImageDescription metadata — scanned across **all** IFDs | Contains the operator who scanned the slide and the original filename |
+| Scan dates | DateTime tags — scanned across **all** IFDs | Dates can be cross-referenced with clinical records |
+| Extra metadata | Software, Artist, HostComputer, XMP, Copyright | Institutional info and device fingerprints |
 | Label image | Embedded label photo | A photograph of the physical slide label, which often has the patient name or ID |
 | Macro image | Embedded overview photo | A wide-angle photo that may capture the label |
+| Filename patterns | Accession numbers in filenames | Filenames containing case identifiers |
 | Remaining patterns | Binary scan of header | A safety net for any accession numbers embedded elsewhere |
 
 ## MRXS (3DHISTECH/MIRAX)
 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
-| Slide ID, name, barcode | Slidedat.ini configuration file | These fields directly identify the patient or case |
-| Creation date/time | Slidedat.ini configuration file | Can be cross-referenced with clinical records |
+| Slide ID, name, barcode | Slidedat.ini [GENERAL] section | These fields directly identify the patient or case |
+| Creation date/time | Slidedat.ini [GENERAL] section | Can be cross-referenced with clinical records |
+| Additional metadata | All Slidedat.ini sections (patient ID, case number, operator, etc.) | PHI can appear in non-GENERAL sections too |
+| Label image | Non-hierarchical layer in Data*.dat files | Photograph of slide barcode label containing patient info |
+| Macro/preview image | Non-hierarchical layer in Data*.dat files | Overview photo that may show the label |
+| Thumbnail image | Non-hierarchical layer in Data*.dat files | May contain readable text from the label |
+| Filename patterns | Accession numbers in filenames | Filenames containing case identifiers |
 | Remaining patterns | .mrxs file and Slidedat.ini | A safety net for any other identifiers |
+
+## BIF (Roche/Ventana)
+
+| What gets removed | Where it's hiding | Why it matters |
+|-------------------|-------------------|----------------|
+| Barcodes | XMP tag: iScan BarCode1/BarCode2 attributes | Barcode values encode patient/case identifiers |
+| Scan dates | XMP tag: iScan ScanDate/ScanTime + DateTime tags | Cross-referenceable with clinical records |
+| Device/operator info | XMP tag: DeviceSerialNumber, OperatorID, UniqueID | Institutional fingerprints |
+| Base filename | XMP tag: BaseFileName | May contain patient identifiers |
+| Label/macro image | IFDs labeled "Label Image" or "Macro" | Photographed slide labels with patient info |
+| Remaining patterns | Binary scan of header | Safety net for stray identifiers |
+
+## SCN (Leica)
+
+| What gets removed | Where it's hiding | Why it matters |
+|-------------------|-------------------|----------------|
+| Barcode | ImageDescription XML: barcode element | Slide barcode containing case identifiers |
+| Creation date | ImageDescription XML: creationDate element | Cross-referenceable timestamp |
+| Device info | ImageDescription XML: device/model/version | Institutional fingerprints |
+| Label/macro image | Separate TIFF IFDs | Photographed slide labels |
+| Remaining patterns | Binary scan of header | Safety net for stray identifiers |
 
 ## DICOM WSI
 
@@ -185,12 +234,16 @@ The certificate is a JSON file that records exactly what was done to each file, 
 |-------------------|----------|----------------|
 | Patient identifiers | Name, ID, birth date, sex, age | Direct patient identification |
 | Study identifiers | Accession number, study date, description | Can be used to look up the patient in hospital systems |
+| Specimen identifiers | Container ID, Specimen ID, Specimen UID | Pathology-specific identifiers linking to the case |
 | Institution/physician info | Institution name, referring physician, operator | May indirectly identify the patient or the context of care |
+| Device info | Serial number, software versions | Institutional fingerprints |
+| Sequence-nested PHI | PHI tags inside DICOM sequences (recursive) | Patient data can be nested multiple levels deep |
 | Private tags | Vendor-specific data | Unknown content that could contain identifiers |
+| UIDs | Remapped to anonymized deterministic values | Original UIDs can be cross-referenced |
 
 ## Generic TIFF
 
-For any TIFF-based slide file not covered above, PathSafe scans all text metadata for accession number patterns and clears date fields.
+For any TIFF-based slide file not covered above (including Philips TIFF, QPTIFF, Trestle, OME-TIFF), PathSafe scans all text metadata for accession number patterns, clears date fields, checks extra metadata tags (XMP, EXIF, IPTC, etc.), and reports filename PHI.
 
 ---
 
@@ -200,6 +253,7 @@ For any TIFF-based slide file not covered above, PathSafe scans all text metadat
 pathsafe scan PATH       Check files for patient data (read-only)
 pathsafe anonymize PATH  Remove patient data from files
 pathsafe verify PATH     Confirm anonymization was successful
+pathsafe convert PATH    Convert WSI files between formats
 pathsafe info FILE       Show metadata for a single file
 pathsafe gui             Launch the graphical interface
 ```
@@ -214,7 +268,10 @@ pathsafe gui             Launch the graphical interface
 | `--verbose` | Show detailed output |
 | `--workers N` | Process N files in parallel (faster for large batches) |
 | `--certificate FILE` | Generate a JSON compliance certificate |
-| `--format FORMAT` | Only process files of a specific format (ndpi, svs, mrxs, dicom, tiff) |
+| `--checklist FILE` | Generate a JSON assessment checklist |
+| `--format FORMAT` | Only process files of a specific format (ndpi, svs, mrxs, bif, scn, dicom, tiff) |
+| `--verify-integrity` | Verify image tile data was not altered (SHA-256 before/after comparison) |
+| `--reset-timestamps` | Reset file dates to epoch (removes temporal metadata) |
 | `--log FILE` | Save all output to a log file |
 
 ---
@@ -272,6 +329,7 @@ Optional dependencies add extra capabilities:
 | PySide6 | Graphical interface | `pip install pathsafe[gui]` |
 | pydicom | DICOM WSI support | `pip install pathsafe[dicom]` |
 | openslide-python | Enhanced format detection | `pip install pathsafe[openslide]` |
+| tifffile + numpy | Format conversion (pyramidal TIFF output) | `pip install pathsafe[convert]` |
 
 ---
 

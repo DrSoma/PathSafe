@@ -1,11 +1,11 @@
-"""JSON compliance certificate generation."""
+"""JSON compliance certificate and anonymization assessment generation."""
 
 import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
 import pathsafe
 from pathsafe.models import BatchResult
@@ -26,12 +26,14 @@ def _sha256_file(filepath: Path) -> str:
 def generate_certificate(
     batch_result: BatchResult,
     output_path: Optional[Path] = None,
+    attestation: Optional[dict] = None,
 ) -> dict:
     """Generate a JSON compliance certificate for a batch anonymization run.
 
     Args:
         batch_result: The BatchResult from anonymize_batch().
         output_path: If provided, write the certificate JSON to this file.
+        attestation: If provided, include a destruction attestation block.
 
     Returns:
         The certificate as a dict.
@@ -54,6 +56,9 @@ def generate_certificate(
             'verified_clean': result.verified,
             'anonymization_time_ms': round(result.anonymization_time_ms, 1),
         }
+
+        if result.image_integrity_verified is not None:
+            record['image_integrity_verified'] = result.image_integrity_verified
 
         if result.error:
             record['error'] = result.error
@@ -85,6 +90,9 @@ def generate_certificate(
         'files': file_records,
     }
 
+    if attestation is not None:
+        certificate['attestation'] = attestation
+
     if output_path is not None:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -92,6 +100,160 @@ def generate_certificate(
             json.dump(certificate, f, indent=2)
 
     return certificate
+
+
+def generate_checklist(
+    batch_result: BatchResult,
+    output_path: Optional[Path] = None,
+    timestamps_reset: bool = False,
+) -> dict:
+    """Generate an anonymization assessment checklist.
+
+    Combines auto-filled technical measures (based on what PathSafe did)
+    with procedural measures for the institution to complete.
+
+    Args:
+        batch_result: The BatchResult from anonymize_batch().
+        output_path: If provided, write the checklist JSON to this file.
+        timestamps_reset: Whether --reset-timestamps was used.
+
+    Returns:
+        The checklist as a dict.
+    """
+    # Compute technical measures from batch results
+    total_findings = sum(r.findings_cleared for r in batch_result.results)
+    verified_count = sum(1 for r in batch_result.results if r.verified)
+    error_count = batch_result.files_errored
+
+    # Image integrity stats
+    integrity_verified = sum(1 for r in batch_result.results
+                             if r.image_integrity_verified is True)
+    integrity_failed = sum(1 for r in batch_result.results
+                           if r.image_integrity_verified is False)
+    integrity_checked = integrity_verified + integrity_failed
+
+    # Collect SHA-256 hashes for output files
+    hashes = []
+    for result in batch_result.results:
+        if not result.error:
+            try:
+                hashes.append({
+                    'file': result.output_path.name,
+                    'sha256': _sha256_file(result.output_path),
+                })
+            except (OSError, FileNotFoundError):
+                pass
+
+    technical_measures = [
+        {
+            'measure': 'Metadata tags cleared',
+            'status': 'applied' if total_findings > 0 else 'not_needed',
+            'details': f'{total_findings} finding(s) cleared across {batch_result.files_anonymized} file(s)',
+        },
+        {
+            'measure': 'Label/macro images blanked',
+            'status': 'applied' if total_findings > 0 else 'not_needed',
+            'details': 'Included in metadata tag clearing',
+        },
+        {
+            'measure': 'Filename PHI detection',
+            'status': 'applied',
+            'details': f'{batch_result.total_files} file(s) scanned for PHI in filenames',
+        },
+        {
+            'measure': 'Post-anonymization verification',
+            'status': 'passed' if verified_count == len(batch_result.results) and verified_count > 0 else 'skipped',
+            'details': f'{verified_count}/{len(batch_result.results)} file(s) verified clean',
+        },
+        {
+            'measure': 'Image data integrity verification',
+            'status': 'passed' if integrity_checked > 0 and integrity_failed == 0
+                      else ('failed' if integrity_failed > 0 else 'not_applied'),
+            'details': (f'SHA-256 checksums of image tile data verified matching '
+                        f'before and after anonymization for {integrity_verified} file(s)')
+                       if integrity_checked > 0
+                       else 'Use --verify-integrity to enable tile data integrity checking',
+        },
+        {
+            'measure': 'Filesystem timestamps reset',
+            'status': 'applied' if timestamps_reset else 'not_applied',
+            'details': 'Access and modification times set to epoch (1970-01-01)' if timestamps_reset
+                       else 'Use --reset-timestamps to remove temporal metadata',
+        },
+        {
+            'measure': 'SHA-256 hashes recorded',
+            'status': 'recorded' if hashes else 'skipped',
+            'details': f'{len(hashes)} hash(es) computed',
+            'hashes': hashes,
+        },
+    ]
+
+    procedural_measures = [
+        {
+            'item': 'Destroy any mapping between original and anonymized file identifiers',
+            'completed': False,
+        },
+        {
+            'item': 'Ensure anonymized files are stored separately from originals',
+            'completed': False,
+        },
+        {
+            'item': 'Obtain REB/CER approval for the anonymization protocol',
+            'completed': False,
+        },
+        {
+            'item': 'Confirm that tissue morphology alone does not allow re-identification in the context of intended use',
+            'completed': False,
+        },
+        {
+            'item': 'Establish a data use agreement for any external data sharing',
+            'completed': False,
+        },
+        {
+            'item': 'Document the anonymization process in institutional records',
+            'completed': False,
+        },
+    ]
+
+    regulatory_references = [
+        {
+            'jurisdiction': 'Quebec',
+            'law': 'Law 25 (Act to modernize legislative provisions as regards the protection of personal information)',
+            'relevance': 'Governs de-identification and anonymization of personal information held by Quebec organizations',
+        },
+        {
+            'jurisdiction': 'Canada (federal)',
+            'law': 'PIPEDA (Personal Information Protection and Electronic Documents Act)',
+            'relevance': 'Federal privacy law applicable to commercial activities and cross-provincial data transfers',
+        },
+        {
+            'jurisdiction': 'United States',
+            'law': 'HIPAA Safe Harbor (45 CFR 164.514(b))',
+            'relevance': 'Applicable when sharing de-identified data with US institutions or researchers',
+        },
+    ]
+
+    checklist = {
+        'pathsafe_version': pathsafe.__version__,
+        'checklist_id': str(uuid.uuid4()),
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'summary': {
+            'total_files': batch_result.total_files,
+            'files_anonymized': batch_result.files_anonymized,
+            'files_with_errors': error_count,
+        },
+        'technical_measures': technical_measures,
+        'procedural_measures': procedural_measures,
+        'regulatory_references': regulatory_references,
+    }
+
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(checklist, f, indent=2)
+
+    return checklist
 
 
 def _detect_format_from_ext(filepath: Path) -> str:

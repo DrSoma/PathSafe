@@ -44,6 +44,7 @@ class AnonymizationResult:
     findings_cleared: int = 0
     verified: bool = False
     anonymization_time_ms: float = 0.0
+    image_integrity_verified: Optional[bool] = None  # None=not checked, True=matched, False=mismatch
     error: Optional[str] = None
 
 
@@ -58,3 +59,26 @@ class BatchResult:
     files_errored: int = 0
     total_time_seconds: float = 0.0
     certificate_path: Optional[Path] = None
+
+
+@dataclass
+class ConversionResult:
+    """Result of converting a single WSI file."""
+    source_path: Path
+    output_path: Path
+    source_format: str
+    target_format: str
+    levels_written: int = 0
+    conversion_time_ms: float = 0.0
+    anonymized: bool = False
+    error: Optional[str] = None
+
+
+@dataclass
+class ConversionBatchResult:
+    """Result of a batch conversion run."""
+    results: List[ConversionResult] = field(default_factory=list)
+    total_files: int = 0
+    files_converted: int = 0
+    files_errored: int = 0
+    total_time_seconds: float = 0.0

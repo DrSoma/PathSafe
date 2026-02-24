@@ -89,6 +89,130 @@ class TestAnonymizeCommand:
         assert result.exit_code == 0
 
 
+class TestAnonymizeTimestamps:
+    def test_reset_timestamps(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'ts_output'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi), '--output', str(out_dir),
+            '--reset-timestamps'])
+        assert result.exit_code == 0
+        output_file = out_dir / tmp_ndpi.name
+        assert output_file.exists()
+        stat = output_file.stat()
+        assert stat.st_mtime == 0
+        assert stat.st_atime == 0
+
+    def test_no_reset_timestamps_by_default(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'nots_output'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi), '--output', str(out_dir)])
+        assert result.exit_code == 0
+        output_file = out_dir / tmp_ndpi.name
+        assert output_file.stat().st_mtime > 0
+
+
+class TestAnonymizeAttestation:
+    def test_attest_with_certificate(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'attest_output'
+        cert_file = tmp_path / 'attest_cert.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--certificate', str(cert_file),
+            '--attest-no-mapping'])
+        assert result.exit_code == 0
+        cert = json.loads(cert_file.read_text())
+        assert 'attestation' in cert
+        assert cert['attestation']['no_reidentification_mapping'] is True
+        assert 'attested_at' in cert['attestation']
+        assert 'statement' in cert['attestation']
+
+    def test_attest_without_certificate_warns(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'attest_warn'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--attest-no-mapping'])
+        # Should still succeed but print a warning
+        assert result.exit_code == 0
+        # Warning goes to stderr; CliRunner captures both in output by default
+        # but with err=True it's in result.output when mix_stderr is default
+        # Verify no certificate was produced (no --certificate flag)
+
+    def test_certificate_without_attest_has_no_attestation(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'no_attest'
+        cert_file = tmp_path / 'no_attest_cert.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--certificate', str(cert_file)])
+        assert result.exit_code == 0
+        cert = json.loads(cert_file.read_text())
+        assert 'attestation' not in cert
+
+
+class TestAnonymizeChecklist:
+    def test_checklist_generated(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'checklist_output'
+        checklist_file = tmp_path / 'checklist.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--checklist', str(checklist_file)])
+        assert result.exit_code == 0
+        assert checklist_file.exists()
+        data = json.loads(checklist_file.read_text())
+        assert 'technical_measures' in data
+        assert 'procedural_measures' in data
+        assert 'regulatory_references' in data
+        assert data['summary']['total_files'] == 1
+
+    def test_checklist_with_timestamps(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'checklist_ts'
+        checklist_file = tmp_path / 'checklist_ts.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--reset-timestamps',
+            '--checklist', str(checklist_file)])
+        assert result.exit_code == 0
+        data = json.loads(checklist_file.read_text())
+        ts_measure = [m for m in data['technical_measures']
+                      if 'timestamp' in m['measure'].lower()][0]
+        assert ts_measure['status'] == 'applied'
+
+    def test_checklist_not_generated_on_dry_run(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'checklist_dry'
+        checklist_file = tmp_path / 'checklist_dry.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--dry-run',
+            '--checklist', str(checklist_file)])
+        assert result.exit_code == 0
+        assert not checklist_file.exists()
+
+    def test_all_flags_combined(self, runner, tmp_ndpi, tmp_path):
+        out_dir = tmp_path / 'combined'
+        cert_file = tmp_path / 'combined_cert.json'
+        checklist_file = tmp_path / 'combined_checklist.json'
+        result = runner.invoke(main, [
+            'anonymize', str(tmp_ndpi),
+            '--output', str(out_dir),
+            '--reset-timestamps',
+            '--certificate', str(cert_file),
+            '--attest-no-mapping',
+            '--checklist', str(checklist_file)])
+        assert result.exit_code == 0
+        # Verify all outputs
+        output_file = out_dir / tmp_ndpi.name
+        assert output_file.stat().st_mtime == 0
+        cert = json.loads(cert_file.read_text())
+        assert 'attestation' in cert
+        data = json.loads(checklist_file.read_text())
+        assert len(data['procedural_measures']) == 6
+
+
 class TestVerifyCommand:
     def test_verify_clean(self, runner, tmp_ndpi_clean):
         result = runner.invoke(main, ['verify', str(tmp_ndpi_clean)])

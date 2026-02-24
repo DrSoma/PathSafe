@@ -26,7 +26,13 @@ _hidden = [
     'pathsafe.formats.svs',
     'pathsafe.formats.mrxs',
     'pathsafe.formats.dicom',
+    'pathsafe.formats.bif',
+    'pathsafe.formats.scn',
     'pathsafe.formats.generic_tiff',
+    'pathsafe.log',
+    'pathsafe.converter',
+    'tifffile',
+    'numpy',
 ]
 
 # --- CLI executable ---
@@ -71,7 +77,6 @@ a_gui = Analysis(
     datas=[],
     hiddenimports=_hidden + [
         'pathsafe.gui_qt',
-        'pathsafe.gui',
         'PySide6',
         'PySide6.QtCore',
         'PySide6.QtGui',

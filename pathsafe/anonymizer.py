@@ -23,11 +23,49 @@ WSI_EXTENSIONS = {'.ndpi', '.svs', '.tif', '.tiff', '.scn', '.bif',
 DEFAULT_WORKERS = 4
 
 
+def _verify_image_integrity(filepath, pre_hashes):
+    """Compare pre-anonymization tile hashes with post-anonymization hashes.
+
+    Returns True if all non-blanked IFDs match, False if any mismatch,
+    None if not a TIFF or no hashes to compare.
+    """
+    if not pre_hashes:
+        return None
+
+    from pathsafe.tiff import (
+        read_header, iter_ifds, compute_ifd_tile_hash, is_ifd_image_blanked,
+    )
+
+    try:
+        with open(str(filepath), 'rb') as f:
+            header = read_header(f)
+            if header is None:
+                return None
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                if ifd_offset not in pre_hashes:
+                    continue
+                # Skip IFDs that were intentionally blanked (label/macro)
+                if is_ifd_image_blanked(f, header, entries):
+                    continue
+                post_hash = compute_ifd_tile_hash(f, header, entries)
+                if post_hash is None:
+                    continue
+                if post_hash != pre_hashes[ifd_offset]:
+                    return False
+    except (OSError, Exception):
+        return False
+
+    return True
+
+
 def anonymize_file(
     filepath: Path,
     output_path: Optional[Path] = None,
     verify: bool = True,
     dry_run: bool = False,
+    reset_timestamps: bool = False,
+    verify_integrity: bool = False,
 ) -> AnonymizationResult:
     """Anonymize a single WSI file.
 
@@ -37,6 +75,8 @@ def anonymize_file(
                      If None, anonymize in-place.
         verify: If True, re-scan after anonymization to confirm all PHI cleared.
         dry_run: If True, only scan — don't modify anything.
+        reset_timestamps: If True, reset file access/modification times to epoch.
+        verify_integrity: If True, verify image tile data integrity via SHA-256.
 
     Returns:
         AnonymizationResult with details of what was done.
@@ -86,6 +126,12 @@ def anonymize_file(
             if not target_companion.exists():
                 shutil.copytree(str(companion_dir), str(target_companion))
 
+    # Pre-hash tile data for integrity verification
+    pre_hashes = {}
+    if verify_integrity and not dry_run:
+        from pathsafe.tiff import compute_image_hashes
+        pre_hashes = compute_image_hashes(target)
+
     # Anonymize
     try:
         findings = handler.anonymize(target)
@@ -96,6 +142,11 @@ def anonymize_file(
             anonymization_time_ms=elapsed, error=str(e),
         )
 
+    # Verify image tile data integrity
+    integrity_result = None
+    if verify_integrity and not dry_run:
+        integrity_result = _verify_image_integrity(target, pre_hashes)
+
     # Verify
     verified = False
     if verify and findings:
@@ -103,11 +154,16 @@ def anonymize_file(
         verify_result = verify_file(target)
         verified = verify_result.is_clean
 
+    # Reset filesystem timestamps to epoch (removes temporal PHI)
+    if reset_timestamps:
+        os.utime(target, (0, 0))
+
     elapsed = (time.monotonic() - t0) * 1000
     return AnonymizationResult(
         source_path=filepath, output_path=target, mode=mode,
         findings_cleared=len(findings), verified=verified,
         anonymization_time_ms=elapsed,
+        image_integrity_verified=integrity_result,
     )
 
 
@@ -125,7 +181,8 @@ def collect_wsi_files(path: Path, format_filter: Optional[str] = None) -> List[P
     if format_filter:
         ext_map = {
             'ndpi': {'.ndpi'}, 'svs': {'.svs'}, 'tiff': {'.tif', '.tiff'},
-            'mrxs': {'.mrxs'}, 'dicom': {'.dcm', '.dicom'},
+            'mrxs': {'.mrxs'}, 'bif': {'.bif'}, 'scn': {'.scn'},
+            'dicom': {'.dcm', '.dicom'},
         }
         extensions = ext_map.get(format_filter, WSI_EXTENSIONS)
 
@@ -146,6 +203,8 @@ def anonymize_batch(
     format_filter: Optional[str] = None,
     progress_callback: Optional[Callable] = None,
     workers: int = 1,
+    reset_timestamps: bool = False,
+    verify_integrity: bool = False,
 ) -> BatchResult:
     """Anonymize a batch of WSI files.
 
@@ -157,6 +216,8 @@ def anonymize_batch(
         format_filter: Only process files of this format.
         progress_callback: Called with (index, total, filepath, result) after each file.
         workers: Number of parallel workers. 1 = sequential (default).
+        reset_timestamps: If True, reset file timestamps to epoch after anonymization.
+        verify_integrity: If True, verify image tile data integrity via SHA-256.
 
     Returns:
         BatchResult with summary statistics.
@@ -181,10 +242,12 @@ def anonymize_batch(
 
     if workers > 1 and total > 1:
         results = _batch_parallel(file_pairs, verify, dry_run, workers,
-                                  progress_callback, batch)
+                                  progress_callback, batch, reset_timestamps,
+                                  verify_integrity)
     else:
         results = _batch_sequential(file_pairs, verify, dry_run,
-                                    progress_callback, batch)
+                                    progress_callback, batch, reset_timestamps,
+                                    verify_integrity)
 
     batch.results = results
     batch.total_time_seconds = time.monotonic() - t0
@@ -197,6 +260,8 @@ def _batch_sequential(
     dry_run: bool,
     progress_callback: Optional[Callable],
     batch: BatchResult,
+    reset_timestamps: bool = False,
+    verify_integrity: bool = False,
 ) -> List[AnonymizationResult]:
     """Process files sequentially."""
     results = []
@@ -205,7 +270,9 @@ def _batch_sequential(
     for i, (filepath, out) in enumerate(file_pairs):
         try:
             result = anonymize_file(filepath, output_path=out, verify=verify,
-                                    dry_run=dry_run)
+                                    dry_run=dry_run,
+                                    reset_timestamps=reset_timestamps,
+                                    verify_integrity=verify_integrity)
         except Exception as e:
             result = AnonymizationResult(
                 source_path=filepath,
@@ -230,6 +297,8 @@ def _batch_parallel(
     workers: int,
     progress_callback: Optional[Callable],
     batch: BatchResult,
+    reset_timestamps: bool = False,
+    verify_integrity: bool = False,
 ) -> List[AnonymizationResult]:
     """Process files in parallel using a thread pool.
 
@@ -245,7 +314,9 @@ def _batch_parallel(
     def process_one(index, filepath, out):
         try:
             return index, anonymize_file(filepath, output_path=out,
-                                         verify=verify, dry_run=dry_run)
+                                         verify=verify, dry_run=dry_run,
+                                         reset_timestamps=reset_timestamps,
+                                         verify_integrity=verify_integrity)
         except Exception as e:
             return index, AnonymizationResult(
                 source_path=filepath,
@@ -270,6 +341,85 @@ def _batch_parallel(
                 completed_count[0] += 1
                 if progress_callback:
                     progress_callback(completed_count[0], total, filepath, result)
+
+    return results
+
+
+def scan_batch(
+    input_path: Path,
+    format_filter: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    workers: int = 1,
+) -> List:
+    """Scan a batch of WSI files for PHI (read-only).
+
+    Args:
+        input_path: File or directory containing WSI files.
+        format_filter: Only scan files of this format.
+        progress_callback: Called with (index, total, filepath, result) after each file.
+        workers: Number of parallel workers. 1 = sequential (default).
+
+    Returns:
+        List of (filepath, ScanResult) tuples.
+    """
+    from pathsafe.formats import get_handler
+    from pathsafe.models import ScanResult
+
+    input_path = Path(input_path)
+    files = collect_wsi_files(input_path, format_filter)
+    total = len(files)
+
+    if total == 0:
+        return []
+
+    def scan_one(filepath):
+        handler = get_handler(filepath)
+        return handler.scan(filepath)
+
+    results = []
+
+    if workers > 1 and total > 1:
+        lock = threading.Lock()
+        completed = [0]
+
+        def _do_scan(index, filepath):
+            try:
+                return index, filepath, scan_one(filepath)
+            except Exception as e:
+                return index, filepath, ScanResult(
+                    filepath=filepath, format="unknown",
+                    is_clean=False, file_size=0, error=str(e),
+                )
+
+        ordered = [None] * total
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {}
+            for i, fp in enumerate(files):
+                future = executor.submit(_do_scan, i, fp)
+                futures[future] = i
+
+            for future in as_completed(futures):
+                idx, filepath, result = future.result()
+                ordered[idx] = (filepath, result)
+
+                with lock:
+                    completed[0] += 1
+                    if progress_callback:
+                        progress_callback(completed[0], total, filepath, result)
+
+        results = ordered
+    else:
+        for i, filepath in enumerate(files):
+            try:
+                result = scan_one(filepath)
+            except Exception as e:
+                result = ScanResult(
+                    filepath=filepath, format="unknown",
+                    is_clean=False, file_size=0, error=str(e),
+                )
+            results.append((filepath, result))
+            if progress_callback:
+                progress_callback(i + 1, total, filepath, result)
 
     return results
 

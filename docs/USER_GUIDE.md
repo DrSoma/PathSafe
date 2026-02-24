@@ -187,6 +187,10 @@ If PySide6 is not installed, PathSafe falls back to a simpler Tkinter GUI with t
 | `--workers N` | Use N parallel workers for faster batch processing |
 | `--log FILE` | Save output to a log file |
 | `--certificate FILE` | Generate compliance certificate |
+| `--checklist FILE` | Generate assessment checklist |
+| `--verify-integrity` | Verify image tile data integrity via SHA-256 checksums |
+| `--reset-timestamps` | Reset file timestamps to epoch |
+| `--attest-no-mapping` | Include no-re-identification attestation in certificate |
 
 ## What Gets Anonymized
 

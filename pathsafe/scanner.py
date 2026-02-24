@@ -125,6 +125,20 @@ def is_date_anonymized(value: str) -> bool:
     return '1900:01:01' in value or '0000:00:00' in value or value.strip('\x00 ') == ''
 
 
+def scan_filename_for_phi(filepath) -> List[Tuple[int, int, str, str]]:
+    """Scan a filename (stem only, no extension) for PHI patterns.
+
+    Filenames like 'AS-24-123456_slide1.ndpi' contain accession numbers.
+    This is a Level I anonymization concern (Bisson et al., 2023).
+
+    Returns:
+        List of (char_offset, length, matched_text, pattern_label) tuples.
+    """
+    from pathlib import Path
+    stem = Path(filepath).stem
+    return scan_string_for_phi(stem)
+
+
 def scan_file(filepath, handler=None):
     """Scan a single file for PHI using the appropriate format handler.
 

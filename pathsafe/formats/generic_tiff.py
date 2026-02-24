@@ -123,6 +123,9 @@ class GenericTIFFHandler(FormatHandler):
                     source='regex_scan',
                 ))
 
+            # Filename PHI check
+            findings += self.scan_filename(filepath)
+
         except Exception as e:
             elapsed = (time.monotonic() - t0) * 1000
             return ScanResult(

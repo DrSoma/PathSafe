@@ -51,6 +51,7 @@ from pathsafe.tiff import (
 PHI_TAGS = {
     65468: 'NDPI_BARCODE',
     65427: 'NDPI_REFERENCE',
+    65442: 'NDPI_SERIAL_NUMBER',
 }
 
 DATE_TAGS = {
@@ -60,6 +61,11 @@ DATE_TAGS = {
 }
 
 ALL_PHI_TAGS = {**PHI_TAGS, **DATE_TAGS}
+
+# Tags that appear in ALL IFDs and must be anonymized in each one
+MULTI_IFD_PHI_TAGS = {
+    65427: 'NDPI_REFERENCE',
+}
 
 # Tag 65449 (NDPI_SCANNER_PROPS): key=value property map
 # These keys contain dates or serial numbers that are indirect identifiers
@@ -94,9 +100,11 @@ class NDPIHandler(FormatHandler):
         try:
             tag_findings = self._scan_tags(filepath)
             label_findings = self._scan_label_macro(filepath)
+            companion_findings = self._scan_companion_files(filepath)
             tag_offsets = {f.offset for f in tag_findings}
             regex_findings = self._scan_regex(filepath, skip_offsets=tag_offsets)
-            findings = tag_findings + label_findings + regex_findings
+            filename_findings = self.scan_filename(filepath)
+            findings = tag_findings + label_findings + companion_findings + regex_findings + filename_findings
         except Exception as e:
             # Try fallback on corrupt files
             try:
@@ -125,7 +133,9 @@ class NDPIHandler(FormatHandler):
 
         try:
             cleared += self._anonymize_tags(filepath)
+            cleared += self._anonymize_multi_ifd_tags(filepath)
             cleared += self._blank_label_macro(filepath)
+            cleared += self._anonymize_companion_files(filepath)
         except Exception:
             # Try fallback for corrupt TIFF structure
             cleared += self._anonymize_fallback(filepath)
@@ -245,7 +255,7 @@ class NDPIHandler(FormatHandler):
                     length=entry.total_size,
                     tag_id=NDPI_SCANNER_PROPS_TAG,
                     tag_name=f'NDPI_SCANNER_PROPS:{key}',
-                    value_preview=f'{key}={val[:40]}',
+                    value_preview=val[:40],
                     source='tiff_tag',
                 ))
         return findings
@@ -457,7 +467,7 @@ class NDPIHandler(FormatHandler):
                     length=entry.total_size,
                     tag_id=NDPI_SCANNER_PROPS_TAG,
                     tag_name=f'NDPI_SCANNER_PROPS:{key_stripped}',
-                    value_preview=f'{key_stripped}={val_stripped[:40]}',
+                    value_preview=val_stripped[:40],
                     source='tiff_tag',
                 ))
             else:
@@ -517,4 +527,78 @@ class NDPIHandler(FormatHandler):
                     tag_name=f'fallback:{label}', value_preview=value[:50],
                     source='regex_scan',
                 ))
+        return cleared
+
+    def _anonymize_multi_ifd_tags(self, filepath: Path) -> List[PHIFinding]:
+        """Anonymize NDPI_REFERENCE (tag 65427) across ALL IFDs, not just the first.
+
+        NDPI files duplicate tag 65427 in every IFD (one per pyramid level).
+        If only the first IFD is anonymized, the reference string persists in
+        subsequent IFDs and can be recovered.
+        """
+        cleared = []
+        with open(filepath, 'r+b') as f:
+            header = read_header(f)
+            if header is None:
+                return cleared
+
+            first = True
+            for ifd_offset, entries in iter_ifds(f, header):
+                if first:
+                    first = False
+                    continue  # First IFD already handled by _anonymize_tags
+
+                for entry in entries:
+                    if entry.tag_id not in MULTI_IFD_PHI_TAGS:
+                        continue
+                    current = read_tag_value_bytes(f, entry)
+                    replacement = b'X' * (entry.total_size - 1) + b'\x00'
+                    if current == replacement:
+                        continue
+                    value = current.rstrip(b'\x00').decode('ascii', errors='replace')
+                    if not value or value == 'X' * len(value):
+                        continue
+                    f.seek(entry.value_offset)
+                    f.write(replacement)
+                    cleared.append(PHIFinding(
+                        offset=entry.value_offset,
+                        length=entry.total_size,
+                        tag_id=entry.tag_id,
+                        tag_name=f'{MULTI_IFD_PHI_TAGS[entry.tag_id]}:IFD@{ifd_offset}',
+                        value_preview=value[:50],
+                        source='tiff_tag',
+                    ))
+        return cleared
+
+    def _scan_companion_files(self, filepath: Path) -> List[PHIFinding]:
+        """Detect .ndpa companion files that may contain PHI.
+
+        NDPA files are XML annotation files that frequently contain patient IDs,
+        case numbers, operator names, and timestamps.
+        """
+        findings = []
+        ndpa_path = Path(str(filepath) + '.ndpa')
+        if ndpa_path.exists():
+            findings.append(PHIFinding(
+                offset=0, length=os.path.getsize(ndpa_path),
+                tag_id=None,
+                tag_name='CompanionFile:NDPA',
+                value_preview=f'{ndpa_path.name} (XML annotations — may contain PHI)',
+                source='companion_file',
+            ))
+        return findings
+
+    def _anonymize_companion_files(self, filepath: Path) -> List[PHIFinding]:
+        """Delete .ndpa companion files that contain PHI."""
+        cleared = []
+        ndpa_path = Path(str(filepath) + '.ndpa')
+        if ndpa_path.exists():
+            size = os.path.getsize(ndpa_path)
+            ndpa_path.unlink()
+            cleared.append(PHIFinding(
+                offset=0, length=size, tag_id=None,
+                tag_name='CompanionFile:NDPA',
+                value_preview=f'deleted {ndpa_path.name}',
+                source='companion_file',
+            ))
         return cleared

@@ -7,6 +7,8 @@ from pathsafe.formats.base import FormatHandler
 from pathsafe.formats.ndpi import NDPIHandler
 from pathsafe.formats.svs import SVSHandler
 from pathsafe.formats.mrxs import MRXSHandler
+from pathsafe.formats.bif import BIFHandler
+from pathsafe.formats.scn import SCNHandler
 from pathsafe.formats.generic_tiff import GenericTIFFHandler
 
 # Registered handlers in priority order (most specific first)
@@ -14,13 +16,15 @@ _HANDLERS = [
     NDPIHandler(),
     SVSHandler(),
     MRXSHandler(),
+    BIFHandler(),
+    SCNHandler(),
     GenericTIFFHandler(),  # Fallback for unknown TIFF-based formats
 ]
 
 # Conditionally add DICOM handler if pydicom is available
 try:
     from pathsafe.formats.dicom import DICOMHandler
-    _HANDLERS.insert(3, DICOMHandler())  # Before GenericTIFF
+    _HANDLERS.insert(5, DICOMHandler())  # Before GenericTIFF
 except ImportError:
     pass
 

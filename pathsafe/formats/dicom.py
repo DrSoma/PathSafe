@@ -72,6 +72,14 @@ TAGS_TO_BLANK = {
     (0x0008, 0x0022): ('AcquisitionDate', 'DA'),
     (0x0008, 0x0032): ('AcquisitionTime', 'TM'),
     (0x0008, 0x002A): ('AcquisitionDateTime', 'DT'),
+    # Specimen Module (pathology-specific, critical for WSI)
+    (0x0040, 0x0512): ('ContainerIdentifier', 'LO'),
+    (0x0040, 0x0551): ('SpecimenIdentifier', 'LO'),
+    (0x0040, 0x0610): ('SpecimenPreparationSequence', 'SQ'),
+    (0x0008, 0x0050): ('AccessionNumber', 'SH'),  # Also in Study, but in Specimen too
+    # Device module
+    (0x0018, 0x1000): ('DeviceSerialNumber', 'LO'),
+    (0x0018, 0x1020): ('SoftwareVersions', 'LO'),
 }
 
 # Tags to DELETE entirely (Type 3: optional, remove)
@@ -122,6 +130,29 @@ TAGS_TO_DELETE = {
     (0x0038, 0x0500): 'PatientState',
     (0x0040, 0x2016): 'PlacerOrderNumberImagingServiceRequest',
     (0x0040, 0x2017): 'FillerOrderNumberImagingServiceRequest',
+    # Specimen Module (optional/Type 3 tags)
+    (0x0040, 0x0513): 'IssuerOfTheContainerIdentifierSequence',
+    (0x0040, 0x0515): 'AlternateContainerIdentifierSequence',
+    (0x0040, 0x0518): 'ContainerTypeCodeSequence',
+    (0x0040, 0x0520): 'ContainerComponentSequence',
+    (0x0040, 0x0554): 'SpecimenUID',
+    (0x0040, 0x0555): 'AcquisitionContextSequence',
+    (0x0040, 0x0556): 'AcquisitionContextDescription',
+    (0x0040, 0x0560): 'SpecimenDescriptionSequence',
+    (0x0040, 0x0562): 'IssuerOfTheSpecimenIdentifierSequence',
+    (0x0040, 0x059A): 'SpecimenTypeCodeSequence',
+    (0x0040, 0x0600): 'SpecimenShortDescription',
+    (0x0040, 0x0602): 'SpecimenDetailedDescription',
+    # Additional commonly relevant PS3.15 attributes
+    (0x0010, 0x21D0): 'LastMenstrualDate',
+    (0x0010, 0x0032): 'PatientBirthTime',
+    (0x0010, 0x1005): 'PatientBirthName',
+    (0x0010, 0x1090): 'MedicalRecordLocator',
+    (0x4008, 0x0114): 'PhysicianApprovingInterpretation',
+    (0x0008, 0x0014): 'InstanceCreatorUID',
+    (0x0008, 0x1115): 'ReferencedSeriesSequence',
+    (0x0088, 0x0140): 'StorageMediaFileSetUID',
+    (0x3006, 0x0024): 'ReferencedFrameOfReferenceUID',
 }
 
 # Tags whose UIDs should be remapped (not simply deleted)
@@ -214,6 +245,9 @@ class DICOMHandler(FormatHandler):
                     value_preview=f'{private_count} private tag(s)',
                     source='dicom_tag',
                 ))
+
+            # Scan filename for PHI patterns
+            findings += self.scan_filename(filepath)
 
             # Check if PatientIdentityRemoved is not set
             pir = getattr(ds, 'PatientIdentityRemoved', None)
@@ -440,16 +474,23 @@ def _remap_uids(ds, filepath: Path) -> List[PHIFinding]:
 
 
 # Tags within sequences that may contain PHI (identifiers, not vocabulary codes)
-_SQ_PHI_TAGS = {
-    Tag(0x0010, 0x0010),  # PatientName (in nested)
-    Tag(0x0010, 0x0020),  # PatientID (in nested)
-    Tag(0x0008, 0x0080),  # InstitutionName (in nested)
-    Tag(0x0008, 0x0090),  # ReferringPhysicianName (in nested)
-    Tag(0x0008, 0x1050),  # PerformingPhysicianName (in nested)
-    Tag(0x0008, 0x1070),  # OperatorsName (in nested)
-    Tag(0x0040, 0xA123),  # PersonName (in nested)
-    Tag(0x0008, 0x0081),  # InstitutionAddress (in nested)
-}
+# Stored as tuples; converted to Tag objects at use time to avoid import-time errors
+# when pydicom is not installed.
+_SQ_PHI_TAG_TUPLES = [
+    (0x0010, 0x0010),  # PatientName (in nested)
+    (0x0010, 0x0020),  # PatientID (in nested)
+    (0x0008, 0x0080),  # InstitutionName (in nested)
+    (0x0008, 0x0090),  # ReferringPhysicianName (in nested)
+    (0x0008, 0x1050),  # PerformingPhysicianName (in nested)
+    (0x0008, 0x1070),  # OperatorsName (in nested)
+    (0x0040, 0xA123),  # PersonName (in nested)
+    (0x0008, 0x0081),  # InstitutionAddress (in nested)
+    # Specimen-related in sequences
+    (0x0040, 0x0512),  # ContainerIdentifier (in nested)
+    (0x0040, 0x0551),  # SpecimenIdentifier (in nested)
+    (0x0040, 0x0554),  # SpecimenUID (in nested)
+    (0x0008, 0x0050),  # AccessionNumber (in nested)
+]
 
 # VRs that typically contain text/name PHI within sequences
 _PHI_VRS_IN_SQ = {'PN', 'LO', 'SH', 'DA', 'TM', 'DT'}
@@ -460,11 +501,12 @@ def _scan_sequences(ds, depth: int = 0) -> List[PHIFinding]:
     if depth > 5:
         return []
     findings = []
+    sq_phi_tags = [Tag(*t) for t in _SQ_PHI_TAG_TUPLES]
     for elem in ds:
         if elem.VR == 'SQ' and elem.value:
             for item in elem.value:
                 # Check known PHI tags in sequence items
-                for phi_tag in _SQ_PHI_TAGS:
+                for phi_tag in sq_phi_tags:
                     if phi_tag in item:
                         val = str(item[phi_tag].value).strip()
                         vr = item[phi_tag].VR
@@ -486,10 +528,11 @@ def _anonymize_sequences(ds, depth: int = 0) -> List[PHIFinding]:
     if depth > 5:
         return []
     cleared = []
+    sq_phi_tags = [Tag(*t) for t in _SQ_PHI_TAG_TUPLES]
     for elem in ds:
         if elem.VR == 'SQ' and elem.value:
             for item in elem.value:
-                for phi_tag in _SQ_PHI_TAGS:
+                for phi_tag in sq_phi_tags:
                     if phi_tag in item:
                         val = str(item[phi_tag].value).strip()
                         vr = item[phi_tag].VR

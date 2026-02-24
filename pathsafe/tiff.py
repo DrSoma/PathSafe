@@ -6,6 +6,7 @@ with little-endian (II) and big-endian (MM) byte orders.
 Ported from proven production code that successfully processed 3,101+ NDPI files.
 """
 
+import hashlib
 import struct
 from pathlib import Path
 from typing import BinaryIO, Dict, List, Optional, Tuple
@@ -47,7 +48,7 @@ TAG_NAMES: Dict[int, str] = {
     65428: 'NDPI_IMGSIZE', 65429: 'NDPI_UNKNOWN_65429',
     65432: 'NDPI_UNKNOWN_65432', 65433: 'NDPI_UNKNOWN_65433',
     65439: 'NDPI_FOCUSPOINTS', 65440: 'NDPI_UNKNOWN_65440',
-    65441: 'NDPI_UNKNOWN_65441', 65442: 'NDPI_UNKNOWN_65442',
+    65441: 'NDPI_CAPTUREMODE', 65442: 'NDPI_SERIAL_NUMBER',
     65449: 'NDPI_SCANNER_PROPS', 65457: 'NDPI_UNKNOWN_65457',
     65458: 'NDPI_UNKNOWN_65458', 65459: 'NDPI_UNKNOWN_65459',
     65468: 'NDPI_BARCODE', 65469: 'NDPI_UNKNOWN_65469',
@@ -421,7 +422,10 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
 # Tags that may contain PHI in any TIFF-based format
 # These are scanned across NDPI, SVS, and generic TIFF handlers
 EXTRA_METADATA_TAGS = {
+    270: 'ImageDescription', # May contain patient/case info (scanned by SVS/NDPI handlers too)
+    305: 'Software',         # Scanner software version — device fingerprint
     315: 'Artist',           # Operator/photographer name
+    316: 'HostComputer',     # Institution hostname — site identifier
     700: 'XMP',              # XML metadata blob (creator, dates, etc.)
     33432: 'Copyright',      # May contain institutional or personal names
     33723: 'IPTC',           # IPTC/IIM metadata (byline, caption, etc.)
@@ -431,15 +435,21 @@ EXTRA_METADATA_TAGS = {
 
 
 def scan_extra_metadata_tags(f: BinaryIO, header: TIFFHeader,
-                              entries: List[IFDEntry]) -> List[Tuple[IFDEntry, str]]:
+                              entries: List[IFDEntry],
+                              exclude_tags: set = None) -> List[Tuple[IFDEntry, str]]:
     """Scan IFD entries for extra metadata tags that may contain PHI.
+
+    Args:
+        exclude_tags: Set of tag IDs to skip (e.g., {270} if handler already checks it).
 
     Returns list of (entry, value_preview) for tags that have non-empty content.
     Used by NDPI, SVS, and generic TIFF handlers as an extra safety check.
     """
+    if exclude_tags is None:
+        exclude_tags = set()
     findings = []
     for entry in entries:
-        if entry.tag_id not in EXTRA_METADATA_TAGS:
+        if entry.tag_id not in EXTRA_METADATA_TAGS or entry.tag_id in exclude_tags:
             continue
         # Only check string (ASCII) or undefined (EXIF) types
         if entry.dtype not in (2, 7):
@@ -482,3 +492,79 @@ def get_ifd_image_data_size(header: TIFFHeader,
 
     counts = read_tag_long_array(f, header, count_entry)
     return sum(counts)
+
+
+def compute_ifd_tile_hash(f: BinaryIO, header: TIFFHeader,
+                          entries: List[IFDEntry]) -> Optional[str]:
+    """Compute SHA-256 hash of all tile/strip data in an IFD.
+
+    Streams data through the hash in 64 KB chunks for constant memory usage.
+    Returns hex digest, or None if no tile/strip data in this IFD.
+    """
+    offset_entry = None
+    count_entry = None
+
+    for entry in entries:
+        if entry.tag_id == 273:    # StripOffsets
+            offset_entry = entry
+        elif entry.tag_id == 279:  # StripByteCounts
+            count_entry = entry
+        elif entry.tag_id == 324:  # TileOffsets
+            if offset_entry is None:
+                offset_entry = entry
+        elif entry.tag_id == 325:  # TileByteCounts
+            if count_entry is None:
+                count_entry = entry
+
+    if offset_entry is None or count_entry is None:
+        return None
+
+    offsets = read_tag_long_array(f, header, offset_entry)
+    counts = read_tag_long_array(f, header, count_entry)
+
+    if len(offsets) != len(counts) or not offsets:
+        return None
+
+    h = hashlib.sha256()
+    chunk_size = 65536  # 64 KB
+
+    for off, cnt in zip(offsets, counts):
+        if cnt <= 0:
+            continue
+        f.seek(off)
+        remaining = cnt
+        while remaining > 0:
+            to_read = min(chunk_size, remaining)
+            data = f.read(to_read)
+            if not data:
+                break
+            h.update(data)
+            remaining -= len(data)
+
+    return h.hexdigest()
+
+
+def compute_image_hashes(filepath) -> Dict[int, str]:
+    """Compute per-IFD tile data SHA-256 hashes for a TIFF file.
+
+    Args:
+        filepath: Path to the TIFF file.
+
+    Returns:
+        Dict mapping IFD offset to SHA-256 hex digest.
+        Empty dict if the file is not a valid TIFF.
+    """
+    result = {}
+    try:
+        with open(str(filepath), 'rb') as f:
+            header = read_header(f)
+            if header is None:
+                return result
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                digest = compute_ifd_tile_hash(f, header, entries)
+                if digest is not None:
+                    result[ifd_offset] = digest
+    except (OSError, struct.error):
+        pass
+    return result

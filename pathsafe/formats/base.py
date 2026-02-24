@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from pathsafe.models import PHIFinding, ScanResult
+from pathsafe.scanner import scan_filename_for_phi
 
 
 class FormatHandler(ABC):
@@ -45,3 +46,21 @@ class FormatHandler(ABC):
         Returns a dict with format-specific information.
         """
         ...
+
+    def scan_filename(self, filepath: Path) -> List[PHIFinding]:
+        """Scan the filename for PHI patterns (common to all formats).
+
+        Returns PHIFinding objects for any accession numbers, SSNs, etc.
+        found in the filename stem. These cannot be automatically fixed
+        (would require renaming the file), so they are reported as warnings.
+        """
+        hits = scan_filename_for_phi(filepath)
+        findings = []
+        for _, length, matched, label in hits:
+            findings.append(PHIFinding(
+                offset=0, length=length, tag_id=None,
+                tag_name=f'Filename:{label}',
+                value_preview=f'{filepath.name}',
+                source='filename',
+            ))
+        return findings
