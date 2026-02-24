@@ -75,6 +75,7 @@ class GenericTIFFHandler(FormatHandler):
 
                 # Scan all IFDs for string tags and extra metadata
                 seen = set()
+                seen_extra = set()
                 for _, entries in iter_ifds(f, header):
                     for entry in entries:
                         if entry.value_offset in seen:
@@ -108,10 +109,11 @@ class GenericTIFFHandler(FormatHandler):
                                     ))
 
                     # Scan extra metadata (XMP, EXIF UserComment, Artist, etc.)
+                    # Uses separate seen set so tags are flagged independently
                     for entry, value in scan_extra_metadata_tags(f, header, entries):
-                        if entry.value_offset in seen:
+                        if entry.value_offset in seen_extra:
                             continue
-                        seen.add(entry.value_offset)
+                        seen_extra.add(entry.value_offset)
                         findings.append(PHIFinding(
                             offset=entry.value_offset,
                             length=entry.total_size,
@@ -156,6 +158,7 @@ class GenericTIFFHandler(FormatHandler):
         cleared: List[PHIFinding] = []
 
         seen = set()
+        seen_extra = set()
         with open(filepath, 'r+b') as f:
             header = read_header(f)
             if header is None:
@@ -198,10 +201,11 @@ class GenericTIFFHandler(FormatHandler):
                                 ))
 
                 # Extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+                # Uses separate seen set so tags are blanked independently
                 for entry, value in scan_extra_metadata_tags(f, header, entries):
-                    if entry.value_offset in seen:
+                    if entry.value_offset in seen_extra:
                         continue
-                    seen.add(entry.value_offset)
+                    seen_extra.add(entry.value_offset)
                     blank_extra_metadata_tag(f, entry)
                     cleared.append(PHIFinding(
                         offset=entry.value_offset,

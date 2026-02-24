@@ -204,7 +204,7 @@ class NDPIHandler(FormatHandler):
         with open(filepath, 'rb') as f:
             header = read_header(f)
             if header is None:
-                return findings
+                raise ValueError(f"Not a valid TIFF file: {filepath}")
 
             for _, entries in iter_ifds(f, header):
                 for entry in entries:
