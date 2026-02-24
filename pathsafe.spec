@@ -38,6 +38,8 @@ _hidden = [
     'tifffile',
     'numpy',
     'fpdf2',
+    'openslide',
+    'imagecodecs',
 ]
 
 # --- CLI executable ---

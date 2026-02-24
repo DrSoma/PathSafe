@@ -2710,6 +2710,24 @@ class PathSafeWindow(QMainWindow):
             return
         output_p = Path(output_text)
 
+        # For batch (directory) input, output must be a directory path
+        if input_p.is_dir() and output_p.suffix:
+            QMessageBox.warning(
+                self, 'Error',
+                'When converting a folder, the output path must be a directory,\n'
+                'not a file path.')
+            return
+
+        # Create output directory if it doesn't exist
+        try:
+            out_dir = output_p if input_p.is_dir() else output_p.parent
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            QMessageBox.warning(
+                self, 'Error',
+                f'Cannot create output directory:\n{e}')
+            return
+
         # Read conversion options
         target_values = ['tiff', 'png', 'jpeg']
         target_format = target_values[self.combo_target_format.currentIndex()]
