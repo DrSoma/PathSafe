@@ -8,6 +8,7 @@ from pathsafe.models import (
     ConversionBatchResult,
     ConversionResult,
     PHIFinding,
+    PreflightResult,
     ScanResult,
 )
 from pathsafe.anonymizer import anonymize_file, anonymize_batch

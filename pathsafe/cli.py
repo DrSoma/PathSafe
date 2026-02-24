@@ -12,7 +12,7 @@ from pathlib import Path
 import click
 
 import pathsafe
-from pathsafe.anonymizer import anonymize_batch, anonymize_file, collect_wsi_files, scan_batch
+from pathsafe.anonymizer import anonymize_batch, anonymize_file, collect_wsi_files, preflight_check, scan_batch
 from pathsafe.formats import detect_format, get_handler
 from pathsafe.log import (
     cli_bold, cli_dim, cli_error, cli_finding, cli_header, cli_info,
@@ -21,6 +21,16 @@ from pathsafe.log import (
 )
 from pathsafe.report import generate_certificate, generate_scan_report, friendly_tag_name
 from pathsafe.verify import verify_batch, verify_file
+
+
+def _apply_custom_patterns(patterns_path):
+    """Load a custom patterns JSON and replace module-level pattern lists."""
+    from pathsafe import scanner
+    from pathsafe.scanner import PatternConfig
+    config = PatternConfig.from_json(patterns_path)
+    scanner.PHI_BYTE_PATTERNS = config.byte_patterns
+    scanner.PHI_STRING_PATTERNS = config.string_patterns
+    scanner.DATE_BYTE_PATTERNS = config.date_byte_patterns
 
 
 @click.group()
@@ -45,11 +55,17 @@ def main():
 @click.option('--report', '-r', type=click.Path(), help='Write scan report PDF to this path.')
 @click.option('--institution', '-i', type=str, default='',
               help='Institution name to display on the PDF report header.')
-def scan(path, verbose, fmt, json_out, workers, report, institution):
+@click.option('--patterns', type=click.Path(exists=True),
+              help='JSON file with custom PHI patterns (merged with built-in defaults).')
+def scan(path, verbose, fmt, json_out, workers, report, institution, patterns):
     """Scan files for PHI (read-only).
 
     PATH can be a single file or a directory to scan recursively.
     """
+    if patterns:
+        from pathsafe.scanner import PatternConfig
+        _apply_custom_patterns(patterns)
+
     input_path = Path(path)
     files = collect_wsi_files(input_path, format_filter=fmt)
 
@@ -190,8 +206,10 @@ def scan(path, verbose, fmt, json_out, workers, report, institution):
               help='Verify image tile data integrity via SHA-256 checksums (default: on).')
 @click.option('--institution', '-i', type=str, default='',
               help='Institution name to display on the PDF certificate header.')
+@click.option('--patterns', type=click.Path(exists=True),
+              help='JSON file with custom PHI patterns (merged with built-in defaults).')
 def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verbose, workers, log,
-              reset_timestamps, verify_integrity, institution):
+              reset_timestamps, verify_integrity, institution, patterns):
     """Anonymize PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
@@ -199,6 +217,9 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
     By default, uses copy mode (--output required). Use --in-place to
     modify original files directly.
     """
+    if patterns:
+        _apply_custom_patterns(patterns)
+
     input_path = Path(path)
     output_dir = Path(output) if output else None
 
@@ -227,6 +248,16 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
             emit(cli_warning(f'No WSI files found in {input_path}'),
                  log_info(f'No WSI files found in {input_path}'))
             return
+
+        # Pre-flight validation
+        if not dry_run:
+            preflight = preflight_check(files, output_dir)
+            for w in preflight.warnings:
+                emit(cli_warning(f'Warning: {w}'), log_warn(f'Preflight: {w}'))
+            if not preflight.ok:
+                for e in preflight.errors:
+                    emit(cli_error(f'Error: {e}'), log_error(f'Preflight: {e}'))
+                sys.exit(1)
 
         mode_str = 'DRY RUN' if dry_run else ('copy' if output_dir else 'in-place')
         workers_str = f', {workers} workers' if workers > 1 else ''

@@ -29,7 +29,7 @@ dependencies = [
 pathsafe = "pathsafe.cli:main"
 
 [project.gui-scripts]
-pathsafe-gui = "pathsafe.gui_qt:main"
+pathsafe-gui = "pathsafe.gui:main"
 
 [project.optional-dependencies]
 gui = [

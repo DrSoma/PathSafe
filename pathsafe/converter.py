@@ -8,12 +8,15 @@ Requires optional dependencies:
     (openslide-python + tifffile)
 """
 
+import logging
 import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from pathsafe.models import ConversionBatchResult, ConversionResult
 
@@ -149,6 +152,7 @@ def convert_file(
     except ImportError:
         raise
     except Exception as e:
+        logger.exception("convert_file failed for %s", source)
         result.error = str(e)
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)

@@ -155,6 +155,20 @@ class TestGenerateCertificate:
 class TestGeneratePdfCertificate:
     """Tests for standalone PDF certificate generation."""
 
+    def test_missing_required_keys_raises(self, tmp_path):
+        pdf_path = tmp_path / 'bad.pdf'
+        # Completely empty dict
+        with pytest.raises(ValueError, match="missing required keys"):
+            generate_pdf_certificate({}, pdf_path)
+        # Missing 'files' key
+        with pytest.raises(ValueError, match="files"):
+            generate_pdf_certificate(
+                {'certificate_id': 'x', 'summary': {}}, pdf_path)
+        # Missing 'summary' key
+        with pytest.raises(ValueError, match="summary"):
+            generate_pdf_certificate(
+                {'certificate_id': 'x', 'files': []}, pdf_path)
+
     def test_pdf_created(self, tmp_path):
         batch = _make_batch_result()
         cert = generate_certificate(batch)

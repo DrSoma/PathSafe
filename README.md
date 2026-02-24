@@ -1,6 +1,6 @@
 # PathSafe
 
-**Remove patient information from pathology slide files -- safely, automatically, and verifiably.**
+**Remove patient information from pathology slide files... safely, automatically, and verifiably.**
 
 When pathology scanners create digital slide files, they often embed hidden patient data inside the file: accession numbers, scan dates, operator names, and even photographs of the slide label. This information is invisible when viewing the slide image, but anyone with the right tools can extract it. PathSafe finds and removes all of this hidden data so your slides are safe to share for research or education.
 
@@ -332,3 +332,4 @@ Developed and tested at the McGill University Health Center Research Institute, 
 ## License
 
 Apache 2.0
+

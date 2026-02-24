@@ -4,6 +4,7 @@ Supports both sequential and parallel (thread pool) batch processing.
 """
 
 import hashlib
+import logging
 import os
 import shutil
 import sys
@@ -13,8 +14,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, List, Optional
 
+logger = logging.getLogger(__name__)
+
 from pathsafe.formats import detect_format, get_handler
-from pathsafe.models import AnonymizationResult, BatchResult
+from pathsafe.models import AnonymizationResult, BatchResult, PreflightResult
 
 # File extensions considered for batch processing
 WSI_EXTENSIONS = {'.ndpi', '.svs', '.tif', '.tiff', '.scn', '.bif',
@@ -24,7 +27,79 @@ WSI_EXTENSIONS = {'.ndpi', '.svs', '.tif', '.tiff', '.scn', '.bif',
 DEFAULT_WORKERS = 4
 
 
-def _verify_image_integrity(filepath, pre_hashes):
+def preflight_check(files: List[Path],
+                    output_dir: Optional[Path] = None) -> PreflightResult:
+    """Run pre-flight validation before a batch anonymization.
+
+    Checks:
+    - Output directory is writable (or can be created)
+    - Sufficient disk space for copy-mode output
+    - Files exist and are readable
+
+    Args:
+        files: List of source file paths.
+        output_dir: Target directory for copy mode. None means in-place.
+
+    Returns:
+        PreflightResult with ok=True if all checks pass.
+    """
+    result = PreflightResult()
+
+    if not files:
+        result.errors.append("No files to process.")
+        result.ok = False
+        return result
+
+    # Estimate total size
+    total_size = 0
+    for f in files:
+        try:
+            total_size += os.path.getsize(f)
+        except OSError as e:
+            result.errors.append(f"Cannot read {f.name}: {e}")
+    result.estimated_size_bytes = total_size
+
+    if output_dir is not None:
+        # Check if output directory exists or can be created
+        if output_dir.exists():
+            if not output_dir.is_dir():
+                result.errors.append(
+                    f"Output path exists but is not a directory: {output_dir}")
+            elif not os.access(output_dir, os.W_OK):
+                result.errors.append(
+                    f"Output directory is not writable: {output_dir}")
+        else:
+            # Check if parent exists and is writable
+            parent = output_dir.parent
+            if parent.exists() and os.access(parent, os.W_OK):
+                result.warnings.append(
+                    f"Output directory will be created: {output_dir}")
+            else:
+                result.errors.append(
+                    f"Cannot create output directory (parent not writable): {output_dir}")
+
+        # Check available disk space
+        try:
+            check_path = output_dir if output_dir.exists() else output_dir.parent
+            if check_path.exists():
+                stat = shutil.disk_usage(check_path)
+                result.available_space_bytes = stat.free
+                if stat.free < total_size:
+                    result.errors.append(
+                        f"Insufficient disk space: need {total_size / 1e9:.1f} GB, "
+                        f"have {stat.free / 1e9:.1f} GB")
+                elif stat.free < total_size * 1.1:
+                    result.warnings.append(
+                        f"Low disk space: need {total_size / 1e9:.1f} GB, "
+                        f"have {stat.free / 1e9:.1f} GB (< 10% margin)")
+        except OSError:
+            result.warnings.append("Could not check disk space.")
+
+    result.ok = len(result.errors) == 0
+    return result
+
+
+def _verify_image_integrity(filepath: Path, pre_hashes: dict) -> Optional[bool]:
     """Compare pre-anonymization tile hashes with post-anonymization hashes.
 
     Returns True if all non-blanked IFDs match, False if any mismatch,
@@ -55,6 +130,7 @@ def _verify_image_integrity(filepath, pre_hashes):
                 if post_hash != pre_hashes[ifd_offset]:
                     return False
     except (OSError, Exception):
+        logger.exception("Image integrity verification failed for %s", filepath)
         return False
 
     return True
@@ -326,7 +402,7 @@ def anonymize_batch(
 
 
 def _batch_sequential(
-    file_pairs: List,
+    file_pairs: List[tuple],
     verify: bool,
     dry_run: bool,
     progress_callback: Optional[Callable],
@@ -365,7 +441,7 @@ def _batch_sequential(
 
 
 def _batch_parallel(
-    file_pairs: List,
+    file_pairs: List[tuple],
     verify: bool,
     dry_run: bool,
     workers: int,
@@ -520,7 +596,7 @@ def scan_batch(
     return results
 
 
-def _update_batch_stats(batch: BatchResult, result: AnonymizationResult):
+def _update_batch_stats(batch: BatchResult, result: AnonymizationResult) -> None:
     """Update batch statistics from a single result."""
     if result.error:
         batch.files_errored += 1

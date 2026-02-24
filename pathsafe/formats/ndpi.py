@@ -20,9 +20,9 @@ Proven on 3,101+ NDPI files across 9 LungAI batches.
 import os
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import BinaryIO, Dict, List
 
-from pathsafe.formats.base import FormatHandler
+from pathsafe.formats.tiff_base import TiffFormatHandler
 from pathsafe.models import PHIFinding, ScanResult
 from pathsafe.scanner import (
     DEFAULT_SCAN_SIZE,
@@ -102,7 +102,7 @@ _NDPI_HANDLED_TAGS = {
 NDPI_PRIVATE_TAG_RANGE = range(65420, 65481)
 
 
-class NDPIHandler(FormatHandler):
+class NDPIHandler(TiffFormatHandler):
     """Format handler for Hamamatsu NDPI files."""
 
     format_name = "ndpi"
@@ -211,7 +211,7 @@ class NDPIHandler(FormatHandler):
 
         return info
 
-    # --- Internal methods ---
+    # --- Internal methods (NDPI-specific) ---
 
     def _scan_tags(self, filepath: Path) -> List[PHIFinding]:
         """Scan NDPI TIFF tags for PHI across ALL IFDs.
@@ -328,7 +328,7 @@ class NDPIHandler(FormatHandler):
                             ))
         return findings
 
-    def _scan_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
+    def _scan_scanner_props(self, f: BinaryIO, entry: IFDEntry) -> List[PHIFinding]:
         """Scan NDPI_SCANNER_PROPS (tag 65449) for PHI key-value pairs."""
         findings = []
         value = read_tag_string(f, entry)
@@ -350,23 +350,6 @@ class NDPIHandler(FormatHandler):
                     value_preview=val[:40],
                     source='tiff_tag',
                 ))
-        return findings
-
-    def _scan_regex(self, filepath: Path,
-                    skip_offsets: set = None) -> List[PHIFinding]:
-        """Regex safety scan of header bytes."""
-        with open(filepath, 'rb') as f:
-            data = f.read(DEFAULT_SCAN_SIZE)
-
-        raw_findings = scan_bytes_for_phi(data, skip_offsets=skip_offsets)
-        findings = []
-        for offset, length, matched, label in raw_findings:
-            value = matched.decode('ascii', errors='replace')
-            findings.append(PHIFinding(
-                offset=offset, length=length, tag_id=None,
-                tag_name=f'regex:{label}', value_preview=value[:50],
-                source='regex_scan',
-            ))
         return findings
 
     def _scan_fallback(self, filepath: Path) -> List[PHIFinding]:
@@ -607,7 +590,7 @@ class NDPIHandler(FormatHandler):
                             ))
         return cleared
 
-    def _anonymize_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
+    def _anonymize_scanner_props(self, f: BinaryIO, entry: IFDEntry) -> List[PHIFinding]:
         """Anonymize PHI keys in NDPI_SCANNER_PROPS (tag 65449)."""
         cleared = []
         raw = read_tag_value_bytes(f, entry)
@@ -648,29 +631,6 @@ class NDPIHandler(FormatHandler):
                 new_bytes = new_bytes[:entry.total_size - 1] + b'\x00'
             f.seek(entry.value_offset)
             f.write(new_bytes)
-        return cleared
-
-    def _anonymize_regex(self, filepath: Path,
-                         skip_offsets: set) -> List[PHIFinding]:
-        """Regex safety scan + anonymize any stragglers."""
-        with open(filepath, 'rb') as f:
-            data = f.read(DEFAULT_SCAN_SIZE)
-
-        raw_findings = scan_bytes_for_phi(data, skip_offsets=skip_offsets)
-        if not raw_findings:
-            return []
-
-        cleared = []
-        with open(filepath, 'r+b') as f:
-            for offset, length, matched, label in raw_findings:
-                value = matched.decode('ascii', errors='replace')
-                f.seek(offset)
-                f.write(b'X' * length)
-                cleared.append(PHIFinding(
-                    offset=offset, length=length, tag_id=None,
-                    tag_name=f'regex:{label}', value_preview=value[:50],
-                    source='regex_scan',
-                ))
         return cleared
 
     def _anonymize_fallback(self, filepath: Path) -> List[PHIFinding]:

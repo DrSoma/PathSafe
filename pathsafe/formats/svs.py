@@ -16,40 +16,18 @@ PHI fields in ImageDescription:
 """
 
 import os
-import re
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
-from pathsafe.formats.base import FormatHandler
+from pathsafe.formats.tiff_base import TiffFormatHandler
 from pathsafe.models import PHIFinding, ScanResult
-from pathsafe.scanner import (
-    DEFAULT_SCAN_SIZE,
-    scan_bytes_for_phi,
-    is_date_anonymized,
-)
 from pathsafe.tiff import (
     read_header,
     read_ifd,
     read_tag_string,
     read_tag_value_bytes,
     iter_ifds,
-    blank_ifd_image_data,
-    is_ifd_image_blanked,
-    get_ifd_image_size,
-    get_ifd_image_data_size,
-    scan_extra_metadata_tags,
-    blank_extra_metadata_tag,
-    unlink_ifd,
-    read_exif_sub_ifd,
-    read_gps_sub_ifd,
-    scan_exif_sub_ifd_tags,
-    scan_gps_sub_ifd,
-    blank_exif_sub_ifd_tags,
-    blank_gps_sub_ifd,
-    EXTRA_METADATA_TAGS,
-    EXIF_SUB_IFD_PHI_TAGS,
-    GPS_TAG_NAMES,
     TAG_NAMES,
 )
 
@@ -67,10 +45,11 @@ DATE_TAGS = {
 }
 
 
-class SVSHandler(FormatHandler):
+class SVSHandler(TiffFormatHandler):
     """Format handler for Aperio SVS files."""
 
     format_name = "svs"
+    extra_metadata_exclude_tags = {270}
 
     def can_handle(self, filepath: Path) -> bool:
         return filepath.suffix.lower() == '.svs'
@@ -83,7 +62,7 @@ class SVSHandler(FormatHandler):
 
         try:
             findings = self._scan_tag270(filepath)
-            findings += self._scan_date_tags(filepath)
+            findings += self._scan_datetime_tags(filepath)
             findings += self._scan_extra_metadata(filepath)
             findings += self._scan_label_macro(filepath)
             tag270_offsets = {f.offset for f in findings}
@@ -108,7 +87,7 @@ class SVSHandler(FormatHandler):
         """Anonymize PHI in an SVS file in-place."""
         cleared: List[PHIFinding] = []
         cleared += self._anonymize_tag270(filepath)
-        cleared += self._anonymize_date_tags(filepath)
+        cleared += self._anonymize_datetime_tags(filepath)
         cleared += self._anonymize_extra_metadata(filepath)
         cleared += self._blank_label_macro(filepath)
         cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
@@ -165,7 +144,7 @@ class SVSHandler(FormatHandler):
             info['error'] = str(e)
         return info
 
-    # --- Internal methods ---
+    # --- Internal methods (SVS-specific) ---
 
     def _scan_tag270(self, filepath: Path) -> List[PHIFinding]:
         """Scan tag 270 ImageDescription for PHI fields across all IFDs."""
@@ -196,243 +175,6 @@ class SVSHandler(FormatHandler):
                             ))
                         break  # Only one tag 270 per IFD
         return findings
-
-    def _scan_date_tags(self, filepath: Path) -> List[PHIFinding]:
-        """Scan DateTime tags for PHI across all IFDs."""
-        findings = []
-        seen_offsets = set()
-        with open(filepath, 'rb') as f:
-            header = read_header(f)
-            if header is None:
-                return findings
-
-            for _, entries in iter_ifds(f, header):
-                for entry in entries:
-                    if entry.tag_id in DATE_TAGS and entry.value_offset not in seen_offsets:
-                        seen_offsets.add(entry.value_offset)
-                        value = read_tag_string(f, entry)
-                        if value and not is_date_anonymized(value):
-                            findings.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=entry.tag_id,
-                                tag_name=DATE_TAGS[entry.tag_id],
-                                value_preview=value[:30],
-                                source='tiff_tag',
-                            ))
-        return findings
-
-    def _scan_extra_metadata(self, filepath: Path) -> List[PHIFinding]:
-        """Scan extra metadata tags (XMP, EXIF UserComment, Artist, etc.) across all IFDs."""
-        findings = []
-        seen_offsets = set()
-        with open(filepath, 'rb') as f:
-            header = read_header(f)
-            if header is None:
-                return findings
-            for _, entries in iter_ifds(f, header):
-                for entry, value in scan_extra_metadata_tags(f, header, entries, exclude_tags={270}):
-                    if entry.value_offset in seen_offsets:
-                        continue
-                    seen_offsets.add(entry.value_offset)
-                    findings.append(PHIFinding(
-                        offset=entry.value_offset,
-                        length=entry.total_size,
-                        tag_id=entry.tag_id,
-                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
-                        value_preview=value[:50],
-                        source='tiff_tag',
-                    ))
-
-                # EXIF sub-IFD scanning
-                exif_result = read_exif_sub_ifd(f, header, entries)
-                if exif_result is not None:
-                    _, sub_entries = exif_result
-                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
-                        if sub_entry.value_offset not in seen_offsets:
-                            seen_offsets.add(sub_entry.value_offset)
-                            findings.append(PHIFinding(
-                                offset=sub_entry.value_offset,
-                                length=sub_entry.total_size,
-                                tag_id=sub_entry.tag_id,
-                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
-                                value_preview=value[:50],
-                                source='tiff_tag',
-                            ))
-
-                # GPS sub-IFD scanning
-                gps_result = read_gps_sub_ifd(f, header, entries)
-                if gps_result is not None:
-                    _, sub_entries = gps_result
-                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
-                        if sub_entry.value_offset not in seen_offsets:
-                            seen_offsets.add(sub_entry.value_offset)
-                            findings.append(PHIFinding(
-                                offset=sub_entry.value_offset,
-                                length=sub_entry.total_size,
-                                tag_id=sub_entry.tag_id,
-                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
-                                value_preview=preview[:50],
-                                source='tiff_tag',
-                            ))
-        return findings
-
-    def _anonymize_extra_metadata(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize extra metadata tags across all IFDs."""
-        cleared = []
-        seen_offsets = set()
-        with open(filepath, 'r+b') as f:
-            header = read_header(f)
-            if header is None:
-                return cleared
-            for _, entries in iter_ifds(f, header):
-                for entry, value in scan_extra_metadata_tags(f, header, entries, exclude_tags={270}):
-                    if entry.value_offset in seen_offsets:
-                        continue
-                    seen_offsets.add(entry.value_offset)
-                    blank_extra_metadata_tag(f, entry)
-                    cleared.append(PHIFinding(
-                        offset=entry.value_offset,
-                        length=entry.total_size,
-                        tag_id=entry.tag_id,
-                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
-                        value_preview=value[:50],
-                        source='tiff_tag',
-                    ))
-
-                # Blank EXIF sub-IFD PHI tags
-                exif_result = read_exif_sub_ifd(f, header, entries)
-                if exif_result is not None:
-                    _, sub_entries = exif_result
-                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
-                        if sub_entry.value_offset not in seen_offsets:
-                            seen_offsets.add(sub_entry.value_offset)
-                            f.seek(sub_entry.value_offset)
-                            f.write(b'\x00' * sub_entry.total_size)
-                            cleared.append(PHIFinding(
-                                offset=sub_entry.value_offset,
-                                length=sub_entry.total_size,
-                                tag_id=sub_entry.tag_id,
-                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
-                                value_preview=value[:50],
-                                source='tiff_tag',
-                            ))
-
-                # Blank GPS sub-IFD entirely
-                gps_result = read_gps_sub_ifd(f, header, entries)
-                if gps_result is not None:
-                    _, sub_entries = gps_result
-                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
-                        if sub_entry.value_offset not in seen_offsets:
-                            seen_offsets.add(sub_entry.value_offset)
-                            f.seek(sub_entry.value_offset)
-                            f.write(b'\x00' * sub_entry.total_size)
-                            cleared.append(PHIFinding(
-                                offset=sub_entry.value_offset,
-                                length=sub_entry.total_size,
-                                tag_id=sub_entry.tag_id,
-                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
-                                value_preview=preview[:50],
-                                source='tiff_tag',
-                            ))
-        return cleared
-
-    def _scan_regex(self, filepath: Path,
-                    skip_offsets: set = None) -> List[PHIFinding]:
-        """Regex safety scan of header bytes."""
-        with open(filepath, 'rb') as f:
-            data = f.read(DEFAULT_SCAN_SIZE)
-
-        raw_findings = scan_bytes_for_phi(data, skip_offsets=skip_offsets)
-        findings = []
-        for offset, length, matched, label in raw_findings:
-            value = matched.decode('ascii', errors='replace')
-            findings.append(PHIFinding(
-                offset=offset, length=length, tag_id=None,
-                tag_name=f'regex:{label}', value_preview=value[:50],
-                source='regex_scan',
-            ))
-        return findings
-
-    def _scan_label_macro(self, filepath: Path) -> List[PHIFinding]:
-        """Detect label and macro images that may contain photographed PHI."""
-        findings = []
-        with open(filepath, 'rb') as f:
-            header = read_header(f)
-            if header is None:
-                return findings
-
-            for ifd_offset, entries in iter_ifds(f, header):
-                for entry in entries:
-                    if entry.tag_id == 270:
-                        desc = read_tag_string(f, entry).lower()
-                        img_type = None
-                        if 'label' in desc:
-                            img_type = 'LabelImage'
-                        elif 'macro' in desc:
-                            img_type = 'MacroImage'
-
-                        if img_type:
-                            # Skip if already blanked
-                            if is_ifd_image_blanked(f, header, entries):
-                                break
-                            w, h = get_ifd_image_size(header, entries, f)
-                            data_size = get_ifd_image_data_size(
-                                header, entries, f)
-                            if data_size > 0:
-                                findings.append(PHIFinding(
-                                    offset=ifd_offset,
-                                    length=data_size,
-                                    tag_id=None,
-                                    tag_name=img_type,
-                                    value_preview=(
-                                        f'{img_type} {w}x{h} '
-                                        f'({data_size/1024:.0f}KB)'),
-                                    source='image_content',
-                                ))
-                        break  # Only check tag 270 per IFD
-        return findings
-
-    def _blank_label_macro(self, filepath: Path) -> List[PHIFinding]:
-        """Blank label and macro image data."""
-        cleared = []
-        with open(filepath, 'r+b') as f:
-            header = read_header(f)
-            if header is None:
-                return cleared
-
-            for ifd_offset, entries in iter_ifds(f, header):
-                for entry in entries:
-                    if entry.tag_id == 270:
-                        desc = read_tag_string(f, entry).lower()
-                        img_type = None
-                        if 'label' in desc:
-                            img_type = 'LabelImage'
-                        elif 'macro' in desc:
-                            img_type = 'MacroImage'
-
-                        if img_type:
-                            if is_ifd_image_blanked(f, header, entries):
-                                # Already blanked but may still be linked -- unlink it
-                                unlink_ifd(f, header, ifd_offset)
-                                break
-                            w, h = get_ifd_image_size(header, entries, f)
-                            blanked = blank_ifd_image_data(
-                                f, header, entries)
-                            if blanked > 0:
-                                unlink_ifd(f, header, ifd_offset)
-                                cleared.append(PHIFinding(
-                                    offset=ifd_offset,
-                                    length=blanked,
-                                    tag_id=None,
-                                    tag_name=img_type,
-                                    value_preview=(
-                                        f'blanked {img_type} {w}x{h} '
-                                        f'({blanked/1024:.0f}KB)'),
-                                    source='image_content',
-                                ))
-                        break
-        return cleared
 
     def _anonymize_tag270(self, filepath: Path) -> List[PHIFinding]:
         """Anonymize PHI fields in tag 270 ImageDescription across all IFDs."""
@@ -485,56 +227,6 @@ class SVSHandler(FormatHandler):
                             f.seek(entry.value_offset)
                             f.write(new_bytes)
                         break  # Only one tag 270 per IFD
-        return cleared
-
-    def _anonymize_date_tags(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize DateTime tags across all IFDs."""
-        cleared = []
-        seen_offsets = set()
-        with open(filepath, 'r+b') as f:
-            header = read_header(f)
-            if header is None:
-                return cleared
-
-            for _, entries in iter_ifds(f, header):
-                for entry in entries:
-                    if entry.tag_id in DATE_TAGS and entry.value_offset not in seen_offsets:
-                        seen_offsets.add(entry.value_offset)
-                        value = read_tag_string(f, entry)
-                        if value and not is_date_anonymized(value):
-                            f.seek(entry.value_offset)
-                            f.write(b'\x00' * entry.total_size)
-                            cleared.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=entry.tag_id,
-                                tag_name=DATE_TAGS[entry.tag_id],
-                                value_preview=value[:30],
-                                source='tiff_tag',
-                            ))
-        return cleared
-
-    def _anonymize_regex(self, filepath: Path,
-                         skip_offsets: set) -> List[PHIFinding]:
-        """Regex safety scan + anonymize stragglers."""
-        with open(filepath, 'rb') as f:
-            data = f.read(DEFAULT_SCAN_SIZE)
-
-        raw_findings = scan_bytes_for_phi(data, skip_offsets=skip_offsets)
-        if not raw_findings:
-            return []
-
-        cleared = []
-        with open(filepath, 'r+b') as f:
-            for offset, length, matched, label in raw_findings:
-                value = matched.decode('ascii', errors='replace')
-                f.seek(offset)
-                f.write(b'X' * length)
-                cleared.append(PHIFinding(
-                    offset=offset, length=length, tag_id=None,
-                    tag_name=f'regex:{label}', value_preview=value[:50],
-                    source='regex_scan',
-                ))
         return cleared
 
 

@@ -357,9 +357,19 @@ def generate_pdf_certificate(certificate: dict, output_path: Path,
 
     Returns:
         The output_path.
+
+    Raises:
+        ValueError: If certificate dict is missing required keys.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Validate required keys
+    _REQUIRED_CERT_KEYS = {'certificate_id', 'summary', 'files'}
+    missing = _REQUIRED_CERT_KEYS - set(certificate.keys())
+    if missing:
+        raise ValueError(
+            f"Certificate dict is missing required keys: {', '.join(sorted(missing))}")
 
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=20)

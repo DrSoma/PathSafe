@@ -64,6 +64,16 @@ class BatchResult:
 
 
 @dataclass
+class PreflightResult:
+    """Result of pre-flight validation before batch anonymization."""
+    ok: bool = True
+    warnings: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    estimated_size_bytes: int = 0
+    available_space_bytes: int = 0
+
+
+@dataclass
 class ConversionResult:
     """Result of converting a single WSI file."""
     source_path: Path
