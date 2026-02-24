@@ -17,7 +17,7 @@ from pathsafe.verify import verify_batch, verify_file
 @click.group()
 @click.version_option(version=pathsafe.__version__, prog_name='pathsafe')
 def main():
-    """PathSafe — Hospital-grade WSI anonymizer.
+    """PathSafe — Production-tested WSI anonymizer.
 
     Detect and remove Protected Health Information (PHI) from
     whole-slide image files (NDPI, SVS, TIFF).

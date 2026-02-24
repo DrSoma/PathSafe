@@ -315,6 +315,10 @@ Optional dependencies add extra capabilities:
 
 ---
 
+## Acknowledgments
+
+Developed and tested at the Department of Pathology, McGill University.
+
 ## License
 
 Apache 2.0

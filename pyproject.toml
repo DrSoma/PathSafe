@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pathsafe"
 version = "1.0.0"
-description = "Hospital-grade WSI anonymizer for pathology slide files"
+description = "Production-tested WSI anonymizer for pathology slide files"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.9"

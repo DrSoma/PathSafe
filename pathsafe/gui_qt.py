@@ -1306,7 +1306,7 @@ class PathSafeWindow(QMainWindow):
         QMessageBox.about(
             self, "About PathSafe",
             f"<h3>PathSafe v{pathsafe.__version__}</h3>"
-            "<p>Hospital-grade WSI anonymizer for pathology slide files.</p>"
+            "<p>Production-tested WSI anonymizer for pathology slide files.</p>"
             "<p>Removes patient-identifying information (PHI) from "
             "NDPI, SVS, MRXS, DICOM, and other whole-slide image formats.</p>"
             "<p>Includes label/macro image blanking, post-anonymization "
