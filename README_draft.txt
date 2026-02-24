@@ -25,7 +25,7 @@ Built from real-world experience anonymizing 3,101+ clinical slides.
 
 ---
 
-## Getting PathSafe
+## PathSafe Installation
 
 There are two ways to get PathSafe: **download a standalone app** (no installation needed) or **install with Python** (more flexible).
 
@@ -33,15 +33,14 @@ There are two ways to get PathSafe: **download a standalone app** (no installati
 
 No Python required. Just download and run.
 
-1. Go to the [Releases page](https://github.com/DrSoma/PathSafe/releases)
-2. Download the file for your operating system from the table below
-3. Run it (see instructions under the table)
+1. Download the file for your operating system from the table below
+2. Run it (see instructions under the table)
 
 | Your computer | Graphical interface (recommended) | Command line |
 |---------------|-----------------------------------|--------------|
-| **Windows** | `pathsafe-gui-windows.exe` | `pathsafe-windows.exe` |
-| **macOS** | `pathsafe-gui-macos` | `pathsafe-macos` |
-| **Linux** | `pathsafe-gui-linux` | `pathsafe-linux` |
+| **Windows** | [pathsafe-gui-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-windows.exe) | [pathsafe-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-windows.exe) |
+| **macOS** | [pathsafe-gui-macos](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos) | [pathsafe-macos](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-macos) |
+| **Linux** | [pathsafe-gui-linux](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux) | [pathsafe-linux](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-linux) |
 
 **Windows**: Double-click `pathsafe-gui-windows.exe`. Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
