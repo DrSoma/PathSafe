@@ -104,8 +104,8 @@ The interface walks you through four steps:
 
 1. **Select Files**: Browse for files or folders, or drag and drop them onto the window
 2. **Scan**: Click **Scan for PHI** -- PathSafe checks your files and reports what patient data it found (nothing is changed yet)
-3. **Anonymize**: Click **Anonymize** -- PathSafe copies your files to the output folder and removes all patient data from the copies (your originals are never touched)
-4. **Verify**: Click **Verify** -- PathSafe re-scans the anonymized files to confirm everything was removed
+3. **Select Output**: Choose the output folder where anonymized copies will be saved
+4. **Anonymize**: Click **Anonymize** -- PathSafe copies your files to the output folder, removes all patient data, and automatically verifies everything was removed (your originals are never touched)
 
 A summary popup appears after each step telling you exactly what happened.
 
@@ -118,8 +118,9 @@ A summary popup appears after each step telling you exactly what happened.
 | **Keyboard shortcuts** | Ctrl+S (scan), Ctrl+R (anonymize), Ctrl+E (verify), Ctrl+I (info), Ctrl+T (convert) |
 | **Parallel processing** | Adjust the Workers slider (2-4 recommended) |
 | **Dry run** | Check "Dry run" to preview without modifying anything |
-| **Verify image integrity** | Check in Compliance section -- proves diagnostic images were not altered using SHA-256 checksums |
-| **Compliance options** | Reset timestamps, assessment checklist, image integrity -- all in the Compliance section |
+| **Image integrity verification** | Automatically verifies diagnostic images were not altered using SHA-256 checksums before and after anonymization |
+| **Timestamp reset** | Automatically resets file timestamps to epoch, removing temporal metadata that could aid re-identification |
+| **Technical measures audit** | The compliance certificate includes a detailed list of all technical measures applied (metadata cleared, labels blanked, integrity verified, timestamps reset) |
 | **Save log / Export JSON** | Save your results for record-keeping (Actions menu or buttons) |
 
 ## Option B: Command Line
@@ -141,13 +142,10 @@ pathsafe verify /path/to/clean/
 
 ```bash
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
-    --certificate certificate.json \
-    --checklist checklist.json \
-    --verify-integrity \
-    --reset-timestamps
+    --certificate certificate.json
 ```
 
-This generates a compliance certificate, an assessment checklist, verifies that diagnostic images were not altered, and resets file timestamps.
+This generates a compliance certificate documenting all technical measures applied. Image integrity verification and timestamp reset are enabled by default.
 
 ### In-place mode (modifies originals -- make sure you have backups):
 
@@ -302,10 +300,9 @@ pathsafe gui             Launch the graphical interface
 | `--verbose` | Show detailed output |
 | `--workers N` | Process N files in parallel (faster for large batches) |
 | `--certificate FILE` | Generate a JSON compliance certificate |
-| `--checklist FILE` | Generate a JSON assessment checklist |
 | `--format FORMAT` | Only process files of a specific format (ndpi, svs, mrxs, bif, scn, dicom, tiff) |
-| `--verify-integrity` | Verify image tile data was not altered (SHA-256 before/after comparison) |
-| `--reset-timestamps` | Reset file dates to epoch (removes temporal metadata) |
+| `--no-verify-integrity` | Skip SHA-256 image integrity verification (enabled by default) |
+| `--no-reset-timestamps` | Keep original file timestamps (reset to epoch by default) |
 | `--log FILE` | Save all output to a log file |
 
 ---

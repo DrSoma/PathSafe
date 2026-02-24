@@ -1,4 +1,4 @@
-"""PathSafe Qt GUI — modern cross-platform interface for hospital staff.
+"""PathSafe Qt GUI - modern cross-platform interface for hospital staff.
 
 One-click anonymize workflow: browse files, scan, anonymize, verify.
 Uses PySide6 (Qt6) for native look and crisp text on all platforms.
@@ -21,7 +21,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize, QSettings
+from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize, QSettings, QStandardPaths
 from PySide6.QtGui import (
     QFont, QTextCursor, QAction, QKeySequence, QColor,
     QPainter, QPen, QBrush, QDragEnterEvent, QDropEvent,
@@ -43,7 +43,7 @@ from pathsafe.log import (
     html_separator, html_success, html_summary_line, html_warning,
     set_html_theme,
 )
-from pathsafe.report import generate_certificate, generate_checklist
+from pathsafe.report import generate_certificate
 from pathsafe.verify import verify_batch
 
 
@@ -602,7 +602,7 @@ class ScanWorker(QThread):
             workers_str = f', {self.workers} workers' if self.workers > 1 else ''
             fmt_str = f' [{self.format_filter.upper()}]' if self.format_filter else ''
             self.signals.log.emit(
-                html_header(f'PathSafe v{pathsafe.__version__} — PHI Scan'
+                html_header(f'PathSafe v{pathsafe.__version__} - PHI Scan'
                             f'{fmt_str}{workers_str}'))
             self.signals.log.emit(
                 html_info(f'Scanning {total} file(s)...'))
@@ -636,15 +636,15 @@ class ScanWorker(QThread):
                 if result.error:
                     error_count += 1
                     self.signals.log.emit(html_error(
-                        f'  [{i}/{total_files}] {filepath.name} — ERROR: {result.error}'))
+                        f'  [{i}/{total_files}] {filepath.name} - ERROR: {result.error}'))
                 elif result.is_clean:
                     clean += 1
                     self.signals.log.emit(html_success(
-                        f'  [{i}/{total_files}] {filepath.name} — CLEAN'))
+                        f'  [{i}/{total_files}] {filepath.name} - CLEAN'))
                 else:
                     phi_count += len(result.findings)
                     self.signals.log.emit(html_warning(
-                        f'  [{i}/{total_files}] {filepath.name} — '
+                        f'  [{i}/{total_files}] {filepath.name} - '
                         f'{len(result.findings)} finding(s):'))
                     for f in result.findings:
                         self.signals.log.emit(html_finding(
@@ -674,7 +674,7 @@ class ScanWorker(QThread):
 
             if phi_files == 0 and error_count == 0:
                 self.signals.log.emit(html_success(
-                    'All files are clean — no PHI detected.'))
+                    'All files are clean - no PHI detected.'))
 
             self.signals.summary.emit({
                 'type': 'scan',
@@ -697,9 +697,9 @@ class AnonymizeWorker(QThread):
     """Background thread for anonymizing files."""
 
     def __init__(self, input_path, output_dir, verify, workers, signals,
-                 reset_timestamps=False,
-                 generate_checklist_flag=False, format_filter=None,
-                 dry_run=False, verify_integrity=False):
+                 reset_timestamps=True,
+                 format_filter=None,
+                 dry_run=False, verify_integrity=True):
         super().__init__()
         self.input_path = input_path
         self.output_dir = output_dir
@@ -707,7 +707,6 @@ class AnonymizeWorker(QThread):
         self.workers = workers
         self.signals = signals
         self.reset_timestamps = reset_timestamps
-        self.generate_checklist_flag = generate_checklist_flag
         self.format_filter = format_filter
         self.dry_run = dry_run
         self.verify_integrity = verify_integrity
@@ -730,13 +729,13 @@ class AnonymizeWorker(QThread):
             workers_str = f', {self.workers} workers' if self.workers > 1 else ''
             fmt_str = f' [{self.format_filter.upper()}]' if self.format_filter else ''
             self.signals.log.emit(html_header(
-                f'PathSafe v{pathsafe.__version__} — {mode_str} '
+                f'PathSafe v{pathsafe.__version__} - {mode_str} '
                 f'anonymization{fmt_str}{workers_str}'))
             self.signals.log.emit(
                 html_info(f'Processing {total} file(s)...'))
             if self.dry_run:
                 self.signals.log.emit(
-                    html_warning('DRY RUN — no files will be modified.'))
+                    html_warning('DRY RUN - no files will be modified.'))
             self.signals.log.emit(html_separator())
 
             t0 = time.time()
@@ -749,7 +748,7 @@ class AnonymizeWorker(QThread):
                 pct = i / total_files * 100
                 self.signals.progress.emit(pct)
                 self.signals.status.emit(
-                    f'{i}/{total_files} ({rate:.1f}/s) — {filepath.name}')
+                    f'{i}/{total_files} ({rate:.1f}/s) - {filepath.name}')
 
                 if result.error:
                     self.signals.log.emit(html_error(
@@ -785,9 +784,8 @@ class AnonymizeWorker(QThread):
             )
 
             cert_path = None
-            checklist_path = None
 
-            # Generate certificate and checklist (skip in dry-run mode)
+            # Generate certificate (skip in dry-run mode)
             if not self.dry_run:
                 if self.output_dir:
                     cert_path = self.output_dir / 'pathsafe_certificate.json'
@@ -798,16 +796,8 @@ class AnonymizeWorker(QThread):
 
                 generate_certificate(
                     batch_result, output_path=cert_path,
+                    timestamps_reset=self.reset_timestamps,
                 )
-
-                if self.generate_checklist_flag:
-                    checklist_path = cert_path.parent / 'pathsafe_checklist.json'
-                    generate_checklist(
-                        batch_result, output_path=checklist_path,
-                        timestamps_reset=self.reset_timestamps,
-                    )
-                    self.signals.log.emit(
-                        html_info(f'Checklist: {checklist_path}'))
 
             # Summary
             self.signals.log.emit(html_separator())
@@ -832,7 +822,7 @@ class AnonymizeWorker(QThread):
                     html_info(f'Certificate: {cert_path}'))
             if self.dry_run:
                 self.signals.log.emit(
-                    html_warning('DRY RUN — no files were modified.'))
+                    html_warning('DRY RUN - no files were modified.'))
 
             # Count integrity results
             integrity_verified = sum(
@@ -850,8 +840,8 @@ class AnonymizeWorker(QThread):
                 'errors': batch_result.files_errored,
                 'time': f'{batch_result.total_time_seconds:.1f}s',
                 'certificate': str(cert_path) if cert_path else '',
+                'output_dir': str(self.output_dir) if self.output_dir else '',
                 'timestamps_reset': self.reset_timestamps,
-                'checklist': str(checklist_path) if checklist_path else '',
                 'dry_run': self.dry_run,
                 'integrity_verified': integrity_verified,
                 'integrity_failed': integrity_failed,
@@ -898,7 +888,7 @@ class VerifyWorker(QThread):
 
             fmt_str = f' [{self.format_filter.upper()}]' if self.format_filter else ''
             self.signals.log.emit(
-                html_header(f'PathSafe v{pathsafe.__version__} — Verification'
+                html_header(f'PathSafe v{pathsafe.__version__} - Verification'
                             f'{fmt_str}'))
             self.signals.log.emit(
                 html_info(f'Verifying {total} file(s)...'))
@@ -923,7 +913,7 @@ class VerifyWorker(QThread):
                         findings_str = ', '.join(
                             f.tag_name for f in result.findings)
                         self.signals.log.emit(html_error(
-                            f'  PHI FOUND: {filepath.name} — '
+                            f'  PHI FOUND: {filepath.name} - '
                             f'{findings_str}'))
             else:
                 def progress(i, total_files, filepath, result):
@@ -944,7 +934,7 @@ class VerifyWorker(QThread):
                         findings_str = ', '.join(
                             f.tag_name for f in result.findings)
                         self.signals.log.emit(html_error(
-                            f'  PHI FOUND: {result.filepath.name} — '
+                            f'  PHI FOUND: {result.filepath.name} - '
                             f'{findings_str}'))
 
             # Summary
@@ -967,7 +957,7 @@ class VerifyWorker(QThread):
                 self.signals.log.emit(
                     html_success('All files verified clean.'))
                 self.signals.status.emit(
-                    'Verification passed — all files clean')
+                    'Verification passed - all files clean')
             else:
                 self.signals.log.emit(
                     html_error('WARNING: Some files still contain PHI!'))
@@ -991,7 +981,7 @@ class InfoWorker(QThread):
     def run(self):
         try:
             self.signals.log.emit(
-                html_header(f'PathSafe v{pathsafe.__version__} — File Info'))
+                html_header(f'PathSafe v{pathsafe.__version__} - File Info'))
             self.signals.log.emit(
                 html_info(f'File: {self.filepath.name}'))
             self.signals.log.emit(html_separator())
@@ -1030,7 +1020,7 @@ class InfoWorker(QThread):
             self.signals.log.emit(html_separator())
 
             if scan_result.is_clean:
-                phi_status = 'Clean — no PHI detected'
+                phi_status = 'Clean - no PHI detected'
                 self.signals.log.emit(
                     html_success(f'PHI Status: {phi_status}'))
             else:
@@ -1099,7 +1089,7 @@ class ConvertWorker(QThread):
 
             if self.input_path.is_file():
                 self.signals.log.emit(html_header(
-                    f'PathSafe v{pathsafe.__version__} — File Conversion'))
+                    f'PathSafe v{pathsafe.__version__} - File Conversion'))
                 self.signals.log.emit(html_info(
                     f'Converting: {self.input_path.name}'))
                 self.signals.log.emit(html_separator())
@@ -1118,7 +1108,7 @@ class ConvertWorker(QThread):
 
                 if result.error:
                     self.signals.log.emit(html_error(
-                        f'  {self.input_path.name} — ERROR: {result.error}'))
+                        f'  {self.input_path.name} - ERROR: {result.error}'))
                     self.signals.summary.emit({
                         'type': 'convert',
                         'total': 1,
@@ -1128,7 +1118,7 @@ class ConvertWorker(QThread):
                     })
                 else:
                     self.signals.log.emit(html_success(
-                        f'  {self.input_path.name} — converted successfully'))
+                        f'  {self.input_path.name} - converted successfully'))
                     self.signals.progress.emit(100)
                     self.signals.summary.emit({
                         'type': 'convert',
@@ -1147,7 +1137,7 @@ class ConvertWorker(QThread):
                 fmt_str = (f' [{self.format_filter.upper()}]'
                            if self.format_filter else '')
                 self.signals.log.emit(html_header(
-                    f'PathSafe v{pathsafe.__version__} — Batch Conversion'
+                    f'PathSafe v{pathsafe.__version__} - Batch Conversion'
                     f'{fmt_str}{workers_str}'))
 
                 files = collect_wsi_files(self.input_path,
@@ -1175,12 +1165,12 @@ class ConvertWorker(QThread):
                     if result.error:
                         error_count += 1
                         self.signals.log.emit(html_error(
-                            f'  [{i}/{total_files}] {filepath.name} — '
+                            f'  [{i}/{total_files}] {filepath.name} - '
                             f'ERROR: {result.error}'))
                     else:
                         converted_count += 1
                         self.signals.log.emit(html_success(
-                            f'  [{i}/{total_files}] {filepath.name} — '
+                            f'  [{i}/{total_files}] {filepath.name} - '
                             f'converted'))
 
                 convert_batch(
@@ -1227,8 +1217,7 @@ class DropZoneWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setMinimumHeight(60)
-        self.setMaximumHeight(70)
+        self.setFixedHeight(50)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
@@ -1373,13 +1362,14 @@ class PathSafeWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(
-            f'PathSafe v{pathsafe.__version__} — WSI Anonymizer')
-        self.resize(1000, 760)
-        self.setMinimumSize(800, 600)
+            f'PathSafe v{pathsafe.__version__} - WSI Anonymizer')
+        self.resize(1050, 760)
+        self.setMinimumSize(1050, 700)
 
         self._worker = None
         self._last_dir = str(Path.home())
         self._last_anonymized_paths = []  # output paths from last anonymize run
+        self._last_output_dir = None  # actual output dir (date-stamped subfolder)
         self._settings = QSettings('PathSafe', 'PathSafe')
         self._current_theme = self._settings.value('theme', 'dark')
         self._scan_results_json = None
@@ -1389,7 +1379,6 @@ class PathSafeWindow(QMainWindow):
             2: ('Step 2', 'Scan for PHI'),
             3: ('Step 3', 'Select File Output'),
             4: ('Step 4', 'Anonymize'),
-            5: ('Step 5', 'Verify'),
         }
         self._step_buttons = {}  # populated in _build_ui
 
@@ -1397,6 +1386,11 @@ class PathSafeWindow(QMainWindow):
         self._build_ui()
         self._setup_status_bar()
         self._apply_theme(self._current_theme)
+
+        # Set default output path
+        default_output = self._get_default_output_dir()
+        self.output_edit.setText(str(default_output))
+        self._mark_step_completed(3)
 
     def _build_menu_bar(self):
         menu_bar = self.menuBar()
@@ -1538,17 +1532,10 @@ class PathSafeWindow(QMainWindow):
         self.btn_anonymize = QPushButton('Step 4\nAnonymize')
         self.btn_anonymize.setObjectName('btn_anonymize')
         self.btn_anonymize.setToolTip(
-            "Remove all detected patient information from files. [Ctrl+R]")
+            "Remove all detected patient information from files,\n"
+            "then automatically verify everything was removed. [Ctrl+R]")
         self.btn_anonymize.clicked.connect(self._run_anonymize)
         step_layout.addWidget(self.btn_anonymize)
-
-        self.btn_verify = QPushButton('Step 5\nVerify')
-        self.btn_verify.setObjectName('btn_verify')
-        self.btn_verify.setToolTip(
-            "Re-scan files to confirm all patient information\n"
-            "has been removed. [Ctrl+E]")
-        self.btn_verify.clicked.connect(self._run_verify)
-        step_layout.addWidget(self.btn_verify)
 
         self.btn_stop = QPushButton('Stop')
         self.btn_stop.setObjectName('btn_stop')
@@ -1559,22 +1546,16 @@ class PathSafeWindow(QMainWindow):
         self.btn_stop.clicked.connect(self._request_stop)
         step_layout.addWidget(self.btn_stop)
 
-        # Step buttons fill equally within the group
+        # Step buttons: fixed height so they don't stretch the top section
         for btn in (self.btn_select, self.btn_scan, self.btn_output,
-                    self.btn_anonymize, self.btn_verify):
-            btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.btn_stop.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        step_layout.setStretchFactor(self.btn_select, 3)
-        step_layout.setStretchFactor(self.btn_scan, 3)
-        step_layout.setStretchFactor(self.btn_output, 3)
-        step_layout.setStretchFactor(self.btn_anonymize, 3)
-        step_layout.setStretchFactor(self.btn_verify, 3)
-        step_layout.setStretchFactor(self.btn_stop, 2)
+                    self.btn_anonymize):
+            btn.setFixedHeight(70)
+        self.btn_stop.setFixedHeight(50)
 
         step_group.setFixedWidth(170)
         self._step_buttons = {
             1: self.btn_select, 2: self.btn_scan, 3: self.btn_output,
-            4: self.btn_anonymize, 5: self.btn_verify,
+            4: self.btn_anonymize,
         }
         top_split.addWidget(step_group)
 
@@ -1604,17 +1585,17 @@ class PathSafeWindow(QMainWindow):
 
         # Tab Widget (Anonymize / Convert)
         self.tabs = QTabWidget()
-        controls_layout.addWidget(self.tabs, 1)
+        controls_layout.addWidget(self.tabs)
 
         self._build_anonymize_tab()
         self._build_convert_tab()
 
         top_split.addLayout(controls_layout, 1)
 
-        # Wrap top section in a widget with max height so log gets priority
+        # Wrap top section with max height so log gets priority
         top_widget = QWidget()
         top_widget.setLayout(top_split)
-        top_widget.setMaximumHeight(430)
+        top_widget.setMaximumHeight(380)
         layout.addWidget(top_widget)
 
         # === Progress bar (full width) ===
@@ -1679,87 +1660,76 @@ class PathSafeWindow(QMainWindow):
 
         # --- Options ---
         opts_group = QGroupBox('Options')
-        opts_layout = QHBoxLayout(opts_group)
+        opts_vlayout = QVBoxLayout(opts_group)
+        opts_vlayout.setSpacing(8)
+        opts_vlayout.setContentsMargins(12, 14, 12, 10)
 
-        opts_layout.addWidget(QLabel('Mode:'))
-        self.radio_copy = QRadioButton('Copy (safe)')
+        # Row 1: Mode
+        mode_row = QHBoxLayout()
+        mode_label = QLabel('Mode:')
+        mode_label.setFixedWidth(70)
+        mode_row.addWidget(mode_label)
+        self.radio_copy = QRadioButton('Copy and anonymize')
         self.radio_copy.setChecked(True)
         self.radio_copy.setToolTip(
-            "Copy mode: Creates anonymized copies in the output folder.\n"
+            "Creates anonymized copies in the output folder.\n"
             "Your original files are never modified. (Recommended)")
-        self.radio_inplace = QRadioButton('In-place')
+        self.radio_inplace = QRadioButton('Modify originals directly')
         self.radio_inplace.setToolTip(
-            "In-place mode: Modifies the original files directly.\n"
+            "Modifies the original files directly.\n"
             "WARNING: Original data cannot be recovered after anonymization.")
+        self.radio_inplace.toggled.connect(self._on_inplace_toggled)
         mode_group = QButtonGroup(self)
         mode_group.addButton(self.radio_copy)
         mode_group.addButton(self.radio_inplace)
-        opts_layout.addWidget(self.radio_copy)
-        opts_layout.addWidget(self.radio_inplace)
+        mode_row.addWidget(self.radio_copy)
+        mode_row.addSpacing(20)
+        mode_row.addWidget(self.radio_inplace)
+        mode_row.addStretch()
+        opts_vlayout.addLayout(mode_row)
 
-        opts_layout.addSpacing(20)
-        opts_layout.addWidget(QLabel('Workers:'))
-        self._workers_label = QLabel('4')
-        self._workers_label.setFixedWidth(20)
-        self._workers_label.setAlignment(Qt.AlignCenter)
+        # Row 2: Workers
+        workers_row = QHBoxLayout()
+        workers_label = QLabel('Workers:')
+        workers_label.setFixedWidth(70)
+        workers_row.addWidget(workers_label)
         self.slider_workers = QSlider(Qt.Horizontal)
         self.slider_workers.setRange(1, 16)
         self.slider_workers.setValue(4)
-        self.slider_workers.setFixedWidth(120)
         self.slider_workers.setToolTip(
             "Number of files to process simultaneously.\n"
             "Higher values are faster but use more memory.\n"
             "Recommended: 2-4 for most systems.")
+        self._workers_label = QLabel('4')
+        self._workers_label.setFixedWidth(24)
+        self._workers_label.setAlignment(Qt.AlignCenter)
         self.slider_workers.valueChanged.connect(
             lambda v: self._workers_label.setText(str(v)))
-        opts_layout.addWidget(self.slider_workers)
-        opts_layout.addWidget(self._workers_label)
+        workers_row.addWidget(self.slider_workers, 1)
+        workers_row.addWidget(self._workers_label)
+        opts_vlayout.addLayout(workers_row)
 
-        opts_layout.addSpacing(20)
-        opts_layout.addWidget(QLabel('Format:'))
+        # Row 3: Format + Dry run
+        format_row = QHBoxLayout()
+        format_label = QLabel('Format:')
+        format_label.setFixedWidth(70)
+        format_row.addWidget(format_label)
         self.combo_format_filter = QComboBox()
         self.combo_format_filter.addItems(_FORMAT_FILTER_ITEMS)
         self.combo_format_filter.setToolTip(
             "Only process files of the selected format.\n"
             "\"All formats\" processes every supported WSI format.")
-        self.combo_format_filter.setFixedWidth(120)
-        opts_layout.addWidget(self.combo_format_filter)
-
-        opts_layout.addSpacing(20)
-        self.check_dry_run = QCheckBox('Dry run')
+        self.combo_format_filter.setFixedWidth(150)
+        format_row.addWidget(self.combo_format_filter)
+        format_row.addSpacing(30)
+        self.check_dry_run = QCheckBox('Dry run (preview only)')
         self.check_dry_run.setToolTip(
             "Scan and report findings without modifying any files.")
-        opts_layout.addWidget(self.check_dry_run)
+        format_row.addWidget(self.check_dry_run)
+        format_row.addStretch()
+        opts_vlayout.addLayout(format_row)
 
-        opts_layout.addStretch()
         anon_layout.addWidget(opts_group)
-
-        # --- Compliance ---
-        compliance_group = QGroupBox('Compliance')
-        compliance_layout = QHBoxLayout(compliance_group)
-
-        self.check_reset_timestamps = QCheckBox('Reset timestamps')
-        self.check_reset_timestamps.setToolTip(
-            "Reset file access/modification times to epoch (Jan 1, 1970).\n"
-            "Removes temporal metadata that could aid re-identification.")
-        compliance_layout.addWidget(self.check_reset_timestamps)
-
-        self.check_checklist = QCheckBox('Generate assessment checklist')
-        self.check_checklist.setToolTip(
-            "Generate a JSON anonymization assessment checklist alongside\n"
-            "the certificate, documenting technical and procedural measures.")
-        compliance_layout.addWidget(self.check_checklist)
-
-        self.check_verify_integrity = QCheckBox('Verify image integrity')
-        self.check_verify_integrity.setChecked(True)
-        self.check_verify_integrity.setToolTip(
-            "Verify image tile data integrity via SHA-256 checksums\n"
-            "before and after anonymization. Proves diagnostic image\n"
-            "content was not altered. Adds I/O time proportional to file size.")
-        compliance_layout.addWidget(self.check_verify_integrity)
-
-        compliance_layout.addStretch()
-        anon_layout.addWidget(compliance_group, 1)
 
         self.tabs.addTab(anon_tab, 'Anonymize')
 
@@ -1921,7 +1891,23 @@ class PathSafeWindow(QMainWindow):
         self._status_elapsed = QLabel("")
         sb.addPermanentWidget(self._status_files)
         sb.addPermanentWidget(self._status_elapsed)
-        sb.showMessage("Ready — drag files here or use File > Open")
+        sb.showMessage("Ready - drag files here or use File > Open")
+
+    # --- Default output ---
+
+    def _get_default_output_dir(self):
+        """Return the default output directory: ~/Documents/PathSafe Output/"""
+        docs = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+        if not docs:
+            docs = str(Path.home())
+        return Path(docs) / 'PathSafe Output'
+
+    def _create_timestamped_output_dir(self, base_dir):
+        """Create a date-stamped subfolder inside base_dir and return its path."""
+        stamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
+        output_dir = Path(base_dir) / stamp
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
 
     # --- Browse ---
 
@@ -1933,6 +1919,10 @@ class PathSafeWindow(QMainWindow):
         dlg.setIcon(QMessageBox.Question)
         btn_file = dlg.addButton('Files', QMessageBox.AcceptRole)
         btn_folder = dlg.addButton('Folder', QMessageBox.AcceptRole)
+        # Hidden reject button so X closes the dialog without action
+        btn_cancel = dlg.addButton(QMessageBox.Cancel)
+        btn_cancel.hide()
+        dlg.setEscapeButton(btn_cancel)
         dlg.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
         dlg.exec()
         clicked = dlg.clickedButton()
@@ -1959,8 +1949,10 @@ class PathSafeWindow(QMainWindow):
             self._mark_step_completed(1)
 
     def _browse_output_dir(self):
+        # Start from current output path if set, otherwise last dir
+        start_dir = self.output_edit.text().strip() or self._last_dir
         path = QFileDialog.getExistingDirectory(
-            self, 'Select output folder', self._last_dir)
+            self, 'Select output folder', start_dir)
         if path:
             self.output_edit.setText(path)
             self._last_dir = path
@@ -1975,6 +1967,28 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.convert_output_edit.setText(path)
             self._last_dir = path
+
+    def _on_inplace_toggled(self, checked):
+        """Warn the user when they select in-place mode."""
+        if not checked:
+            return
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle('Warning: Modify Originals')
+        dlg.setIcon(QMessageBox.Warning)
+        dlg.setText(
+            '<h3>You have selected in-place mode</h3>'
+            '<p>This will <b>permanently modify your original files</b>. '
+            'Patient information will be removed directly from the source files.</p>'
+            '<p><b>This cannot be undone.</b> If you do not have backups of your '
+            'original files, the unmodified data will be lost forever.</p>'
+            '<p>For safety, we recommend using <b>"Copy and anonymize"</b> instead, '
+            'which creates clean copies and leaves your originals untouched.</p>')
+        btn_continue = dlg.addButton('I understand, use in-place', QMessageBox.AcceptRole)
+        btn_cancel = dlg.addButton('Switch back to Copy mode', QMessageBox.RejectRole)
+        dlg.setDefaultButton(btn_cancel)
+        dlg.exec()
+        if dlg.clickedButton() != btn_continue:
+            self.radio_copy.setChecked(True)
 
     def _on_path_dropped(self, path):
         p = Path(path)
@@ -2009,6 +2023,17 @@ class PathSafeWindow(QMainWindow):
                 f.write(self.log_text.toHtml())
             self._last_dir = str(Path(path).parent)
             self.statusBar().showMessage(f'Log saved to {path}')
+
+    def _auto_save_log(self, output_dir):
+        """Auto-save the log to the output folder after anonymization."""
+        try:
+            log_path = Path(output_dir) / 'pathsafe_log.html'
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write(self.log_text.toHtml())
+            self.statusBar().showMessage(
+                f'Log auto-saved to {log_path}')
+        except OSError:
+            pass  # non-critical, don't interrupt the user
 
     def _export_json(self):
         if not self._scan_results_json:
@@ -2046,12 +2071,12 @@ class PathSafeWindow(QMainWindow):
 
             if phi_files == 0 and errors == 0:
                 icon = QMessageBox.Information
-                title = 'Scan Complete — All Clean'
+                title = 'Scan Complete: All Clean'
                 msg = (f'<h3>All {total} files are clean</h3>'
                        f'<p>No patient information (PHI) was detected.</p>')
             else:
                 icon = QMessageBox.Warning
-                title = 'Scan Complete — PHI Detected'
+                title = 'Scan Complete: PHI Detected'
                 lines = [f'<h3>Scan Results</h3><table cellpadding="4">']
                 lines.append(f'<tr><td>Total scanned:</td><td><b>{total}</b></td></tr>')
                 if clean:
@@ -2117,25 +2142,16 @@ class PathSafeWindow(QMainWindow):
 
             if dry_run:
                 lines.append(
-                    '<p><b>DRY RUN</b> — No files were modified.</p>')
+                    '<p><b>DRY RUN</b> - No files were modified.</p>')
             else:
+                output_dir = data.get('output_dir', '')
+                if output_dir:
+                    lines.append(
+                        f'<p>Output folder:<br><code>{output_dir}</code></p>')
                 if cert:
                     lines.append(
-                        f'<p>Certificate saved to:<br><code>{cert}</code></p>')
+                        f'<p>Certificate:<br><code>{Path(cert).name}</code></p>')
 
-                # Compliance options
-                compliance_parts = []
-                if data.get('timestamps_reset'):
-                    compliance_parts.append('timestamps reset')
-                checklist = data.get('checklist', '')
-                if checklist:
-                    compliance_parts.append('checklist generated')
-                if compliance_parts:
-                    lines.append(
-                        f'<p>Compliance: {", ".join(compliance_parts)}</p>')
-                if checklist:
-                    lines.append(
-                        f'<p>Checklist saved to:<br><code>{checklist}</code></p>')
 
             msg = ''.join(lines)
 
@@ -2233,7 +2249,6 @@ class PathSafeWindow(QMainWindow):
         self.btn_scan.setEnabled(not running)
         self.btn_output.setEnabled(not running)
         self.btn_anonymize.setEnabled(not running)
-        self.btn_verify.setEnabled(not running)
         self.btn_stop.setEnabled(running)
         self._scan_action.setEnabled(not running)
         self._anonymize_action.setEnabled(not running)
@@ -2251,9 +2266,6 @@ class PathSafeWindow(QMainWindow):
         self.slider_workers.setEnabled(not running)
         self.combo_format_filter.setEnabled(not running)
         self.check_dry_run.setEnabled(not running)
-        self.check_verify_integrity.setEnabled(not running)
-        self.check_reset_timestamps.setEnabled(not running)
-        self.check_checklist.setEnabled(not running)
         # Convert tab controls
         self.convert_output_edit.setEnabled(not running)
         self.combo_target_format.setEnabled(not running)
@@ -2342,12 +2354,15 @@ class PathSafeWindow(QMainWindow):
                     'Copy mode requires an output folder.\n'
                     'Select an output folder or switch to in-place mode.')
                 return
-            output_dir = Path(out)
+            # Create date-stamped subfolder inside the base output path
+            output_dir = self._create_timestamped_output_dir(out)
         elif not dry_run and self.radio_inplace.isChecked():
-            reply = QMessageBox.question(
-                self, 'Confirm In-Place',
-                'In-place mode will modify your original files!\n\n'
-                'Are you sure you want to continue?',
+            reply = QMessageBox.warning(
+                self, 'Confirm: Modify Originals',
+                'You are about to anonymize your original files in-place.\n\n'
+                'This will permanently remove patient information from the '
+                'source files. This cannot be undone.\n\n'
+                'Do you want to proceed?',
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply != QMessageBox.Yes:
                 return
@@ -2361,9 +2376,15 @@ class PathSafeWindow(QMainWindow):
         signals.status.connect(self._set_status)
         signals.summary.connect(self._show_summary)
 
+        # Keep reference to output_dir for auto-saving log
+        self._last_output_dir = output_dir
+
         def on_done():
             self._on_finished()
             self._mark_step_completed(4)
+            # Auto-save log to the output folder
+            if self._last_output_dir and not dry_run:
+                self._auto_save_log(self._last_output_dir)
 
         signals.finished.connect(on_done)
 
@@ -2372,11 +2393,10 @@ class PathSafeWindow(QMainWindow):
             True,
             self.slider_workers.value(),
             signals,
-            reset_timestamps=self.check_reset_timestamps.isChecked(),
-            generate_checklist_flag=self.check_checklist.isChecked(),
+            reset_timestamps=True,
             format_filter=self._get_format_filter(),
             dry_run=dry_run,
-            verify_integrity=self.check_verify_integrity.isChecked(),
+            verify_integrity=True,
         )
         self._worker.start()
 
@@ -2409,7 +2429,6 @@ class PathSafeWindow(QMainWindow):
 
         def on_done():
             self._on_finished()
-            self._mark_step_completed(5)
             self._last_anonymized_paths = []  # clear after verify
 
         signals.finished.connect(on_done)

@@ -40,21 +40,18 @@ The graphical interface is the easiest way to use PathSafe. No typing required.
 PathSafe walks you through four steps, shown at the top of the window:
 
 ```
-  Select Files  -->  Scan  -->  Anonymize  -->  Verify
+  Select Files  -->  Scan  -->  Select Output  -->  Anonymize
 ```
 
 #### Step 1: Select Your Files
 
-At the top of the window, you'll see two fields:
-
-- **Input**: This is where your slide files are. Click **Browse** next to it and select a file or a folder. You can also drag and drop files directly onto the window.
-- **Output**: This is where the cleaned copies will go. Click **Browse** and pick an empty folder.
+Click **Step 1** and choose whether to select files or a folder. You can also drag and drop files directly onto the window.
 
 **Tip**: If you have a folder full of slides, just select the whole folder. PathSafe will find all the slide files inside it automatically.
 
 #### Step 2: Scan (Optional but Recommended)
 
-Click the **Scan for PHI** button. PathSafe will read through your files and tell you what patient information it found, without changing anything.
+Click **Step 2 — Scan for PHI**. PathSafe will read through your files and tell you what patient information it found, without changing anything.
 
 The log panel at the bottom will show something like:
 
@@ -66,28 +63,27 @@ The log panel at the bottom will show something like:
 
 A popup will appear summarizing the results. This gives you a preview before you commit to anonymizing.
 
-#### Step 3: Anonymize
+#### Step 3: Select Output
 
-Click the **Anonymize** button. PathSafe will:
+Click **Step 3** and choose where anonymized copies will be saved. By default, PathSafe suggests a date-stamped folder inside your Documents directory.
+
+#### Step 4: Anonymize
+
+Click **Step 4 — Anonymize**. PathSafe will:
 
 1. Copy each file to your output folder
 2. Remove all patient information from the copy
-3. Re-scan the copy to make sure everything was removed (if "Verify after" is checked)
+3. Verify image integrity via SHA-256 checksums
+4. Re-scan the copy to confirm all PHI was removed
+5. Reset file timestamps
 
-The log will show progress as each file is processed. When it's done, a popup will summarize the results and tell you where the compliance certificate was saved.
-
-#### Step 4: Verify (Optional)
-
-If you want an extra check, click **Verify**. This re-scans the anonymized files one more time to confirm that no patient information remains. You should see "CLEAN" next to every file.
+The log will show progress as each file is processed. When it's done, a popup will summarize the results.
 
 ### Options (What All the Buttons Mean)
 
 #### Mode
 - **Copy (safe)**: Creates anonymized copies in the output folder. Your originals are untouched. This is the default and recommended mode.
 - **In-place**: Modifies the original files directly. Only use this if you have backups. PathSafe will ask you to confirm before proceeding.
-
-#### Verify After
-When checked (the default), PathSafe re-scans each file immediately after anonymizing it to confirm all patient data was removed. Leave this on unless you have a reason not to.
 
 #### Workers
 Controls how many files are processed at the same time. Higher numbers are faster but use more memory. The default of 4 is good for most computers.
@@ -98,20 +94,18 @@ If you only want to process one type of file (for example, only NDPI files), sel
 #### Dry Run
 When checked, PathSafe scans your files and reports what it *would* do, but doesn't actually change anything. Useful for previewing before committing.
 
-### Compliance Options
+### Automatic Safety Features
 
-These are in the **Compliance** section below the main options:
+PathSafe applies these automatically during every anonymization:
 
-#### Reset Timestamps
-Resets the file's "last modified" and "last accessed" dates to January 1, 1970. This removes one more piece of information that could theoretically help someone figure out when the slide was scanned.
+#### Timestamp Reset
+File "last modified" and "last accessed" dates are reset to January 1, 1970. This removes temporal metadata that could help someone figure out when the slide was scanned.
 
-#### Generate Assessment Checklist
-Creates an additional JSON file listing all the technical steps of the anonymization (what was cleared, what was verified, what hashes were recorded). This is useful for institutional audits and regulatory reviews.
+#### Image Integrity Verification
+PathSafe takes a SHA-256 fingerprint of all diagnostic image data before and after anonymization and compares them. If they match, the tissue images are mathematically proven identical. Label and macro images are expected to change (intentionally blanked) and are excluded from this comparison. Only available for TIFF-based formats (NDPI, SVS, BIF, SCN, generic TIFF).
 
-#### Verify Image Integrity
-Proves that the diagnostic microscope images were not accidentally altered during anonymization. PathSafe takes a digital fingerprint (SHA-256 checksum) of all the image data before and after anonymization, then compares them. If they match, you have cryptographic proof that the tissue images are identical.
-
-**Note**: This reads all the image data twice, so it adds extra time proportional to the file size. For a 5 GB file, expect an additional 10-50 seconds depending on your disk speed. Only available for TIFF-based formats (NDPI, SVS, BIF, SCN, generic TIFF).
+#### Post-Anonymization Verification
+After anonymizing each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.
 
 ### Keyboard Shortcuts
 
@@ -194,14 +188,13 @@ pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
     --certificate /path/to/clean/certificate.json
 ```
 
-**With all compliance options**:
+**With compliance certificate**:
 ```bash
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
-    --certificate /path/to/clean/certificate.json \
-    --checklist /path/to/clean/checklist.json \
-    --reset-timestamps \
-    --verify-integrity
+    --certificate /path/to/clean/certificate.json
 ```
+
+Image integrity verification and timestamp reset are enabled by default. Use `--no-verify-integrity` or `--no-reset-timestamps` to disable them.
 
 **Faster processing with parallel workers**:
 ```bash
@@ -262,9 +255,8 @@ pathsafe convert /path/to/slides/ -o /path/to/converted/ -t tiff --workers 4
 | `--workers N` / `-w` | Process N files in parallel |
 | `--format FORMAT` | Only process one format (ndpi, svs, mrxs, bif, scn, dicom, tiff) |
 | `--certificate FILE` / `-c` | Generate a JSON compliance certificate |
-| `--checklist FILE` | Generate a JSON assessment checklist |
-| `--reset-timestamps` | Reset file dates to January 1, 1970 |
-| `--verify-integrity` | Verify image tile data integrity via SHA-256 checksums |
+| `--no-reset-timestamps` | Keep original file timestamps (reset to epoch by default) |
+| `--no-verify-integrity` | Skip SHA-256 image integrity verification (enabled by default) |
 | `--log FILE` | Save all output to a log file |
 
 #### `pathsafe scan`
@@ -329,10 +321,6 @@ The certificate is a JSON file that records everything PathSafe did. It includes
 
 Keep this file with your anonymized slides. It serves as your audit trail for regulatory reviews, research submissions, and institutional records.
 
-### The Assessment Checklist
-
-The checklist is a JSON file that lists all the technical measures PathSafe applied: metadata cleared, labels blanked, filenames scanned, verification passed, integrity verified, timestamps reset, and SHA-256 hashes recorded. It's a concise record of exactly what the software did to your files.
-
 ---
 
 ## Troubleshooting
@@ -362,7 +350,7 @@ sudo apt install -y libxcb-cursor0
 - **Large files**: A 5 GB slide file takes a while to copy and process. This is normal.
 - **HDD vs SSD**: Processing is much faster on solid-state drives. If your files are on a spinning hard drive, be patient.
 - **Parallel workers**: Try increasing the workers count to process multiple files simultaneously. Start with 4 and go up from there if your computer can handle it.
-- **Verify integrity**: This option reads all image data twice, which doubles the I/O time. Only enable it when you need the cryptographic proof.
+- **Image integrity verification**: This reads all image data twice, which adds I/O time. Use `--no-verify-integrity` to skip it if speed is critical.
 
 ### Getting Help
 
@@ -383,7 +371,7 @@ Or open an issue at the project's GitHub repository.
 |---------------|---------|
 | See what patient data is in my files | `pathsafe scan /slides/ -v` |
 | Anonymize and keep originals safe | `pathsafe anonymize /slides/ -o /clean/` |
-| Anonymize with full compliance docs | `pathsafe anonymize /slides/ -o /clean/ -c cert.json --checklist check.json --verify-integrity --reset-timestamps` |
+| Anonymize with compliance certificate | `pathsafe anonymize /slides/ -o /clean/ -c cert.json` |
 | Double-check the results | `pathsafe verify /clean/ -v` |
 | Look at one file's metadata | `pathsafe info slide.ndpi` |
 | Convert to TIFF | `pathsafe convert slide.ndpi -o slide.tiff` |

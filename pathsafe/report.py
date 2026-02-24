@@ -1,11 +1,11 @@
-"""JSON compliance certificate and anonymization assessment generation."""
+"""JSON compliance certificate generation."""
 
 import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pathsafe
 from pathsafe.models import BatchResult
@@ -26,12 +26,16 @@ def _sha256_file(filepath: Path) -> str:
 def generate_certificate(
     batch_result: BatchResult,
     output_path: Optional[Path] = None,
+    timestamps_reset: bool = True,
 ) -> dict:
     """Generate a JSON compliance certificate for a batch anonymization run.
+
+    Includes per-file records and a summary of all technical measures applied.
 
     Args:
         batch_result: The BatchResult from anonymize_batch().
         output_path: If provided, write the certificate JSON to this file.
+        timestamps_reset: Whether timestamps were reset to epoch.
 
     Returns:
         The certificate as a dict.
@@ -44,6 +48,7 @@ def generate_certificate(
     # Build per-file records
     file_records = []
     verified_count = 0
+    total_findings = 0
     for result in batch_result.results:
         record = {
             'filename': result.output_path.name,
@@ -61,7 +66,6 @@ def generate_certificate(
         if result.error:
             record['error'] = result.error
         else:
-            # Compute hash of output file if it exists
             try:
                 record['sha256_after'] = _sha256_file(result.output_path)
             except (OSError, FileNotFoundError):
@@ -69,8 +73,43 @@ def generate_certificate(
 
         if result.verified:
             verified_count += 1
+        total_findings += result.findings_cleared
 
         file_records.append(record)
+
+    # Build technical measures summary
+    integrity_verified = sum(1 for r in batch_result.results
+                             if r.image_integrity_verified is True)
+    integrity_failed = sum(1 for r in batch_result.results
+                           if r.image_integrity_verified is False)
+
+    measures = []
+    measures.append({
+        'measure': 'Metadata tags cleared',
+        'status': 'applied' if total_findings > 0 else 'not_needed',
+    })
+    measures.append({
+        'measure': 'Label/macro images blanked',
+        'status': 'applied' if total_findings > 0 else 'not_needed',
+    })
+    measures.append({
+        'measure': 'Filename PHI detection',
+        'status': 'applied',
+    })
+    measures.append({
+        'measure': 'Post-anonymization verification',
+        'status': 'passed' if verified_count == len(batch_result.results) and verified_count > 0 else 'skipped',
+    })
+    if integrity_verified > 0 or integrity_failed > 0:
+        measures.append({
+            'measure': 'Image data integrity (SHA-256)',
+            'status': 'passed' if integrity_failed == 0 else 'failed',
+        })
+    if timestamps_reset:
+        measures.append({
+            'measure': 'Filesystem timestamps reset',
+            'status': 'applied',
+        })
 
     certificate = {
         'pathsafe_version': pathsafe.__version__,
@@ -85,6 +124,7 @@ def generate_certificate(
             'verified': verified_count == len(batch_result.results) and verified_count > 0,
             'total_time_seconds': round(batch_result.total_time_seconds, 2),
         },
+        'measures': measures,
         'files': file_records,
     }
 
@@ -97,114 +137,11 @@ def generate_certificate(
     return certificate
 
 
-def generate_checklist(
-    batch_result: BatchResult,
-    output_path: Optional[Path] = None,
-    timestamps_reset: bool = False,
-) -> dict:
-    """Generate an anonymization assessment checklist.
-
-    Combines auto-filled technical measures (based on what PathSafe did)
-    with procedural measures for the institution to complete.
-
-    Args:
-        batch_result: The BatchResult from anonymize_batch().
-        output_path: If provided, write the checklist JSON to this file.
-        timestamps_reset: Whether --reset-timestamps was used.
-
-    Returns:
-        The checklist as a dict.
-    """
-    # Compute technical measures from batch results
-    total_findings = sum(r.findings_cleared for r in batch_result.results)
-    verified_count = sum(1 for r in batch_result.results if r.verified)
-    error_count = batch_result.files_errored
-
-    # Image integrity stats
-    integrity_verified = sum(1 for r in batch_result.results
-                             if r.image_integrity_verified is True)
-    integrity_failed = sum(1 for r in batch_result.results
-                           if r.image_integrity_verified is False)
-    integrity_checked = integrity_verified + integrity_failed
-
-    # Collect SHA-256 hashes for output files
-    hashes = []
-    for result in batch_result.results:
-        if not result.error:
-            try:
-                hashes.append({
-                    'file': result.output_path.name,
-                    'sha256': _sha256_file(result.output_path),
-                })
-            except (OSError, FileNotFoundError):
-                pass
-
-    technical_measures = [
-        {
-            'measure': 'Metadata tags cleared',
-            'status': 'applied' if total_findings > 0 else 'not_needed',
-            'details': f'{total_findings} finding(s) cleared across {batch_result.files_anonymized} file(s)',
-        },
-        {
-            'measure': 'Label/macro images blanked',
-            'status': 'applied' if total_findings > 0 else 'not_needed',
-            'details': 'Included in metadata tag clearing',
-        },
-        {
-            'measure': 'Filename PHI detection',
-            'status': 'applied',
-            'details': f'{batch_result.total_files} file(s) scanned for PHI in filenames',
-        },
-        {
-            'measure': 'Post-anonymization verification',
-            'status': 'passed' if verified_count == len(batch_result.results) and verified_count > 0 else 'skipped',
-            'details': f'{verified_count}/{len(batch_result.results)} file(s) verified clean',
-        },
-        {
-            'measure': 'Image data integrity verification',
-            'status': 'passed' if integrity_checked > 0 and integrity_failed == 0
-                      else ('failed' if integrity_failed > 0 else 'not_applied'),
-            'details': (f'SHA-256 checksums of image tile data verified matching '
-                        f'before and after anonymization for {integrity_verified} file(s)')
-                       if integrity_checked > 0
-                       else 'Use --verify-integrity to enable tile data integrity checking',
-        },
-        {
-            'measure': 'Filesystem timestamps reset',
-            'status': 'applied' if timestamps_reset else 'not_applied',
-            'details': 'Access and modification times set to epoch (1970-01-01)' if timestamps_reset
-                       else 'Use --reset-timestamps to remove temporal metadata',
-        },
-        {
-            'measure': 'SHA-256 hashes recorded',
-            'status': 'recorded' if hashes else 'skipped',
-            'details': f'{len(hashes)} hash(es) computed',
-            'hashes': hashes,
-        },
-    ]
-
-    checklist = {
-        'pathsafe_version': pathsafe.__version__,
-        'checklist_id': str(uuid.uuid4()),
-        'generated_at': datetime.now(timezone.utc).isoformat(),
-        'summary': {
-            'total_files': batch_result.total_files,
-            'files_anonymized': batch_result.files_anonymized,
-            'files_with_errors': error_count,
-        },
-        'technical_measures': technical_measures,
-    }
-
-    if output_path is not None:
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, 'w') as f:
-            json.dump(checklist, f, indent=2)
-
-    return checklist
-
-
 def _detect_format_from_ext(filepath: Path) -> str:
     """Simple format detection from extension for certificate records."""
     ext = filepath.suffix.lower()
-    return {'.ndpi': 'ndpi', '.svs': 'svs', '.tif': 'tiff', '.tiff': 'tiff'}.get(ext, 'unknown')
+    return {
+        '.ndpi': 'ndpi', '.svs': 'svs', '.tif': 'tiff', '.tiff': 'tiff',
+        '.mrxs': 'mrxs', '.bif': 'bif', '.scn': 'scn',
+        '.dcm': 'dicom', '.dicom': 'dicom',
+    }.get(ext, 'unknown')

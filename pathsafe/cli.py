@@ -18,7 +18,7 @@ from pathsafe.log import (
     cli_separator, cli_success, cli_warning,
     log_error, log_info, log_warn,
 )
-from pathsafe.report import generate_certificate, generate_checklist
+from pathsafe.report import generate_certificate
 from pathsafe.verify import verify_batch, verify_file
 
 
@@ -139,14 +139,12 @@ def scan(path, verbose, fmt, json_out, workers):
 @click.option('--workers', '-w', type=int, default=1,
               help='Number of parallel workers (default: 1, sequential).')
 @click.option('--log', type=click.Path(), help='Write log to file.')
-@click.option('--reset-timestamps', is_flag=True,
-              help='Reset file timestamps to epoch on output files (removes temporal PHI).')
-@click.option('--checklist', type=click.Path(),
-              help='Write anonymization assessment checklist JSON to this path.')
-@click.option('--verify-integrity', is_flag=True,
-              help='Verify image tile data integrity via SHA-256 checksums before/after anonymization.')
+@click.option('--reset-timestamps/--no-reset-timestamps', default=True,
+              help='Reset file timestamps to epoch (default: on). Use --no-reset-timestamps to keep original timestamps.')
+@click.option('--verify-integrity/--no-verify-integrity', default=True,
+              help='Verify image tile data integrity via SHA-256 checksums (default: on).')
 def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verbose, workers, log,
-              reset_timestamps, checklist, verify_integrity):
+              reset_timestamps, verify_integrity):
     """Anonymize PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
@@ -254,17 +252,11 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
 
         # Generate certificate
         if certificate and not dry_run:
-            cert = generate_certificate(batch_result, output_path=Path(certificate))
+            cert = generate_certificate(batch_result, output_path=Path(certificate),
+                                        timestamps_reset=reset_timestamps)
             batch_result.certificate_path = Path(certificate)
             emit(cli_info(f'\nCompliance certificate: {certificate}'),
                  log_info(f'Compliance certificate: {certificate}'))
-
-        # Generate checklist
-        if checklist and not dry_run:
-            generate_checklist(batch_result, output_path=Path(checklist),
-                               timestamps_reset=reset_timestamps)
-            emit(cli_info(f'Assessment checklist: {checklist}'),
-                 log_info(f'Assessment checklist: {checklist}'))
 
         if batch_result.files_errored > 0:
             sys.exit(1)
