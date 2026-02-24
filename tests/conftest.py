@@ -688,6 +688,99 @@ def build_bigtiff_multi_ifd(ifd_entries_list, endian='<'):
 # Filename PHI fixtures
 # ---------------------------------------------------------------------------
 
+def build_tiff_multi_strip(tag_entries, strip_data_list, endian='<'):
+    """Build a TIFF with multiple strips and given tag entries.
+
+    Automatically adds StripOffsets (273) and StripByteCounts (279) entries
+    for the given strips, stored out-of-line when there are multiple strips.
+
+    Args:
+        tag_entries: List of (tag_id, type_id, count, value_or_bytes) tuples.
+        strip_data_list: List of bytes objects, one per strip.
+        endian: '<' or '>'.
+
+    Returns:
+        bytes: Complete TIFF file with multiple strips.
+    """
+    bo = b'II' if endian == '<' else b'MM'
+    num_strips = len(strip_data_list)
+
+    # Count out-of-line data from tag entries
+    ool_data_size = sum(len(v) for _, _, _, v in tag_entries if isinstance(v, bytes))
+
+    num_entries = len(tag_entries) + 2  # +2 for StripOffsets/StripByteCounts
+
+    # Layout: header(8) + ifd_count(2) + entries(12*n) + next_ifd(4) + ool_data
+    data_start = 8 + 2 + 12 * num_entries + 4
+
+    if num_strips == 1:
+        # Single strip: inline values, strip data right after ool_data
+        strip_data_start = data_start + ool_data_size
+        strip_offsets = [strip_data_start]
+        strip_counts = [len(strip_data_list[0])]
+    else:
+        # Multi-strip: out-of-line arrays + strip data
+        offsets_array_start = data_start + ool_data_size
+        counts_array_start = offsets_array_start + 4 * num_strips
+        strip_data_start = counts_array_start + 4 * num_strips
+
+        strip_offsets = []
+        offset = strip_data_start
+        for sd in strip_data_list:
+            strip_offsets.append(offset)
+            offset += len(sd)
+        strip_counts = [len(sd) for sd in strip_data_list]
+
+    # Build IFD entries
+    ifd_header = struct.pack(endian + 'H', num_entries)
+    entry_bytes = b''
+    data_bytes = b''
+
+    for tag_id, type_id, count, value in tag_entries:
+        if isinstance(value, bytes):
+            val_offset = data_start + len(data_bytes)
+            entry_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            entry_bytes += struct.pack(endian + 'I', val_offset)
+            data_bytes += value
+        else:
+            entry_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            entry_bytes += struct.pack(endian + 'I', value)
+
+    # StripOffsets (273)
+    if num_strips == 1:
+        entry_bytes += struct.pack(endian + 'HHI', 273, 4, 1)
+        entry_bytes += struct.pack(endian + 'I', strip_offsets[0])
+    else:
+        entry_bytes += struct.pack(endian + 'HHI', 273, 4, num_strips)
+        entry_bytes += struct.pack(endian + 'I', offsets_array_start)
+
+    # StripByteCounts (279)
+    if num_strips == 1:
+        entry_bytes += struct.pack(endian + 'HHI', 279, 4, 1)
+        entry_bytes += struct.pack(endian + 'I', strip_counts[0])
+    else:
+        entry_bytes += struct.pack(endian + 'HHI', 279, 4, num_strips)
+        entry_bytes += struct.pack(endian + 'I', counts_array_start)
+
+    next_ifd = struct.pack(endian + 'I', 0)
+    header = bo + struct.pack(endian + 'H', 42) + struct.pack(endian + 'I', 8)
+
+    result = header + ifd_header + entry_bytes + next_ifd + data_bytes
+
+    # Append out-of-line strip offset/count arrays (multi-strip only)
+    if num_strips > 1:
+        for so in strip_offsets:
+            result += struct.pack(endian + 'I', so)
+        for sc in strip_counts:
+            result += struct.pack(endian + 'I', sc)
+
+    # Append strip data
+    for sd in strip_data_list:
+        result += sd
+
+    return result
+
+
 @pytest.fixture
 def tmp_ndpi_phi_filename(tmp_path):
     """NDPI file whose filename contains an accession number."""
