@@ -695,7 +695,7 @@ class AnonymizeWorker(QThread):
     """Background thread for anonymizing files."""
 
     def __init__(self, input_path, output_dir, verify, workers, signals,
-                 reset_timestamps=False, attest_no_mapping=False,
+                 reset_timestamps=False,
                  generate_checklist_flag=False, format_filter=None,
                  dry_run=False, verify_integrity=False):
         super().__init__()
@@ -705,7 +705,6 @@ class AnonymizeWorker(QThread):
         self.workers = workers
         self.signals = signals
         self.reset_timestamps = reset_timestamps
-        self.attest_no_mapping = attest_no_mapping
         self.generate_checklist_flag = generate_checklist_flag
         self.format_filter = format_filter
         self.dry_run = dry_run
@@ -795,21 +794,8 @@ class AnonymizeWorker(QThread):
                 else:
                     cert_path = self.input_path.parent / 'pathsafe_certificate.json'
 
-                attestation = None
-                if self.attest_no_mapping:
-                    attestation = {
-                        'no_reidentification_mapping': True,
-                        'attested_at': datetime.now(timezone.utc).isoformat(),
-                        'statement': (
-                            'The operator attests that no mapping between original and '
-                            'anonymized file identifiers is retained that would allow '
-                            're-identification of the data subjects.'
-                        ),
-                    }
-
                 generate_certificate(
                     batch_result, output_path=cert_path,
-                    attestation=attestation,
                 )
 
                 if self.generate_checklist_flag:
@@ -863,7 +849,6 @@ class AnonymizeWorker(QThread):
                 'time': f'{batch_result.total_time_seconds:.1f}s',
                 'certificate': str(cert_path) if cert_path else '',
                 'timestamps_reset': self.reset_timestamps,
-                'attestation_included': self.attest_no_mapping,
                 'checklist': str(checklist_path) if checklist_path else '',
                 'dry_run': self.dry_run,
                 'integrity_verified': integrity_verified,
@@ -1645,12 +1630,6 @@ class PathSafeWindow(QMainWindow):
             "Removes temporal metadata that could aid re-identification.")
         compliance_layout.addWidget(self.check_reset_timestamps)
 
-        self.check_attest = QCheckBox('Attest: no re-ID mapping retained')
-        self.check_attest.setToolTip(
-            "Include a destruction attestation in the compliance certificate\n"
-            "stating no mapping between original and anonymized identifiers is retained.")
-        compliance_layout.addWidget(self.check_attest)
-
         self.check_checklist = QCheckBox('Generate assessment checklist')
         self.check_checklist.setToolTip(
             "Generate a JSON anonymization assessment checklist alongside\n"
@@ -2066,8 +2045,6 @@ class PathSafeWindow(QMainWindow):
                 compliance_parts = []
                 if data.get('timestamps_reset'):
                     compliance_parts.append('timestamps reset')
-                if data.get('attestation_included'):
-                    compliance_parts.append('attestation included')
                 checklist = data.get('checklist', '')
                 if checklist:
                     compliance_parts.append('checklist generated')
@@ -2176,7 +2153,6 @@ class PathSafeWindow(QMainWindow):
         self.check_dry_run.setEnabled(not running)
         self.check_verify_integrity.setEnabled(not running)
         self.check_reset_timestamps.setEnabled(not running)
-        self.check_attest.setEnabled(not running)
         self.check_checklist.setEnabled(not running)
         # Convert tab controls
         self.convert_output_edit.setEnabled(not running)
@@ -2301,7 +2277,6 @@ class PathSafeWindow(QMainWindow):
             self.slider_workers.value(),
             signals,
             reset_timestamps=self.check_reset_timestamps.isChecked(),
-            attest_no_mapping=self.check_attest.isChecked(),
             generate_checklist_flag=self.check_checklist.isChecked(),
             format_filter=self._get_format_filter(),
             dry_run=dry_run,

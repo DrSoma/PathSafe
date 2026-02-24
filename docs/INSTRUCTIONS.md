@@ -105,11 +105,8 @@ These are in the **Compliance** section below the main options:
 #### Reset Timestamps
 Resets the file's "last modified" and "last accessed" dates to January 1, 1970. This removes one more piece of information that could theoretically help someone figure out when the slide was scanned.
 
-#### Attest: No Re-ID Mapping Retained
-Adds a formal statement to the compliance certificate saying that you are not keeping any record that links the anonymized files back to the originals. Check this when you can truthfully make that statement.
-
 #### Generate Assessment Checklist
-Creates an additional JSON file listing all the technical and procedural steps of the anonymization. This is useful for institutional audits and regulatory reviews.
+Creates an additional JSON file listing all the technical steps of the anonymization (what was cleared, what was verified, what hashes were recorded). This is useful for institutional audits and regulatory reviews.
 
 #### Verify Image Integrity
 Proves that the diagnostic microscope images were not accidentally altered during anonymization. PathSafe takes a digital fingerprint (SHA-256 checksum) of all the image data before and after anonymization, then compares them. If they match, you have cryptographic proof that the tissue images are identical.
@@ -203,7 +200,6 @@ pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
     --certificate /path/to/clean/certificate.json \
     --checklist /path/to/clean/checklist.json \
     --reset-timestamps \
-    --attest-no-mapping \
     --verify-integrity
 ```
 
@@ -268,7 +264,6 @@ pathsafe convert /path/to/slides/ -o /path/to/converted/ -t tiff --workers 4
 | `--certificate FILE` / `-c` | Generate a JSON compliance certificate |
 | `--checklist FILE` | Generate a JSON assessment checklist |
 | `--reset-timestamps` | Reset file dates to January 1, 1970 |
-| `--attest-no-mapping` | Include a no-re-identification attestation in the certificate |
 | `--verify-integrity` | Verify image tile data integrity via SHA-256 checksums |
 | `--log FILE` | Save all output to a log file |
 
@@ -336,7 +331,7 @@ Keep this file with your anonymized slides. It serves as your audit trail for re
 
 ### The Assessment Checklist
 
-The checklist is a JSON file that lists all the technical measures PathSafe applied (metadata cleared, labels blanked, timestamps reset, integrity verified, etc.) along with procedural measures your institution needs to complete (destroy mapping files, store separately from originals, obtain REB approval, etc.).
+The checklist is a JSON file that lists all the technical measures PathSafe applied: metadata cleared, labels blanked, filenames scanned, verification passed, integrity verified, timestamps reset, and SHA-256 hashes recorded. It's a concise record of exactly what the software did to your files.
 
 ---
 

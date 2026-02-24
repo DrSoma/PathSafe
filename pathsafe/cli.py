@@ -141,14 +141,12 @@ def scan(path, verbose, fmt, json_out, workers):
 @click.option('--log', type=click.Path(), help='Write log to file.')
 @click.option('--reset-timestamps', is_flag=True,
               help='Reset file timestamps to epoch on output files (removes temporal PHI).')
-@click.option('--attest-no-mapping', is_flag=True,
-              help='Include destruction attestation in the compliance certificate.')
 @click.option('--checklist', type=click.Path(),
               help='Write anonymization assessment checklist JSON to this path.')
 @click.option('--verify-integrity', is_flag=True,
               help='Verify image tile data integrity via SHA-256 checksums before/after anonymization.')
 def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verbose, workers, log,
-              reset_timestamps, attest_no_mapping, checklist, verify_integrity):
+              reset_timestamps, checklist, verify_integrity):
     """Anonymize PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
@@ -164,11 +162,6 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
         click.echo(cli_error('Error: Must specify --output for copy mode, or --in-place '
                              'to modify originals directly.'), err=True)
         sys.exit(1)
-
-    # Warn if attestation requested without certificate
-    if attest_no_mapping and not certificate:
-        click.echo(cli_warning('Warning: --attest-no-mapping requires --certificate to take effect.'),
-                   err=True)
 
     log_file = None
     try:
@@ -261,20 +254,7 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
 
         # Generate certificate
         if certificate and not dry_run:
-            attestation = None
-            if attest_no_mapping:
-                from datetime import datetime, timezone
-                attestation = {
-                    'no_reidentification_mapping': True,
-                    'attested_at': datetime.now(timezone.utc).isoformat(),
-                    'statement': (
-                        'The operator attests that no mapping between original and '
-                        'anonymized file identifiers is retained that would allow '
-                        're-identification of the data subjects.'
-                    ),
-                }
-            cert = generate_certificate(batch_result, output_path=Path(certificate),
-                                        attestation=attestation)
+            cert = generate_certificate(batch_result, output_path=Path(certificate))
             batch_result.certificate_path = Path(certificate)
             emit(cli_info(f'\nCompliance certificate: {certificate}'),
                  log_info(f'Compliance certificate: {certificate}'))

@@ -26,14 +26,12 @@ def _sha256_file(filepath: Path) -> str:
 def generate_certificate(
     batch_result: BatchResult,
     output_path: Optional[Path] = None,
-    attestation: Optional[dict] = None,
 ) -> dict:
     """Generate a JSON compliance certificate for a batch anonymization run.
 
     Args:
         batch_result: The BatchResult from anonymize_batch().
         output_path: If provided, write the certificate JSON to this file.
-        attestation: If provided, include a destruction attestation block.
 
     Returns:
         The certificate as a dict.
@@ -89,9 +87,6 @@ def generate_certificate(
         },
         'files': file_records,
     }
-
-    if attestation is not None:
-        certificate['attestation'] = attestation
 
     if output_path is not None:
         output_path = Path(output_path)
@@ -188,51 +183,6 @@ def generate_checklist(
         },
     ]
 
-    procedural_measures = [
-        {
-            'item': 'Destroy any mapping between original and anonymized file identifiers',
-            'completed': False,
-        },
-        {
-            'item': 'Ensure anonymized files are stored separately from originals',
-            'completed': False,
-        },
-        {
-            'item': 'Obtain REB/CER approval for the anonymization protocol',
-            'completed': False,
-        },
-        {
-            'item': 'Confirm that tissue morphology alone does not allow re-identification in the context of intended use',
-            'completed': False,
-        },
-        {
-            'item': 'Establish a data use agreement for any external data sharing',
-            'completed': False,
-        },
-        {
-            'item': 'Document the anonymization process in institutional records',
-            'completed': False,
-        },
-    ]
-
-    regulatory_references = [
-        {
-            'jurisdiction': 'Quebec',
-            'law': 'Law 25 (Act to modernize legislative provisions as regards the protection of personal information)',
-            'relevance': 'Governs de-identification and anonymization of personal information held by Quebec organizations',
-        },
-        {
-            'jurisdiction': 'Canada (federal)',
-            'law': 'PIPEDA (Personal Information Protection and Electronic Documents Act)',
-            'relevance': 'Federal privacy law applicable to commercial activities and cross-provincial data transfers',
-        },
-        {
-            'jurisdiction': 'United States',
-            'law': 'HIPAA Safe Harbor (45 CFR 164.514(b))',
-            'relevance': 'Applicable when sharing de-identified data with US institutions or researchers',
-        },
-    ]
-
     checklist = {
         'pathsafe_version': pathsafe.__version__,
         'checklist_id': str(uuid.uuid4()),
@@ -243,8 +193,6 @@ def generate_checklist(
             'files_with_errors': error_count,
         },
         'technical_measures': technical_measures,
-        'procedural_measures': procedural_measures,
-        'regulatory_references': regulatory_references,
     }
 
     if output_path is not None:

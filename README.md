@@ -119,7 +119,7 @@ A summary popup appears after each step telling you exactly what happened.
 | **Parallel processing** | Adjust the Workers slider (2-4 recommended) |
 | **Dry run** | Check "Dry run" to preview without modifying anything |
 | **Verify image integrity** | Check in Compliance section -- proves diagnostic images were not altered using SHA-256 checksums |
-| **Compliance options** | Reset timestamps, attestation, assessment checklist -- all in the Compliance section |
+| **Compliance options** | Reset timestamps, assessment checklist, image integrity -- all in the Compliance section |
 | **Save log / Export JSON** | Save your results for record-keeping (Actions menu or buttons) |
 
 ## Option B: Command Line
