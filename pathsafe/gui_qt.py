@@ -1962,15 +1962,15 @@ class PathSafeWindow(QMainWindow):
 
         conv_grid.addSpacing(16)
         conv_grid.addWidget(QLabel('Tile size:'))
-        self.spin_tile_size = QSpinBox()
-        self.spin_tile_size.setRange(64, 1024)
-        self.spin_tile_size.setValue(256)
-        self.spin_tile_size.setSingleStep(64)
-        self.spin_tile_size.setToolTip(
+        self.combo_tile_size = QComboBox()
+        self.combo_tile_size.addItems(['128', '256', '512', '1024'])
+        self.combo_tile_size.setCurrentText('256')
+        self.combo_tile_size.setToolTip(
             "Tile size for pyramidal TIFF output (pixels).\n"
-            "Default: 256")
-        self.spin_tile_size.setFixedWidth(80)
-        conv_grid.addWidget(self.spin_tile_size)
+            "256 is the most common and compatible.\n"
+            "512 may be faster for very large files.")
+        self.combo_tile_size.setFixedWidth(80)
+        conv_grid.addWidget(self.combo_tile_size)
 
         conv_grid.addSpacing(16)
         conv_grid.addWidget(QLabel('Quality:'))
@@ -2001,12 +2001,6 @@ class PathSafeWindow(QMainWindow):
         self.check_convert_anonymize.setToolTip(
             "Run anonymization on the converted output files.")
         opts_layout.addWidget(self.check_convert_anonymize)
-
-        opts_layout.addSpacing(16)
-        self.check_convert_reset_ts = QCheckBox('Reset timestamps')
-        self.check_convert_reset_ts.setToolTip(
-            "Reset file access/modification times to epoch.")
-        opts_layout.addWidget(self.check_convert_reset_ts)
 
         opts_layout.addSpacing(16)
         opts_layout.addWidget(QLabel('Workers:'))
@@ -2492,10 +2486,9 @@ class PathSafeWindow(QMainWindow):
         self.convert_output_edit.setEnabled(not running)
         self.combo_target_format.setEnabled(not running)
         self.combo_extract.setEnabled(not running)
-        self.spin_tile_size.setEnabled(not running)
+        self.combo_tile_size.setEnabled(not running)
         self.slider_quality.setEnabled(not running)
         self.check_convert_anonymize.setEnabled(not running)
-        self.check_convert_reset_ts.setEnabled(not running)
         self.slider_convert_workers.setEnabled(not running)
         self.combo_convert_format_filter.setEnabled(not running)
         self.btn_convert.setEnabled(not running)
@@ -2724,11 +2717,11 @@ class PathSafeWindow(QMainWindow):
         extract_values = [None, 'label', 'macro', 'thumbnail']
         extract = extract_values[self.combo_extract.currentIndex()]
 
-        tile_size = self.spin_tile_size.value()
+        tile_size = int(self.combo_tile_size.currentText())
         quality = self.slider_quality.value()
 
         anonymize_after = self.check_convert_anonymize.isChecked()
-        reset_timestamps = self.check_convert_reset_ts.isChecked()
+        reset_timestamps = anonymize_after
         workers = self.slider_convert_workers.value()
 
         fmt_idx = self.combo_convert_format_filter.currentIndex()
