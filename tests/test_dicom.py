@@ -7,7 +7,7 @@ import pytest
 from pathlib import Path
 
 pydicom = pytest.importorskip('pydicom', reason='pydicom not installed')
-from pydicom.dataset import Dataset, FileDataset
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 from pydicom.sequence import Sequence
 from pydicom.tag import Tag
@@ -20,12 +20,14 @@ from pathsafe.formats.dicom import (
 
 def _make_dicom_file(filepath, **kwargs):
     """Create a minimal DICOM WSI file with PHI for testing."""
-    file_meta = pydicom.Dataset()
+    file_meta = FileMetaDataset()
     file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.77.1.6'
     file_meta.MediaStorageSOPInstanceUID = generate_uid()
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
 
     ds = FileDataset(str(filepath), {}, file_meta=file_meta, preamble=b'\x00' * 128)
+    ds.is_little_endian = True
+    ds.is_implicit_VR = False
 
     # Patient module
     ds.PatientName = kwargs.get('PatientName', 'Doe^John')
@@ -147,7 +149,7 @@ class TestDICOMAnonymize:
 
     def test_anonymize_deletes_type3(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / 'del.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
         ds.add_new(Tag(0x0010, 0x1040), 'LO', '123 Main St')  # PatientAddress
         ds.save_as(str(filepath))
 
@@ -182,7 +184,7 @@ class TestDICOMAnonymize:
 
     def test_anonymize_removes_private_tags(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / 'priv.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
         ds.add_new(Tag(0x0009, 0x0010), 'LO', 'PrivateCreator')
         ds.add_new(Tag(0x0009, 0x1001), 'LO', 'PrivateData')
         ds.save_as(str(filepath))
@@ -207,7 +209,7 @@ class TestDICOMAnonymize:
 class TestDICOMSequences:
     def test_scan_detects_phi_in_sequences(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / 'seq.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
 
         # Add a sequence with PHI
         item = Dataset()
@@ -222,7 +224,7 @@ class TestDICOMSequences:
 
     def test_anonymize_cleans_sequences(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / 'seq_anon.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
 
         item = Dataset()
         item.PatientName = 'SeqPatient'

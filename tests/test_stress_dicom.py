@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 pydicom = pytest.importorskip('pydicom', reason='pydicom not installed')
-from pydicom.dataset import Dataset, FileDataset
+from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
 from pydicom.tag import Tag
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
@@ -17,12 +17,14 @@ from pathsafe.formats.dicom import (
 
 def _make_dicom_file(filepath, **kwargs):
     """Create a minimal DICOM WSI file with PHI for testing."""
-    file_meta = pydicom.Dataset()
+    file_meta = FileMetaDataset()
     file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.77.1.6'
     file_meta.MediaStorageSOPInstanceUID = generate_uid()
     file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
 
     ds = FileDataset(str(filepath), {}, file_meta=file_meta, preamble=b'\x00' * 128)
+    ds.is_little_endian = True
+    ds.is_implicit_VR = False
     ds.PatientName = kwargs.get('PatientName', 'Doe^John')
     ds.PatientID = kwargs.get('PatientID', 'PID12345')
     ds.PatientBirthDate = kwargs.get('PatientBirthDate', '19800115')
@@ -103,7 +105,7 @@ class TestDeeplyNestedSequences:
     def test_anonymize_clears_3_levels(self, tmp_path):
         """Anonymize clears PHI at 3 nesting levels."""
         filepath = _make_dicom_file(tmp_path / 'nested3.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
 
         seq = _build_nested_seq(3)
         ds.add_new(Tag(0x0040, 0x0555), 'SQ', seq)
@@ -121,7 +123,7 @@ class TestDeeplyNestedSequences:
     def test_depth_guard_stops_anonymization(self, tmp_path):
         """Anonymize stops at depth > 5 -- unreachable PHI remains."""
         filepath = _make_dicom_file(tmp_path / 'nested7.dcm')
-        ds = pydicom.dcmread(str(filepath), force=True)
+        ds = pydicom.dcmread(str(filepath))
 
         seq = _build_nested_seq(7)
         ds.add_new(Tag(0x0040, 0x0555), 'SQ', seq)
