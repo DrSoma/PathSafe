@@ -1,141 +1,247 @@
 # PathSafe
 
-Hospital-grade WSI anonymizer for pathology slide files.
+**Remove patient information from pathology slide files safely, automatically, and verifiably.**
 
-PathSafe detects and removes Protected Health Information (PHI) from whole-slide image (WSI) files before they are shared for research. It supports all major WSI formats and provides both a command-line interface and a graphical user interface.
+Whole-slide image (WSI) files from pathology scanners often contain hidden patient data: accession numbers, dates, operator names, and even photographed slide labels embedded in the file metadata. This data must be removed before slides can be shared for research or education.
 
-Built from production experience anonymizing 3,101+ slides across 9 clinical batches.
+PathSafe scans your slide files, finds all patient information, removes it, and then double-checks that nothing was missed. It works with all major scanner brands and can process thousands of files at once.
 
-## Key Features
+Built from real-world experience anonymizing 3,101+ clinical slides.
 
-- **Multi-format support**: NDPI, SVS, MRXS, DICOM WSI, and generic TIFF
-- **Label and macro image blanking**: Removes photographed slide labels that may contain patient information
-- **Safe by default**: Copy mode preserves originals; in-place requires explicit confirmation
-- **Built-in verification**: Re-scans every file after anonymization to confirm all PHI was removed
-- **Compliance certificates**: JSON audit trail with file hashes, timestamps, and per-file details
-- **Graphical interface**: Qt GUI with dark/light theme and drag-and-drop for non-technical users
-- **Parallel processing**: Speed up large batches with multiple workers
+---
 
-## Supported Formats
+## At a Glance
 
-| Format | Scanner | What Gets Cleaned |
-|--------|---------|-------------------|
-| **NDPI** | Hamamatsu | Accession numbers, dates, macro/barcode images, embedded text |
-| **SVS** | Aperio | Scanner metadata, operator names, dates, label/macro images |
-| **MRXS** | 3DHISTECH/MIRAX | Slide IDs, barcodes, names, dates in Slidedat.ini |
-| **DICOM WSI** | Various | 30+ patient/study/institution tags, all private tags |
-| **Generic TIFF** | Any | Accession number patterns and dates in metadata tags |
+| What PathSafe does | Why it matters |
+|--------------------|----------------|
+| **Finds hidden patient data** | Accession numbers, dates, and names can be buried in file metadata that's invisible when viewing the slide, but still accessible to anyone who opens the file with the right tools |
+| **Supports all major formats** | Works with Hamamatsu (NDPI), Aperio (SVS), 3DHISTECH (MRXS), DICOM, and other TIFF-based files, so you don't need different tools for different scanners |
+| **Blanks label and macro images** | Many scanners photograph the physical slide label, which may show patient names or IDs. PathSafe erases these embedded photos so the information can't be recovered |
+| **Preserves your originals** | By default, PathSafe creates anonymized copies in a separate folder so your original files are never touched |
+| **Verifies its own work** | After anonymizing, PathSafe re-scans every file to confirm all patient data was actually removed, giving you confidence that nothing was missed |
+| **Generates compliance certificates** | Produces a detailed JSON report that records every file processed, what patient data was found, what was removed, and a cryptographic hash of the final file. This report can be used as evidence of de-identification for HIPAA audits, IRB reviews, and institutional data governance |
+| **Includes a graphical interface** | Non-technical users can drag and drop files into a visual interface and follow a guided four-step workflow without needing to type any commands |
+| **Processes files in parallel** | Large batches of hundreds or thousands of slides can be processed much faster by using multiple workers simultaneously |
 
-## Installation
+---
 
-Requires Python 3.9+.
+## Getting PathSafe
 
-```bash
-# Core (command line only):
-pip install -e /path/to/pathsafe
+There are two ways to get PathSafe: **download a standalone app** (no installation needed) or **install with Python** (more flexible).
 
-# With graphical interface:
-pip install -e "/path/to/pathsafe[gui]"
+### Option A: Download the standalone app (easiest)
 
-# With DICOM support:
-pip install -e "/path/to/pathsafe[dicom]"
+No Python required. Just download and run.
 
-# Everything:
-pip install -e "/path/to/pathsafe[all]"
+1. Go to the [Releases page](https://github.com/DrSoma/PathSafe/releases)
+2. Download the file for your operating system from the table below
+3. Run it (see instructions under the table)
+
+| Your computer | Graphical interface (recommended) | Command line |
+|---------------|-----------------------------------|--------------|
+| **Windows** | `pathsafe-gui-windows.exe` | `pathsafe-windows.exe` |
+| **macOS** | `pathsafe-gui-macos` | `pathsafe-macos` |
+| **Linux** | `pathsafe-gui-linux` | `pathsafe-linux` |
+
+**Windows**: Double-click `pathsafe-gui-windows.exe`. Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
+
+**macOS**: Open Terminal and run:
+```
+chmod +x ~/Downloads/pathsafe-gui-macos
+~/Downloads/pathsafe-gui-macos
 ```
 
-## Quick Start
+**Linux**: Open a terminal and run:
+```
+chmod +x ~/Downloads/pathsafe-gui-linux
+~/Downloads/pathsafe-gui-linux
+```
 
-### 1. Scan your files (read-only, nothing is modified)
+No installation, no Python, no dependencies needed.
 
-```bash
+### Option B: Install with Python
+
+This option gives you more control and makes it easy to update. Requires **Python 3.9 or newer**.
+
+If you're not sure whether Python is installed, open a terminal (or Command Prompt on Windows) and type `python --version`. If you see `Python 3.9` or higher, you're good to go. If not, download Python from [python.org](https://www.python.org/downloads/) and install it first.
+
+#### Windows
+
+Open **Command Prompt** (search for "cmd" in the Start menu) and run:
+
+```
+cd C:\Users\YourName\Downloads\PathSafe
+pip install -e ".[gui]"
+pathsafe --version
+```
+
+If you only need the command line (no graphical interface):
+```
+pip install -e .
+```
+
+#### macOS
+
+Open **Terminal** (search for "Terminal" in Spotlight) and run:
+
+```
+cd ~/Downloads/PathSafe
+pip install -e ".[gui]"
+pathsafe --version
+```
+
+If you only need the command line (no graphical interface):
+```
+pip install -e .
+```
+
+#### Linux
+
+Open a **terminal** and run:
+
+```
+cd ~/Downloads/PathSafe
+pip install -e ".[gui]"
+pathsafe --version
+```
+
+If the GUI fails to launch, you may need to install a system library:
+```
+sudo apt install -y libxcb-cursor0
+```
+
+If you only need the command line (no graphical interface):
+```
+pip install -e .
+```
+
+#### Optional extras
+
+| Install command | What it adds |
+|----------------|-------------|
+| `pip install -e ".[gui]"` | Graphical interface (recommended) |
+| `pip install -e ".[dicom]"` | Support for DICOM WSI files |
+| `pip install -e ".[openslide]"` | Enhanced format detection via OpenSlide |
+| `pip install -e ".[all]"` | All of the above |
+
+---
+
+## How to Use PathSafe
+
+There are two ways to use PathSafe: the **graphical interface** (easier) or the **command line** (more flexible).
+
+### Option A: Graphical Interface (recommended for most users)
+
+Launch the GUI:
+
+- **Standalone**: Double-click the `pathsafe-gui` file you downloaded
+- **Python install**: Type `pathsafe gui` in a terminal
+
+The interface walks you through four steps:
+
+1. **Select Files**: Browse for files or folders, or drag and drop them onto the window
+2. **Scan**: PathSafe checks your files and reports what patient data it found (nothing is changed yet)
+3. **Anonymize**: PathSafe removes all patient data (your originals are preserved by default)
+4. **Verify**: PathSafe re-scans the anonymized files to confirm everything was removed
+
+The GUI includes a dark and light theme (switchable from the View menu), tooltips on every button, and keyboard shortcuts for common actions.
+
+### Option B: Command Line
+
+#### Step 1: Scan your files (nothing is modified)
+
+```
 pathsafe scan /path/to/slides/ --verbose
 ```
 
-### 2. Anonymize (originals are preserved)
+This shows you what patient data is present without changing anything. Think of it as a preview.
 
-```bash
+#### Step 2: Anonymize (originals are preserved)
+
+```
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/
 ```
 
-### 3. Verify the results
+This creates anonymized copies in the output folder. Your original files are untouched.
 
-```bash
+If you want to modify files directly instead of copying (e.g., you already have backups):
+
+```
+pathsafe anonymize /path/to/slides/ --in-place
+```
+
+#### Step 3: Verify the results
+
+```
 pathsafe verify /path/to/clean/
 ```
 
-### Or use the graphical interface
+This re-scans every anonymized file and confirms that no patient data remains.
 
-```bash
-pathsafe gui
+#### Step 4 (optional): Generate a compliance certificate
+
+```
+pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --certificate /path/to/clean/certificate.json
 ```
 
-## Graphical Interface
+The certificate is a JSON file that records exactly what was done to each file, useful for audits and regulatory compliance.
 
-The GUI walks you through each step visually, so no command-line experience is needed.
+---
 
-- Dark and light themes, switchable from the View menu
-- Drag and drop files or folders directly onto the window
-- Step-by-step workflow indicator: **Select Files > Scan > Anonymize > Verify**
-- Keyboard shortcuts for common actions
-- Real-time progress and log output
-
-Falls back to a simpler Tkinter interface if PySide6 is not installed.
-
-## What Gets Anonymized
+## Supported Formats
 
 ### NDPI (Hamamatsu)
 
-| What | Where | Action |
-|------|-------|--------|
-| Accession numbers | Tag 65468 (NDPI_BARCODE) | Overwritten |
-| Reference strings | Tag 65427 (NDPI_REFERENCE) | Overwritten |
-| Scan dates | Tag 306, 36867, 36868 | Cleared |
-| Macro image | Embedded overview photo | Blanked |
-| Barcode image | Embedded barcode photo | Blanked |
-| Any remaining patterns | First 100KB binary scan | Overwritten |
+| What gets removed | Where it's hiding | Why it matters |
+|-------------------|-------------------|----------------|
+| Accession numbers | Tag 65468 (NDPI_BARCODE) | This is the primary patient identifier in Hamamatsu files |
+| Reference strings | Tag 65427 (NDPI_REFERENCE) | May contain additional identifying information |
+| Scan dates | DateTime tags | Dates can be used to re-identify patients when combined with other records |
+| Macro image | Embedded overview photo | A photograph of the entire slide, including the label with patient info |
+| Barcode image | Embedded barcode photo | A photograph of the slide barcode, which encodes the accession number |
+| Remaining patterns | Binary scan of header | A safety net that catches any accession numbers embedded elsewhere in the file |
 
 ### SVS (Aperio)
 
-| What | Where | Action |
-|------|-------|--------|
-| Scanner ID, filename, operator | Tag 270 (ImageDescription) | Redacted |
-| Scan dates | Tag 306, 36867, 36868 | Cleared |
-| Label image | Embedded label photo | Blanked |
-| Macro image | Embedded overview photo | Blanked |
-| Any remaining patterns | First 100KB binary scan | Overwritten |
+| What gets removed | Where it's hiding | Why it matters |
+|-------------------|-------------------|----------------|
+| Scanner ID, filename, operator name | ImageDescription metadata | Contains the operator who scanned the slide and the original filename |
+| Scan dates | DateTime tags | Dates can be cross-referenced with clinical records |
+| Label image | Embedded label photo | A photograph of the physical slide label, which often has the patient name or ID |
+| Macro image | Embedded overview photo | A wide-angle photo that may capture the label |
+| Remaining patterns | Binary scan of header | A safety net for any accession numbers embedded elsewhere |
 
 ### MRXS (3DHISTECH/MIRAX)
 
-| What | Where | Action |
-|------|-------|--------|
-| Slide ID, name, barcode | Slidedat.ini [GENERAL] | Overwritten |
-| Creation date/time | Slidedat.ini [GENERAL] | Replaced with placeholder |
-| Any remaining patterns | .mrxs file and Slidedat.ini | Overwritten |
+| What gets removed | Where it's hiding | Why it matters |
+|-------------------|-------------------|----------------|
+| Slide ID, name, barcode | Slidedat.ini configuration file | These fields directly identify the patient or case |
+| Creation date/time | Slidedat.ini configuration file | Can be cross-referenced with clinical records |
+| Remaining patterns | .mrxs file and Slidedat.ini | A safety net for any other identifiers |
 
 ### DICOM WSI
 
-| What | Examples | Action |
-|------|----------|--------|
-| Patient identifiers | Name, ID, birth date, sex, age | Blanked or replaced |
-| Study identifiers | Accession number, study date, description | Blanked or replaced |
-| Institution/physician info | Institution name, referring/performing physician | Blanked or deleted |
-| Private tags | Vendor-specific data | Removed entirely |
+| What gets removed | Examples | Why it matters |
+|-------------------|----------|----------------|
+| Patient identifiers | Name, ID, birth date, sex, age | Direct patient identification |
+| Study identifiers | Accession number, study date, description | Can be used to look up the patient in hospital systems |
+| Institution/physician info | Institution name, referring physician, operator | May indirectly identify the patient or the context of care |
+| Private tags | Vendor-specific data | Unknown content that could contain identifiers |
 
 ### Generic TIFF
 
-All text metadata tags are scanned for accession number patterns and redacted. Date tags are cleared.
+For any TIFF-based slide file not covered above, PathSafe scans all text metadata for accession number patterns and clears date fields.
 
-## CLI Reference
+---
+
+## Command Line Reference
 
 ```
-pathsafe scan PATH [--verbose] [--format ndpi|svs|mrxs|dicom|tiff] [--json-out FILE]
-pathsafe anonymize PATH [--output DIR] [--in-place] [--dry-run] [--no-verify]
-                        [--format ndpi|svs|mrxs|dicom|tiff] [--certificate FILE]
-                        [--verbose] [--workers N] [--log FILE]
-pathsafe verify PATH [--verbose] [--format ndpi|svs|mrxs|dicom|tiff]
-pathsafe info FILE
-pathsafe gui
+pathsafe scan PATH       Check files for patient data (read-only)
+pathsafe anonymize PATH  Remove patient data from files
+pathsafe verify PATH     Confirm anonymization was successful
+pathsafe info FILE       Show metadata for a single file
+pathsafe gui             Launch the graphical interface
 ```
 
 ### Common options
@@ -144,38 +250,70 @@ pathsafe gui
 |--------|-------------|
 | `--output DIR` | Save anonymized copies to this directory (originals untouched) |
 | `--in-place` | Modify files directly instead of copying |
-| `--dry-run` | Show what would be done without making changes |
+| `--dry-run` | Show what would be done without making any changes |
 | `--verbose` | Show detailed output |
-| `--workers N` | Process N files in parallel |
+| `--workers N` | Process N files in parallel (faster for large batches) |
 | `--certificate FILE` | Generate a JSON compliance certificate |
-| `--format FORMAT` | Only process files of this format |
-| `--log FILE` | Save output to a log file |
+| `--format FORMAT` | Only process files of a specific format (ndpi, svs, mrxs, dicom, tiff) |
+| `--log FILE` | Save all output to a log file |
+
+---
 
 ## Compliance Certificate
 
-Generate an audit trail for your anonymization batch:
+When you use the `--certificate` option, PathSafe generates a JSON file that serves as an audit trail for your anonymization batch.
+
+### What's in the certificate
+
+- **PathSafe version**: The exact software version used, so results can be reproduced
+- **Certificate ID**: A unique identifier (UUID) for this specific anonymization run
+- **Timestamp**: The exact date and time the batch was processed (ISO 8601 UTC)
+- **Mode**: Whether files were copied ("copy") or modified in place ("inplace")
+- **Summary**: Total files processed, how many were anonymized, how many were already clean, how many had errors, and whether verification passed
+- **Per-file details**: For every file in the batch, the certificate records the original filename, detected format, SHA-256 cryptographic hash of the anonymized file, number of PHI findings cleared, and whether post-anonymization verification passed
+
+### Why this matters
+
+The certificate provides documented proof that de-identification was performed, verified, and recorded. This is useful for:
+
+- **HIPAA Safe Harbor compliance**: Demonstrating that identifiers were removed per 45 CFR 164.514(b)(2)
+- **IRB submissions**: Providing evidence that shared data has been de-identified
+- **Institutional audits**: Maintaining a traceable record of what was done to each file
+- **Reproducibility**: The SHA-256 hash allows anyone to verify that a file has not been modified since anonymization
+
+### Example
 
 ```bash
 pathsafe anonymize /slides/ --output /clean/ --certificate /clean/certificate.json
 ```
 
-The certificate records the PathSafe version, a unique run ID, timestamps, per-file SHA-256 hashes, findings cleared, and verification status.
+---
+
+## Security
+
+PathSafe is designed with security in mind:
+
+- **No network access**: PathSafe never connects to the internet. All processing happens locally on your machine.
+- **No external dependencies for file parsing**: All TIFF/WSI file reading uses Python's built-in `struct` module. There are no third-party C libraries that could introduce vulnerabilities.
+- **No code execution from files**: PathSafe never executes or evaluates any data found in slide files. It reads bytes and overwrites them.
+- **Memory-safe**: Python's memory safety prevents buffer overflow attacks from maliciously crafted files.
+- **Open source**: The entire codebase is available for review. No hidden functionality.
+
+---
 
 ## Dependencies
 
-- **Core**: Python 3.9+, `click`. All file parsing uses Python standard library only.
-- **GUI** (optional): `PySide6` via `pip install pathsafe[gui]`
-- **DICOM** (optional): `pydicom` via `pip install pathsafe[dicom]`
-- **OpenSlide** (optional): `openslide-python` via `pip install pathsafe[openslide]`
+PathSafe is designed to be lightweight. The only required dependency beyond Python itself is `click` (for the command-line interface). All file parsing uses Python's built-in standard library.
 
-## Building a Standalone Executable
+Optional dependencies add extra capabilities:
 
-```bash
-pip install pyinstaller
-pyinstaller pathsafe.spec
-```
+| Package | What it adds | How to install |
+|---------|-------------|----------------|
+| PySide6 | Graphical interface | `pip install pathsafe[gui]` |
+| pydicom | DICOM WSI support | `pip install pathsafe[dicom]` |
+| openslide-python | Enhanced format detection | `pip install pathsafe[openslide]` |
 
-Produces `dist/pathsafe` (CLI) and `dist/pathsafe-gui` (GUI).
+---
 
 ## License
 
