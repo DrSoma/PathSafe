@@ -394,6 +394,71 @@ def blank_ifd_image_data(f: BinaryIO, header: TIFFHeader,
     return total_blanked
 
 
+def unlink_ifd(f: BinaryIO, header: TIFFHeader,
+               target_ifd_offset: int) -> bool:
+    """Unlink an IFD from the TIFF IFD chain.
+
+    Rewrites the predecessor's next-IFD pointer to skip the target IFD,
+    making it unreachable to TIFF readers. The orphaned IFD's physical
+    data remains in the file but is invisible to any conforming reader.
+
+    Args:
+        f: Open file handle in r+b mode.
+        header: Parsed TIFF header.
+        target_ifd_offset: File offset of the IFD to unlink.
+
+    Returns:
+        True if the IFD was found and unlinked, False if not in chain.
+    """
+    endian = header.endian
+
+    # Read the target IFD to get its next_offset
+    target_entries, target_next = read_ifd(f, header, target_ifd_offset)
+    if not target_entries and target_next == 0:
+        # Could not read target IFD at all
+        return False
+
+    # Case 1: Target is the first IFD — rewrite the file header
+    if header.first_ifd_offset == target_ifd_offset:
+        if header.is_bigtiff:
+            f.seek(8)
+            f.write(struct.pack(endian + 'Q', target_next))
+        else:
+            f.seek(4)
+            f.write(struct.pack(endian + 'I', target_next))
+        header.first_ifd_offset = target_next
+        return True
+
+    # Case 2: Walk the chain to find the predecessor
+    seen = set()
+    pred_offset = header.first_ifd_offset
+
+    while pred_offset != 0:
+        if pred_offset in seen:
+            break  # Circular chain protection
+        seen.add(pred_offset)
+
+        pred_entries, pred_next = read_ifd(f, header, pred_offset)
+
+        if pred_next == target_ifd_offset:
+            # Found the predecessor — rewrite its next-pointer
+            num_entries = len(pred_entries)
+            if header.is_bigtiff:
+                next_ptr_offset = pred_offset + 8 + (num_entries * 20)
+                f.seek(next_ptr_offset)
+                f.write(struct.pack(endian + 'Q', target_next))
+            else:
+                next_ptr_offset = pred_offset + 2 + (num_entries * 12)
+                f.seek(next_ptr_offset)
+                f.write(struct.pack(endian + 'I', target_next))
+            return True
+
+        pred_offset = pred_next
+
+    # Target not found in chain (already unlinked or invalid)
+    return False
+
+
 def get_ifd_image_size(header: TIFFHeader,
                        entries: List[IFDEntry], f: BinaryIO) -> Tuple[int, int]:
     """Get image width and height from an IFD's tags. Returns (width, height)."""

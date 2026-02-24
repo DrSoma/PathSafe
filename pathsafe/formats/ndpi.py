@@ -43,6 +43,7 @@ from pathsafe.tiff import (
     get_ifd_image_data_size,
     scan_extra_metadata_tags,
     blank_extra_metadata_tag,
+    unlink_ifd,
     EXTRA_METADATA_TAGS,
     TAG_NAMES,
 )
@@ -381,12 +382,15 @@ class NDPIHandler(FormatHandler):
 
                         if img_type:
                             if is_ifd_image_blanked(f, header, entries):
+                                # Already blanked but may still be linked — unlink it
+                                unlink_ifd(f, header, ifd_offset)
                                 break
                             w, h = get_ifd_image_size(
                                 header, entries, f)
                             blanked = blank_ifd_image_data(
                                 f, header, entries)
                             if blanked > 0:
+                                unlink_ifd(f, header, ifd_offset)
                                 cleared.append(PHIFinding(
                                     offset=ifd_offset,
                                     length=blanked,

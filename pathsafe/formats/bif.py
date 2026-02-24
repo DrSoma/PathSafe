@@ -36,6 +36,7 @@ from pathsafe.tiff import (
     get_ifd_image_data_size,
     scan_extra_metadata_tags,
     blank_extra_metadata_tag,
+    unlink_ifd,
     EXTRA_METADATA_TAGS,
 )
 
@@ -195,9 +196,10 @@ class BIFHandler(FormatHandler):
             if header is None:
                 return findings
             for _, entries in iter_ifds(f, header):
-                # Exclude XMP (700) since we handle it specially
+                # Exclude XMP (700, handled by _scan_xmp) and ImageDescription
+                # (270, used for label/macro detection in _blank_label_macro)
                 for entry, value in scan_extra_metadata_tags(
-                        f, header, entries, exclude_tags={700}):
+                        f, header, entries, exclude_tags={270, 700}):
                     if entry.value_offset not in seen:
                         seen.add(entry.value_offset)
                         findings.append(PHIFinding(
@@ -351,8 +353,10 @@ class BIFHandler(FormatHandler):
             if header is None:
                 return cleared
             for _, entries in iter_ifds(f, header):
+                # Exclude XMP (700, handled by _anonymize_xmp) and ImageDescription
+                # (270, used for label/macro detection in _blank_label_macro)
                 for entry, value in scan_extra_metadata_tags(
-                        f, header, entries, exclude_tags={700}):
+                        f, header, entries, exclude_tags={270, 700}):
                     if entry.value_offset not in seen:
                         seen.add(entry.value_offset)
                         blank_extra_metadata_tag(f, entry)
@@ -386,10 +390,13 @@ class BIFHandler(FormatHandler):
 
                         if img_type:
                             if is_ifd_image_blanked(f, header, entries):
+                                # Already blanked but may still be linked — unlink it
+                                unlink_ifd(f, header, ifd_offset)
                                 break
                             w, h = get_ifd_image_size(header, entries, f)
                             blanked = blank_ifd_image_data(f, header, entries)
                             if blanked > 0:
+                                unlink_ifd(f, header, ifd_offset)
                                 cleared.append(PHIFinding(
                                     offset=ifd_offset, length=blanked,
                                     tag_id=None, tag_name=img_type,

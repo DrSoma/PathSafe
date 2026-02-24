@@ -500,6 +500,190 @@ def tmp_tiff_multi_ifd(tmp_path):
     return filepath
 
 
+def build_tiff_multi_ifd_with_strips(ifd_specs, endian='<'):
+    """Build a TIFF with multiple linked IFDs, each optionally having strip data.
+
+    Args:
+        ifd_specs: List of (tag_entries, strip_data_or_None) tuples.
+            tag_entries: list of (tag_id, type_id, count, value_or_bytes).
+            strip_data: bytes of image data, or None for no strip data.
+        endian: '<' or '>'.
+
+    Returns:
+        bytes: Complete TIFF file with chained IFDs and strip data.
+    """
+    bo = b'II' if endian == '<' else b'MM'
+
+    # Each IFD needs: 2 (count) + 12*n (entries) + 4 (next ptr) + ool_data + strip_data
+    # If strip_data is provided, we auto-add StripOffsets(273) + StripByteCounts(279)
+
+    # First pass: compute sizes
+    ifd_infos = []
+    for tag_entries, strip_data in ifd_specs:
+        extra_tags = 2 if strip_data else 0
+        n = len(tag_entries) + extra_tags
+        ool_size = sum(len(v) for _, _, _, v in tag_entries if isinstance(v, bytes))
+        strip_size = len(strip_data) if strip_data else 0
+        ifd_infos.append((n, ool_size, strip_size, tag_entries, strip_data))
+
+    # Second pass: compute start offsets
+    ifd_starts = []
+    offset = 8  # After header
+    for n, ool_size, strip_size, _, _ in ifd_infos:
+        ifd_starts.append(offset)
+        offset += 2 + 12 * n + 4 + ool_size + strip_size
+
+    # Build header
+    result = bo + struct.pack(endian + 'H', 42)
+    result += struct.pack(endian + 'I', ifd_starts[0])
+
+    # Build each IFD
+    for i, (n, ool_size, strip_size, tag_entries, strip_data) in enumerate(ifd_infos):
+        data_start = ifd_starts[i] + 2 + 12 * n + 4
+        strip_data_offset = data_start + ool_size
+
+        ifd_bytes = struct.pack(endian + 'H', n)
+        data_bytes = b''
+
+        for tag_id, type_id, count, value in tag_entries:
+            if isinstance(value, bytes):
+                val_offset = data_start + len(data_bytes)
+                ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+                ifd_bytes += struct.pack(endian + 'I', val_offset)
+                data_bytes += value
+            else:
+                ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+                ifd_bytes += struct.pack(endian + 'I', value)
+
+        if strip_data:
+            # StripOffsets (273)
+            ifd_bytes += struct.pack(endian + 'HHI', 273, 4, 1)
+            ifd_bytes += struct.pack(endian + 'I', strip_data_offset)
+            # StripByteCounts (279)
+            ifd_bytes += struct.pack(endian + 'HHI', 279, 4, 1)
+            ifd_bytes += struct.pack(endian + 'I', len(strip_data))
+
+        # Next IFD offset
+        if i + 1 < len(ifd_infos):
+            next_ifd = ifd_starts[i + 1]
+        else:
+            next_ifd = 0
+        ifd_bytes += struct.pack(endian + 'I', next_ifd)
+
+        result += ifd_bytes + data_bytes
+        if strip_data:
+            result += strip_data
+
+    return result
+
+
+def build_bigtiff(entries, endian='<'):
+    """Build a minimal BigTIFF file in memory.
+
+    Args:
+        entries: List of (tag_id, type_id, count, value_or_bytes) tuples.
+        endian: '<' or '>'.
+
+    Returns:
+        bytes: Complete BigTIFF file content.
+    """
+    bo = b'II' if endian == '<' else b'MM'
+    # BigTIFF header: byte order(2) + magic 43(2) + bytesize 8(2) + reserved(2) + first_ifd_offset(8)
+    ifd_offset = 16  # After 16-byte header
+
+    num_entries = len(entries)
+    # IFD: entry_count(8) + entries(20*n) + next_ifd(8)
+    data_start = ifd_offset + 8 + 20 * num_entries + 8
+
+    header = bo + struct.pack(endian + 'H', 43)
+    header += struct.pack(endian + 'H', 8)  # bytesize
+    header += struct.pack(endian + 'H', 0)  # reserved
+    header += struct.pack(endian + 'Q', ifd_offset)
+
+    ifd_bytes = struct.pack(endian + 'Q', num_entries)
+    data_bytes = b''
+
+    for tag_id, type_id, count, value in entries:
+        if isinstance(value, bytes):
+            val_offset = data_start + len(data_bytes)
+            ifd_bytes += struct.pack(endian + 'HH', tag_id, type_id)
+            ifd_bytes += struct.pack(endian + 'Q', count)
+            ifd_bytes += struct.pack(endian + 'Q', val_offset)
+            data_bytes += value
+        else:
+            ifd_bytes += struct.pack(endian + 'HH', tag_id, type_id)
+            ifd_bytes += struct.pack(endian + 'Q', count)
+            # Inline: value stored in the 8-byte value/offset field
+            ifd_bytes += struct.pack(endian + 'Q', value)
+
+    ifd_bytes += struct.pack(endian + 'Q', 0)  # next IFD = 0
+    return header + ifd_bytes + data_bytes
+
+
+def build_bigtiff_multi_ifd(ifd_entries_list, endian='<'):
+    """Build a BigTIFF with multiple linked IFDs.
+
+    Args:
+        ifd_entries_list: List of entry lists for each IFD.
+        endian: '<' or '>'.
+
+    Returns:
+        bytes: Complete BigTIFF file with chained IFDs.
+    """
+    bo = b'II' if endian == '<' else b'MM'
+
+    # Pre-compute out-of-line data sizes
+    ool_sizes = []
+    for entries in ifd_entries_list:
+        ool_sizes.append(sum(len(v) for _, _, _, v in entries if isinstance(v, bytes)))
+
+    # Compute start offset for each IFD
+    ifd_starts = []
+    offset = 16  # After 16-byte BigTIFF header
+    for i, entries in enumerate(ifd_entries_list):
+        ifd_starts.append(offset)
+        n = len(entries)
+        # entry_count(8) + entries(20*n) + next_ifd(8) + ool_data
+        offset += 8 + 20 * n + 8 + ool_sizes[i]
+
+    # Build header
+    result = bo + struct.pack(endian + 'H', 43)
+    result += struct.pack(endian + 'H', 8)
+    result += struct.pack(endian + 'H', 0)
+    result += struct.pack(endian + 'Q', ifd_starts[0])
+
+    # Build each IFD
+    for i, entries in enumerate(ifd_entries_list):
+        n = len(entries)
+        data_start = ifd_starts[i] + 8 + 20 * n + 8
+
+        ifd_bytes = struct.pack(endian + 'Q', n)
+        data_bytes = b''
+
+        for tag_id, type_id, count, value in entries:
+            if isinstance(value, bytes):
+                val_offset = data_start + len(data_bytes)
+                ifd_bytes += struct.pack(endian + 'HH', tag_id, type_id)
+                ifd_bytes += struct.pack(endian + 'Q', count)
+                ifd_bytes += struct.pack(endian + 'Q', val_offset)
+                data_bytes += value
+            else:
+                ifd_bytes += struct.pack(endian + 'HH', tag_id, type_id)
+                ifd_bytes += struct.pack(endian + 'Q', count)
+                ifd_bytes += struct.pack(endian + 'Q', value)
+
+        # Next IFD offset
+        if i + 1 < len(ifd_entries_list):
+            next_ifd = ifd_starts[i + 1]
+        else:
+            next_ifd = 0
+        ifd_bytes += struct.pack(endian + 'Q', next_ifd)
+
+        result += ifd_bytes + data_bytes
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Filename PHI fixtures
 # ---------------------------------------------------------------------------
