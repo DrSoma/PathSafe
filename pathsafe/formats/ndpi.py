@@ -8,8 +8,8 @@ Handles PHI detection and anonymization for NDPI files, including:
 - Tags 36867/36868 (DateTimeOriginal/Digitized): EXIF dates
 - Regex safety scan of first 100KB for accession patterns
 
-Key optimization: only first IFD needs parsing — all NDPI pages share
-the same tag byte offset.
+All IFDs are scanned with seen_offsets dedup — most NDPI pages share
+the same tag byte offset, but some tags may differ across IFDs.
 
 Corrupt file fallback: if TIFF structure is invalid, falls back to raw
 binary search of the entire header.
@@ -61,11 +61,6 @@ DATE_TAGS = {
 }
 
 ALL_PHI_TAGS = {**PHI_TAGS, **DATE_TAGS}
-
-# Tags that appear in ALL IFDs and must be anonymized in each one
-MULTI_IFD_PHI_TAGS = {
-    65427: 'NDPI_REFERENCE',
-}
 
 # Tag 65449 (NDPI_SCANNER_PROPS): key=value property map
 # These keys contain dates or serial numbers that are indirect identifiers
@@ -133,7 +128,6 @@ class NDPIHandler(FormatHandler):
 
         try:
             cleared += self._anonymize_tags(filepath)
-            cleared += self._anonymize_multi_ifd_tags(filepath)
             cleared += self._blank_label_macro(filepath)
             cleared += self._anonymize_companion_files(filepath)
         except Exception:
@@ -190,50 +184,64 @@ class NDPIHandler(FormatHandler):
     # --- Internal methods ---
 
     def _scan_tags(self, filepath: Path) -> List[PHIFinding]:
-        """Scan NDPI TIFF tags for PHI."""
+        """Scan NDPI TIFF tags for PHI across ALL IFDs.
+
+        Uses seen_offsets dedup because NDPI files often share tag byte
+        offsets across IFDs, but some tags may have distinct offsets in
+        different IFDs (especially on newer scanner firmware).
+        """
         findings = []
+        seen_offsets = set()
         with open(filepath, 'rb') as f:
             header = read_header(f)
             if header is None:
                 return findings
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id in PHI_TAGS:
-                    value = read_tag_string(f, entry)
-                    if value and value != 'X' * len(value):
-                        findings.append(PHIFinding(
-                            offset=entry.value_offset,
-                            length=entry.total_size,
-                            tag_id=entry.tag_id,
-                            tag_name=PHI_TAGS[entry.tag_id],
-                            value_preview=value[:50],
-                            source='tiff_tag',
-                        ))
-                elif entry.tag_id in DATE_TAGS:
-                    value = read_tag_string(f, entry)
-                    if value and not is_date_anonymized(value):
-                        findings.append(PHIFinding(
-                            offset=entry.value_offset,
-                            length=entry.total_size,
-                            tag_id=entry.tag_id,
-                            tag_name=DATE_TAGS[entry.tag_id],
-                            value_preview=value[:30],
-                            source='tiff_tag',
-                        ))
-                elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
-                    findings += self._scan_scanner_props(f, entry)
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.value_offset in seen_offsets:
+                        continue
+                    if entry.tag_id in PHI_TAGS:
+                        seen_offsets.add(entry.value_offset)
+                        value = read_tag_string(f, entry)
+                        if value and value != 'X' * len(value):
+                            findings.append(PHIFinding(
+                                offset=entry.value_offset,
+                                length=entry.total_size,
+                                tag_id=entry.tag_id,
+                                tag_name=PHI_TAGS[entry.tag_id],
+                                value_preview=value[:50],
+                                source='tiff_tag',
+                            ))
+                    elif entry.tag_id in DATE_TAGS:
+                        seen_offsets.add(entry.value_offset)
+                        value = read_tag_string(f, entry)
+                        if value and not is_date_anonymized(value):
+                            findings.append(PHIFinding(
+                                offset=entry.value_offset,
+                                length=entry.total_size,
+                                tag_id=entry.tag_id,
+                                tag_name=DATE_TAGS[entry.tag_id],
+                                value_preview=value[:30],
+                                source='tiff_tag',
+                            ))
+                    elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
+                        seen_offsets.add(entry.value_offset)
+                        findings += self._scan_scanner_props(f, entry)
 
-            # Scan extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
-            for entry, value in scan_extra_metadata_tags(f, header, entries):
-                findings.append(PHIFinding(
-                    offset=entry.value_offset,
-                    length=entry.total_size,
-                    tag_id=entry.tag_id,
-                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
-                    value_preview=value[:50],
-                    source='tiff_tag',
-                ))
+                # Scan extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+                for entry, value in scan_extra_metadata_tags(f, header, entries):
+                    if entry.value_offset in seen_offsets:
+                        continue
+                    seen_offsets.add(entry.value_offset)
+                    findings.append(PHIFinding(
+                        offset=entry.value_offset,
+                        length=entry.total_size,
+                        tag_id=entry.tag_id,
+                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                        value_preview=value[:50],
+                        source='tiff_tag',
+                    ))
         return findings
 
     def _scan_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
@@ -384,61 +392,72 @@ class NDPIHandler(FormatHandler):
         return cleared
 
     def _anonymize_tags(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize TIFF tags containing PHI."""
+        """Anonymize TIFF tags containing PHI across ALL IFDs.
+
+        Uses seen_offsets dedup to avoid double-writing shared tag data.
+        """
         cleared = []
+        seen_offsets = set()
         with open(filepath, 'r+b') as f:
             header = read_header(f)
             if header is None:
                 return cleared
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id in PHI_TAGS:
-                    current = read_tag_value_bytes(f, entry)
-                    replacement = b'X' * (entry.total_size - 1) + b'\x00'
-                    if current == replacement:
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.value_offset in seen_offsets:
                         continue
-                    value = current.rstrip(b'\x00').decode('ascii', errors='replace')
-                    f.seek(entry.value_offset)
-                    f.write(replacement)
+                    if entry.tag_id in PHI_TAGS:
+                        seen_offsets.add(entry.value_offset)
+                        current = read_tag_value_bytes(f, entry)
+                        replacement = b'X' * (entry.total_size - 1) + b'\x00'
+                        if current == replacement:
+                            continue
+                        value = current.rstrip(b'\x00').decode('ascii', errors='replace')
+                        f.seek(entry.value_offset)
+                        f.write(replacement)
+                        cleared.append(PHIFinding(
+                            offset=entry.value_offset,
+                            length=entry.total_size,
+                            tag_id=entry.tag_id,
+                            tag_name=PHI_TAGS[entry.tag_id],
+                            value_preview=value[:50],
+                            source='tiff_tag',
+                        ))
+                    elif entry.tag_id in DATE_TAGS:
+                        seen_offsets.add(entry.value_offset)
+                        current = read_tag_value_bytes(f, entry)
+                        value = current.rstrip(b'\x00').decode('ascii', errors='replace')
+                        if is_date_anonymized(value):
+                            continue
+                        f.seek(entry.value_offset)
+                        f.write(b'\x00' * entry.total_size)
+                        cleared.append(PHIFinding(
+                            offset=entry.value_offset,
+                            length=entry.total_size,
+                            tag_id=entry.tag_id,
+                            tag_name=DATE_TAGS[entry.tag_id],
+                            value_preview=value[:30],
+                            source='tiff_tag',
+                        ))
+                    elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
+                        seen_offsets.add(entry.value_offset)
+                        cleared += self._anonymize_scanner_props(f, entry)
+
+                # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+                for entry, value in scan_extra_metadata_tags(f, header, entries):
+                    if entry.value_offset in seen_offsets:
+                        continue
+                    seen_offsets.add(entry.value_offset)
+                    blank_extra_metadata_tag(f, entry)
                     cleared.append(PHIFinding(
                         offset=entry.value_offset,
                         length=entry.total_size,
                         tag_id=entry.tag_id,
-                        tag_name=PHI_TAGS[entry.tag_id],
+                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
                         value_preview=value[:50],
                         source='tiff_tag',
                     ))
-                elif entry.tag_id in DATE_TAGS:
-                    current = read_tag_value_bytes(f, entry)
-                    value = current.rstrip(b'\x00').decode('ascii', errors='replace')
-                    if is_date_anonymized(value):
-                        continue
-                    # Zero out with null bytes
-                    f.seek(entry.value_offset)
-                    f.write(b'\x00' * entry.total_size)
-                    cleared.append(PHIFinding(
-                        offset=entry.value_offset,
-                        length=entry.total_size,
-                        tag_id=entry.tag_id,
-                        tag_name=DATE_TAGS[entry.tag_id],
-                        value_preview=value[:30],
-                        source='tiff_tag',
-                    ))
-                elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
-                    cleared += self._anonymize_scanner_props(f, entry)
-
-            # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
-            for entry, value in scan_extra_metadata_tags(f, header, entries):
-                blank_extra_metadata_tag(f, entry)
-                cleared.append(PHIFinding(
-                    offset=entry.value_offset,
-                    length=entry.total_size,
-                    tag_id=entry.tag_id,
-                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
-                    value_preview=value[:50],
-                    source='tiff_tag',
-                ))
         return cleared
 
     def _anonymize_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
@@ -527,47 +546,6 @@ class NDPIHandler(FormatHandler):
                     tag_name=f'fallback:{label}', value_preview=value[:50],
                     source='regex_scan',
                 ))
-        return cleared
-
-    def _anonymize_multi_ifd_tags(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize NDPI_REFERENCE (tag 65427) across ALL IFDs, not just the first.
-
-        NDPI files duplicate tag 65427 in every IFD (one per pyramid level).
-        If only the first IFD is anonymized, the reference string persists in
-        subsequent IFDs and can be recovered.
-        """
-        cleared = []
-        with open(filepath, 'r+b') as f:
-            header = read_header(f)
-            if header is None:
-                return cleared
-
-            first = True
-            for ifd_offset, entries in iter_ifds(f, header):
-                if first:
-                    first = False
-                    continue  # First IFD already handled by _anonymize_tags
-
-                for entry in entries:
-                    if entry.tag_id not in MULTI_IFD_PHI_TAGS:
-                        continue
-                    current = read_tag_value_bytes(f, entry)
-                    replacement = b'X' * (entry.total_size - 1) + b'\x00'
-                    if current == replacement:
-                        continue
-                    value = current.rstrip(b'\x00').decode('ascii', errors='replace')
-                    if not value or value == 'X' * len(value):
-                        continue
-                    f.seek(entry.value_offset)
-                    f.write(replacement)
-                    cleared.append(PHIFinding(
-                        offset=entry.value_offset,
-                        length=entry.total_size,
-                        tag_id=entry.tag_id,
-                        tag_name=f'{MULTI_IFD_PHI_TAGS[entry.tag_id]}:IFD@{ifd_offset}',
-                        value_preview=value[:50],
-                        source='tiff_tag',
-                    ))
         return cleared
 
     def _scan_companion_files(self, filepath: Path) -> List[PHIFinding]:

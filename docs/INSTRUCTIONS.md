@@ -104,6 +104,12 @@ File "last modified" and "last accessed" dates are reset to January 1, 1970. Thi
 #### Image Integrity Verification
 PathSafe takes a SHA-256 fingerprint of all diagnostic image data before and after anonymization and compares them. If they match, the tissue images are mathematically proven identical. Label and macro images are expected to change (intentionally blanked) and are excluded from this comparison. Only available for TIFF-based formats (NDPI, SVS, BIF, SCN, generic TIFF).
 
+#### Multi-IFD Scanning
+WSI files contain multiple image layers (IFDs). PathSafe scans **every** IFD in the file for PHI tags, not just the first one. Duplicate tag offsets shared across IFDs are automatically deduplicated to avoid redundant processing.
+
+#### Regex Safety Scan
+After structured tag processing, PathSafe runs a regex-based scan of the first 256KB of each file to catch any accession numbers, medical record numbers (MRN), Social Security numbers (SSN), or date patterns that may have been missed by the format-specific parser. This covers 17+ pattern types across common hospital naming conventions (AS-, AC-, SP-, AP-, CY-, H-, S-, CH, MRN, and more).
+
 #### Post-Anonymization Verification
 After anonymizing each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.
 

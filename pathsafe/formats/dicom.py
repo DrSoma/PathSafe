@@ -219,11 +219,20 @@ class DICOMHandler(FormatHandler):
                     raw_val = ds[tag].value
                     if raw_val is None:
                         continue
+                    if ds[tag].VR == 'SQ':
+                        # Report sequence tags that contain nested PHI
+                        item_count = len(raw_val) if raw_val else 0
+                        if item_count > 0:
+                            findings.append(PHIFinding(
+                                offset=0, length=0,
+                                tag_id=tag_tuple[0] << 16 | tag_tuple[1],
+                                tag_name=f'DICOM:{name}',
+                                value_preview=f'{name} ({item_count} item(s))',
+                                source='dicom_tag',
+                            ))
+                        continue
                     value = str(raw_val).strip()
                     if value and value != 'None':
-                        # Skip sequence tags that are just containers
-                        if ds[tag].VR == 'SQ':
-                            continue
                         findings.append(PHIFinding(
                             offset=0, length=len(value),
                             tag_id=tag_tuple[0] << 16 | tag_tuple[1],

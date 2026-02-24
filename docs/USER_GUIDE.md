@@ -194,13 +194,18 @@ If PySide6 is not installed, PathSafe falls back to a simpler Tkinter GUI with t
 
 PathSafe removes these categories of PHI:
 
-- **Accession numbers**: Found in TIFF metadata tags and binary data
-- **Patient names and IDs**: Found in DICOM tags
-- **Dates**: Scan dates, EXIF dates, study dates
-- **Operator/physician names**: Found in SVS and DICOM metadata
-- **Institution information**: Found in DICOM tags
-- **Label/macro images**: Photographed slide labels that may show patient information (NDPI and SVS)
+- **Accession numbers**: Found in TIFF metadata tags, binary data, and filenames (AS-, AC-, SP-, AP-, CY-, H-, S-, CH and more formats)
+- **Medical record numbers (MRN)**: Detected via pattern matching in metadata and filenames
+- **Patient names and IDs**: Found in DICOM tags and DICOM sequences (recursive)
+- **Dates**: Scan dates, EXIF dates, study dates, ISO 8601 dates, slash-delimited dates
+- **Operator/physician names**: Found in SVS, DICOM, and extra metadata tags (Artist, HostComputer)
+- **Institution information**: Found in DICOM tags and device serial numbers
+- **Label/macro images**: Photographed slide labels that may show patient information (NDPI, SVS, BIF, SCN)
 - **Slide identifiers**: MRXS slide names, barcodes, IDs
+- **Extra metadata**: XMP, EXIF UserComment, IPTC, Copyright, ImageUniqueID
+- **Social Security numbers**: Detected via pattern matching as a HIPAA safe harbor measure
+
+All tags are scanned across **every IFD** (image layer) in the file, not just the first one.
 
 For a detailed breakdown by format, see the main [README](../README.md).
 
