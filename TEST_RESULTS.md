@@ -1,7 +1,7 @@
 # PathSafe v1.0.0 -- Comprehensive Test Results
 
 **Date:** 2026-02-19
-**Tester:** Automated (Claude Code)
+**Tester:** Automated (pytest)
 **Platform:** Linux 6.8.0-100-generic, Python 3.x (miniconda)
 
 ---
