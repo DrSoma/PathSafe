@@ -1,4 +1,4 @@
-# PathSafe v1.0.0 -- Comprehensive Test Results
+# PathSafe v1.0.0: Comprehensive Test Results
 
 **Date:** 2026-02-19
 **Tester:** Automated (pytest)
@@ -60,7 +60,7 @@
 - **Affected:** MRXS
 - **Symptom:** `pathsafe anonymize --output` for MRXS files only copied the `.mrxs` file, not the companion data directory (`slide/`), causing anonymize to find nothing to clean
 - **Root Cause:** `anonymize_file()` in `anonymizer.py` used `shutil.copy2()` which only copies single files, not the companion directory MRXS requires
-- **Fix:** Added companion directory detection after file copy -- if `filepath.stem/` directory exists next to the source, `shutil.copytree()` copies it to the output
+- **Fix:** Added companion directory detection after file copy. If `filepath.stem/` directory exists next to the source, `shutil.copytree()` copies it to the output
 - **Files Modified:** `pathsafe/anonymizer.py`
 
 ---
@@ -184,7 +184,7 @@
 | 1 | Anonymized NDPI readable | PASS | OpenSlide opened 26880x27648, 9 levels, read 256x256 region OK |
 | 2 | Anonymized SVS readable | PASS | OpenSlide opened 89640x81388, 4 levels, read 256x256 region OK |
 | 3 | Generic TIFF readable | PASS | OpenSlide opened 46000x32914, 9 levels, read 256x256 region OK |
-| 4 | Parallel vs sequential identical pixels | PASS | Same SVS file anonymized both ways -- pixel data matches exactly |
+| 4 | Parallel vs sequential identical pixels | PASS | Same SVS file anonymized both ways; pixel data matches exactly |
 
 ### Corrupt/Edge Case Files
 
@@ -224,7 +224,7 @@
 
 | File | Size | Result |
 |------|------|--------|
-| LungMUHC00560(B-1)HandE.ndpi | 4.5 GB | PASS -- info/scan work, found accession AS-20-034319, 200 pages |
+| LungMUHC00560(B-1)HandE.ndpi | 4.5 GB | PASS: info/scan work, found accession AS-20-034319, 200 pages |
 
 ---
 
@@ -251,7 +251,7 @@ Following the exhaustive code audit, 12 critical/high/medium issues were identif
 | 4 | CRITICAL | DICOM no UID remapping | Added deterministic UID remapping for SOPInstanceUID, StudyInstanceUID, SeriesInstanceUID | PASS |
 | 5 | CRITICAL | DICOM sequences (VR=SQ) not traversed | Added recursive sequence scanning for nested PHI (InstitutionName, PersonName, etc.) | PASS |
 | 6 | HIGH | XMP metadata (tag 700) not checked | Added `scan_extra_metadata_tags()` to `pathsafe/tiff/blanking.py`, integrated in NDPI/SVS/TIFF handlers | PASS |
-| 7 | HIGH | EXIF UserComment (tag 37510), Artist (315), Copyright (33432), IPTC (33723) not checked | Same fix as #6 -- all extra metadata tags blanked across all handlers | PASS |
+| 7 | HIGH | EXIF UserComment (tag 37510), Artist (315), Copyright (33432), IPTC (33723) not checked | Same fix as #6: all extra metadata tags blanked across all handlers | PASS |
 | 8 | HIGH | Regex patterns too institution-specific (only AS-/AC-) | Added SP-, H-, S- accession prefixes and SSN pattern with proper lookbehind | PASS |
 | 9 | HIGH | Log file handle leak in cli.py | Wrapped in try/finally block | PASS |
 | 10 | HIGH | iter_ifds max_pages=100 too low for large NDPI files | Increased to 500 | PASS |

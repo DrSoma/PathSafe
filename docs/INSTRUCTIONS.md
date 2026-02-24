@@ -18,8 +18,8 @@ All of this is invisible when you view the slide in a viewer, but anyone who ope
 
 You need two things:
 
-1. **Your slide files** -- the `.ndpi`, `.svs`, `.mrxs`, `.bif`, `.scn`, `.dcm`, or `.tiff` files from your scanner
-2. **An output folder** -- an empty folder where PathSafe will save the cleaned copies
+1. **Your slide files**: the `.ndpi`, `.svs`, `.mrxs`, `.bif`, `.scn`, `.dcm`, or `.tiff` files from your scanner
+2. **An output folder**: an empty folder where PathSafe will save the cleaned copies
 
 PathSafe **never modifies your originals** by default. It always creates copies first.
 
@@ -56,7 +56,7 @@ Click **Step 1** and choose whether to select files or a folder. You can also dr
 
 #### Step 2: Scan (Optional but Recommended)
 
-Click **Step 2 -- Scan for PHI**. PathSafe will read through your files and tell you what patient information it found, without changing anything.
+Click **Step 2: Scan for PHI**. PathSafe will read through your files and tell you what patient information it found, without changing anything.
 
 The log panel at the bottom will show something like:
 
@@ -77,7 +77,7 @@ Click **Step 3** and choose where anonymized copies will be saved. By default, P
 
 #### Step 4: Anonymize
 
-Click **Step 4 -- Anonymize**. PathSafe will:
+Click **Step 4: Anonymize**. PathSafe will:
 
 1. Copy each file to your output folder
 2. Remove all patient information from the copy
@@ -198,12 +198,12 @@ pathsafe scan /path/to/slides/ --report scan_report.pdf --institution "My Hospit
 
 ### Anonymizing
 
-**Copy mode** (recommended -- your originals are safe):
+**Copy mode** (recommended; your originals are safe):
 ```bash
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/
 ```
 
-**In-place mode** (modifies originals -- make sure you have backups):
+**In-place mode** (modifies originals, so make sure you have backups):
 ```bash
 pathsafe anonymize /path/to/slides/ --in-place
 ```
@@ -342,7 +342,7 @@ PathSafe takes a SHA-256 fingerprint of all the diagnostic image data (the tissu
 
 ### The SHA-256 Hash
 
-Every file gets a SHA-256 hash -- a unique 64-character code that acts as a digital fingerprint. If even one byte of the file changes, the hash changes completely. You can use the "before" hash (from the scan report) and "after" hash (from the certificate) to confirm:
+Every file gets a SHA-256 hash, a unique 64-character code that acts as a digital fingerprint. If even one byte of the file changes, the hash changes completely. You can use the "before" hash (from the scan report) and "after" hash (from the certificate) to confirm:
 - The file was not tampered with after anonymization
 - The file you received is the same one that was processed
 

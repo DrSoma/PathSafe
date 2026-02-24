@@ -15,10 +15,10 @@ PathSafe works with all major scanner brands, can process thousands of files at 
 | **Finds hidden patient data** | Accession numbers, dates, and names can be buried inside files in places you can't see when viewing the slide |
 | **Works with all major scanners** | Hamamatsu (NDPI), Aperio (SVS), 3DHISTECH (MRXS), Roche/Ventana (BIF), Leica (SCN), DICOM, and other TIFF-based files |
 | **Erases label photos** | Many scanners take a photo of the physical slide label (which may show patient names) and hide it inside the file. PathSafe erases these photos |
-| **Keeps your originals safe** | PathSafe creates cleaned copies in a separate folder -- your original files are never touched |
+| **Keeps your originals safe** | PathSafe creates cleaned copies in a separate folder, so your original files are never touched |
 | **Double-checks everything** | After cleaning, PathSafe re-scans every file to confirm all patient data was actually removed |
 | **Creates compliance reports** | Generates PDF reports and certificates documenting exactly what was found, what was removed, and proof that each file is clean |
-| **Easy to use** | A visual interface guides you through four simple steps -- no typing commands required |
+| **Easy to use** | A visual interface guides you through four simple steps with no typing commands required |
 | **Handles large batches** | Process hundreds or thousands of slides at once, with parallel processing to speed things up |
 
 ---
@@ -32,8 +32,8 @@ Download the file for your computer, then double-click to launch:
 | Your computer | Download |
 |---------------|----------|
 | **Windows** | [pathsafe-gui-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-windows.exe) |
-| **macOS** | [pathsafe-gui-macos](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos) |
-| **Linux** | [pathsafe-gui-linux](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux) |
+| **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
+| **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
 
 **Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
@@ -76,7 +76,7 @@ Browse for files or a folder, or simply drag and drop them onto the window. You 
 
 ### Step 2: Scan
 
-Click **Scan for PHI**. PathSafe checks your files and shows you what patient data it found. **Nothing is changed at this point** -- this is just a preview. A PDF report is saved automatically.
+Click **Scan for PHI**. PathSafe checks your files and shows you what patient data it found. **Nothing is changed at this point.** This is just a preview. A PDF report is saved automatically.
 
 ### Step 3: Choose where to save
 
@@ -92,13 +92,13 @@ A summary popup tells you exactly what happened after each step.
 
 | Feature | How |
 |---------|-----|
-| **Switch between dark and light theme** | Use the View menu -- your choice is remembered |
+| **Switch between dark and light theme** | Use the View menu (your choice is remembered) |
 | **Drag and drop files** | Drop files or folders directly onto the window |
 | **Select multiple files at once** | Hold Ctrl or Shift when browsing |
 | **Use keyboard shortcuts** | Ctrl+O (open files), Ctrl+Shift+O (open folder), Ctrl+S (scan), Ctrl+R (anonymize), Ctrl+E (verify), Ctrl+I (file info), Ctrl+T (convert), Ctrl+L (save log), Esc (stop) |
 | **Speed up large batches** | Increase the Workers slider (try 2-4) |
 | **Preview without changing anything** | Check the "Dry run" box |
-| **Add your institution name** | Fill in the Institution field -- it appears on PDF reports and is remembered |
+| **Add your institution name** | Fill in the Institution field (it appears on PDF reports and is remembered) |
 | **Save your results** | Use Save Log or Export JSON in the Actions menu |
 | **Convert file formats** | Use the Convert tab to change between NDPI, SVS, TIFF, PNG, and JPEG |
 | **Right-click a slide file** | On Linux, right-click any slide file and choose "Open with PathSafe" |
@@ -139,7 +139,7 @@ pathsafe scan /path/to/slides/ --report scan_report.pdf --institution "My Hospit
 pathsafe scan /path/to/slides/ --json-out results.json
 ```
 
-### Anonymize files in place (modifies originals -- make sure you have backups!)
+### Anonymize files in place (modifies originals, so make sure you have backups!)
 
 ```bash
 pathsafe anonymize /path/to/slides/ --in-place
@@ -245,14 +245,14 @@ When you anonymize files (through the GUI or with `--certificate` on the command
 
 PathSafe removes these types of hidden information from your slide files:
 
-- **Accession numbers and case IDs** -- The primary patient/case identifiers embedded in file metadata
-- **Patient names, IDs, and demographics** -- Found in DICOM files and some scanner formats
-- **Scan dates and times** -- Can be cross-referenced with hospital records to identify patients
-- **Operator and physician names** -- Who scanned or ordered the slide
-- **Label and macro images** -- Embedded photographs of the physical slide label, which may show patient names, barcodes, or handwritten notes
-- **Scanner and institution information** -- Serial numbers, software versions, and location data that could identify where a slide came from
-- **Hidden metadata** -- Technical data (EXIF, GPS coordinates, color profiles) that standard viewers don't show but can still be extracted
-- **Filenames** -- PathSafe detects patient data in filenames and warns you (filenames must be renamed manually)
+- **Accession numbers and case IDs**: The primary patient/case identifiers embedded in file metadata
+- **Patient names, IDs, and demographics**: Found in DICOM files and some scanner formats
+- **Scan dates and times**: Can be cross-referenced with hospital records to identify patients
+- **Operator and physician names**: Who scanned or ordered the slide
+- **Label and macro images**: Embedded photographs of the physical slide label, which may show patient names, barcodes, or handwritten notes
+- **Scanner and institution information**: Serial numbers, software versions, and location data that could identify where a slide came from
+- **Hidden metadata**: Technical data (EXIF, GPS coordinates, color profiles) that standard viewers don't show but can still be extracted
+- **Filenames**: PathSafe detects patient data in filenames and warns you (filenames must be renamed manually)
 
 PathSafe scans every layer of the file, not just the surface. It also does a final sweep of the raw file data to catch anything that might have been missed.
 
@@ -296,7 +296,7 @@ PathSafe implements **Level IV** anonymization as defined by [Bisson et al. (202
 ## Security
 
 - **No internet connection**: PathSafe works entirely offline. No data ever leaves your computer.
-- **No code execution from files**: PathSafe reads and overwrites bytes -- it never runs anything found inside slide files.
+- **No code execution from files**: PathSafe reads and overwrites bytes but never runs anything found inside slide files.
 - **Open source**: The entire codebase is available for review.
 
 ---
@@ -318,10 +318,10 @@ Optional packages add extra features:
 
 ## Further Reading
 
-- **[Instructions Guide](docs/INSTRUCTIONS.md)** -- Step-by-step walkthrough of every feature
-- **[User Guide](docs/USER_GUIDE.md)** -- Detailed usage for CLI and GUI
-- **[Compliance Documentation](docs/COMPLIANCE.md)** -- Full technical breakdown of every field cleaned in every format
-- **[Developer Guide](docs/DEVELOPER.md)** -- Architecture, testing, and how to add new formats
+- **[Instructions Guide](docs/INSTRUCTIONS.md)**: Step-by-step walkthrough of every feature
+- **[User Guide](docs/USER_GUIDE.md)**: Detailed usage for CLI and GUI
+- **[Compliance Documentation](docs/COMPLIANCE.md)**: Full technical breakdown of every field cleaned in every format
+- **[Developer Guide](docs/DEVELOPER.md)**: Architecture, testing, and how to add new formats
 
 ---
 
