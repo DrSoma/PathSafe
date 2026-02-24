@@ -179,4 +179,4 @@ Produces `dist/pathsafe` (CLI) and `dist/pathsafe-gui` (GUI).
 
 ## License
 
-MIT
+Apache 2.0

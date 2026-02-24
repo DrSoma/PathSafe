@@ -7,7 +7,7 @@ name = "pathsafe"
 version = "1.0.0"
 description = "Hospital-grade WSI anonymizer for pathology slide files"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.9"
 authors = [
     {name = "PathSafe Contributors"},

@@ -317,4 +317,4 @@ Optional dependencies add extra capabilities:
 
 ## License
 
-MIT
+Apache 2.0
