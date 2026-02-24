@@ -10,7 +10,7 @@ Built from real-world experience anonymizing 3,101+ clinical slides.
 
 ---
 
-## At a Glance
+# At a Glance
 
 | What PathSafe does | Why it matters |
 |--------------------|----------------|
@@ -19,117 +19,78 @@ Built from real-world experience anonymizing 3,101+ clinical slides.
 | **Blanks label and macro images** | Many scanners photograph the physical slide label, which may show patient names or IDs. PathSafe erases these embedded photos so the information can't be recovered |
 | **Preserves your originals** | By default, PathSafe creates anonymized copies in a separate folder so your original files are never touched |
 | **Verifies its own work** | After anonymizing, PathSafe re-scans every file to confirm all patient data was actually removed, giving you confidence that nothing was missed |
-| **Generates compliance certificates** | Produces a detailed JSON report that records every file processed, what patient data was found, what was removed, and a cryptographic hash of the final file. This report can be used as evidence of de-identification for HIPAA audits, IRB reviews, and institutional data governance |
+| **Generates compliance certificates** | Produces a detailed JSON report that records every file processed, what patient data was found, what was removed, and a cryptographic hash of the final file. This report can serve as documentation for regulatory reviews, research submissions, and institutional data governance |
 | **Includes a graphical interface** | Non-technical users can drag and drop files into a visual interface and follow a guided four-step workflow without needing to type any commands |
 | **Processes files in parallel** | Large batches of hundreds or thousands of slides can be processed much faster by using multiple workers simultaneously |
 
 ---
 
-## PathSafe Installation
+# PathSafe Installation
 
-There are two ways to get PathSafe: **download a standalone app** (no installation needed) or **install with Python** (more flexible).
+## Option A: Install PathSafe (recommended)
 
-### Option A: Download the standalone app (easiest)
+Download the installer for your operating system. It installs PathSafe like any other application on your computer, with shortcuts and an uninstaller.
 
-No Python required. Just download and run.
+| Your computer | Download |
+|---------------|----------|
+| **Windows** | [PathSafe-Setup.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/PathSafe-Setup.exe) |
+| **macOS** | [PathSafe.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/PathSafe-1.0.0.dmg) |
+| **Linux** | [PathSafe.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/PathSafe-1.0.0-x86_64.AppImage) |
 
-1. Download the file for your operating system from the table below
-2. Run it (see instructions under the table)
+**Windows**: Double-click `PathSafe-Setup.exe` and follow the installation wizard. It will install PathSafe to your Program Files folder, create a Start Menu shortcut, and optionally add a Desktop shortcut. Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
-| Your computer | Graphical interface (recommended) | Command line |
-|---------------|-----------------------------------|--------------|
+**macOS**: Double-click `PathSafe.dmg` to open it, then drag the PathSafe icon to the Applications folder. You can then launch PathSafe from Launchpad or the Applications folder.
+
+**Linux**: Download the AppImage, then open a terminal and run:
+```
+chmod +x ~/Downloads/PathSafe-1.0.0-x86_64.AppImage
+~/Downloads/PathSafe-1.0.0-x86_64.AppImage
+```
+You can move the AppImage anywhere you like. No installation needed.
+
+## Option B: Run without installing (standalone)
+
+If you prefer not to install anything, you can download a standalone executable and run it directly. No installer, no Python, no dependencies.
+
+| Your computer | Graphical interface | Command line |
+|---------------|---------------------|--------------|
 | **Windows** | [pathsafe-gui-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-windows.exe) | [pathsafe-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-windows.exe) |
 | **macOS** | [pathsafe-gui-macos](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos) | [pathsafe-macos](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-macos) |
 | **Linux** | [pathsafe-gui-linux](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux) | [pathsafe-linux](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-linux) |
 
-**Windows**: Double-click `pathsafe-gui-windows.exe`. Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
+Just download and double-click (Windows) or `chmod +x` and run (macOS/Linux).
 
-**macOS**: Open Terminal and run:
-```
-chmod +x ~/Downloads/pathsafe-gui-macos
-~/Downloads/pathsafe-gui-macos
-```
+## Option C: Install with Python
 
-**Linux**: Open a terminal and run:
-```
-chmod +x ~/Downloads/pathsafe-gui-linux
-~/Downloads/pathsafe-gui-linux
-```
-
-No installation, no Python, no dependencies needed.
-
-### Option B: Install with Python
-
-This option gives you more control and makes it easy to update. Requires **Python 3.9 or newer**.
-
-If you're not sure whether Python is installed, open a terminal (or Command Prompt on Windows) and type `python --version`. If you see `Python 3.9` or higher, you're good to go. If not, download Python from [python.org](https://www.python.org/downloads/) and install it first.
-
-#### Windows
-
-Open **Command Prompt** (search for "cmd" in the Start menu) and run:
+This option is for users who already have Python and want to integrate PathSafe into their existing environment. Requires **Python 3.9 or newer**.
 
 ```
-cd C:\Users\YourName\Downloads\PathSafe
-pip install -e ".[gui]"
-pathsafe --version
+pip install pathsafe[gui]
 ```
+
+This installs PathSafe and its graphical interface. You can then run `pathsafe gui` to launch the GUI or `pathsafe` for the command line.
 
 If you only need the command line (no graphical interface):
 ```
-pip install -e .
+pip install pathsafe
 ```
 
-#### macOS
-
-Open **Terminal** (search for "Terminal" in Spotlight) and run:
-
-```
-cd ~/Downloads/PathSafe
-pip install -e ".[gui]"
-pathsafe --version
-```
-
-If you only need the command line (no graphical interface):
-```
-pip install -e .
-```
-
-#### Linux
-
-Open a **terminal** and run:
-
-```
-cd ~/Downloads/PathSafe
-pip install -e ".[gui]"
-pathsafe --version
-```
-
-If the GUI fails to launch, you may need to install a system library:
-```
-sudo apt install -y libxcb-cursor0
-```
-
-If you only need the command line (no graphical interface):
-```
-pip install -e .
-```
-
-#### Optional extras
+### Optional extras
 
 | Install command | What it adds |
 |----------------|-------------|
-| `pip install -e ".[gui]"` | Graphical interface (recommended) |
-| `pip install -e ".[dicom]"` | Support for DICOM WSI files |
-| `pip install -e ".[openslide]"` | Enhanced format detection via OpenSlide |
-| `pip install -e ".[all]"` | All of the above |
+| `pip install pathsafe[gui]` | Graphical interface (recommended) |
+| `pip install pathsafe[dicom]` | Support for DICOM WSI files |
+| `pip install pathsafe[openslide]` | Enhanced format detection via OpenSlide |
+| `pip install pathsafe[all]` | All of the above |
 
 ---
 
-## How to Use PathSafe
+# How to Use PathSafe
 
 There are two ways to use PathSafe: the **graphical interface** (easier) or the **command line** (more flexible).
 
-### Option A: Graphical Interface (recommended for most users)
+## Option A: Graphical Interface (recommended for most users)
 
 Launch the GUI:
 
@@ -145,9 +106,9 @@ The interface walks you through four steps:
 
 The GUI includes a dark and light theme (switchable from the View menu), tooltips on every button, and keyboard shortcuts for common actions.
 
-### Option B: Command Line
+## Option B: Command Line
 
-#### Step 1: Scan your files (nothing is modified)
+### Step 1: Scan your files (nothing is modified)
 
 ```
 pathsafe scan /path/to/slides/ --verbose
@@ -155,7 +116,7 @@ pathsafe scan /path/to/slides/ --verbose
 
 This shows you what patient data is present without changing anything. Think of it as a preview.
 
-#### Step 2: Anonymize (originals are preserved)
+### Step 2: Anonymize (originals are preserved)
 
 ```
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/
@@ -169,7 +130,7 @@ If you want to modify files directly instead of copying (e.g., you already have 
 pathsafe anonymize /path/to/slides/ --in-place
 ```
 
-#### Step 3: Verify the results
+### Step 3: Verify the results
 
 ```
 pathsafe verify /path/to/clean/
@@ -177,7 +138,7 @@ pathsafe verify /path/to/clean/
 
 This re-scans every anonymized file and confirms that no patient data remains.
 
-#### Step 4 (optional): Generate a compliance certificate
+### Step 4 (optional): Generate a compliance certificate
 
 ```
 pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --certificate /path/to/clean/certificate.json
@@ -187,9 +148,9 @@ The certificate is a JSON file that records exactly what was done to each file, 
 
 ---
 
-## Supported Formats
+# Supported Formats
 
-### NDPI (Hamamatsu)
+## NDPI (Hamamatsu)
 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
@@ -200,7 +161,7 @@ The certificate is a JSON file that records exactly what was done to each file, 
 | Barcode image | Embedded barcode photo | A photograph of the slide barcode, which encodes the accession number |
 | Remaining patterns | Binary scan of header | A safety net that catches any accession numbers embedded elsewhere in the file |
 
-### SVS (Aperio)
+## SVS (Aperio)
 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
@@ -210,7 +171,7 @@ The certificate is a JSON file that records exactly what was done to each file, 
 | Macro image | Embedded overview photo | A wide-angle photo that may capture the label |
 | Remaining patterns | Binary scan of header | A safety net for any accession numbers embedded elsewhere |
 
-### MRXS (3DHISTECH/MIRAX)
+## MRXS (3DHISTECH/MIRAX)
 
 | What gets removed | Where it's hiding | Why it matters |
 |-------------------|-------------------|----------------|
@@ -218,7 +179,7 @@ The certificate is a JSON file that records exactly what was done to each file, 
 | Creation date/time | Slidedat.ini configuration file | Can be cross-referenced with clinical records |
 | Remaining patterns | .mrxs file and Slidedat.ini | A safety net for any other identifiers |
 
-### DICOM WSI
+## DICOM WSI
 
 | What gets removed | Examples | Why it matters |
 |-------------------|----------|----------------|
@@ -227,13 +188,13 @@ The certificate is a JSON file that records exactly what was done to each file, 
 | Institution/physician info | Institution name, referring physician, operator | May indirectly identify the patient or the context of care |
 | Private tags | Vendor-specific data | Unknown content that could contain identifiers |
 
-### Generic TIFF
+## Generic TIFF
 
 For any TIFF-based slide file not covered above, PathSafe scans all text metadata for accession number patterns and clears date fields.
 
 ---
 
-## Command Line Reference
+# Command Line Reference
 
 ```
 pathsafe scan PATH       Check files for patient data (read-only)
@@ -243,7 +204,7 @@ pathsafe info FILE       Show metadata for a single file
 pathsafe gui             Launch the graphical interface
 ```
 
-### Common options
+## Common options
 
 | Option | What it does |
 |--------|-------------|
@@ -258,11 +219,11 @@ pathsafe gui             Launch the graphical interface
 
 ---
 
-## Compliance Certificate
+# Compliance Certificate
 
 When you use the `--certificate` option, PathSafe generates a JSON file that serves as an audit trail for your anonymization batch.
 
-### What's in the certificate
+## What's in the certificate
 
 - **PathSafe version**: The exact software version used, so results can be reproduced
 - **Certificate ID**: A unique identifier (UUID) for this specific anonymization run
@@ -271,16 +232,16 @@ When you use the `--certificate` option, PathSafe generates a JSON file that ser
 - **Summary**: Total files processed, how many were anonymized, how many were already clean, how many had errors, and whether verification passed
 - **Per-file details**: For every file in the batch, the certificate records the original filename, detected format, SHA-256 cryptographic hash of the anonymized file, number of PHI findings cleared, and whether post-anonymization verification passed
 
-### Why this matters
+## Why this matters
 
-The certificate provides documented proof that de-identification was performed, verified, and recorded. This is useful for:
+The certificate provides a documented record of every de-identification step performed on each file. This documentation can be useful when:
 
-- **HIPAA Safe Harbor compliance**: Demonstrating that identifiers were removed per 45 CFR 164.514(b)(2)
-- **IRB submissions**: Providing evidence that shared data has been de-identified
-- **Institutional audits**: Maintaining a traceable record of what was done to each file
-- **Reproducibility**: The SHA-256 hash allows anyone to verify that a file has not been modified since anonymization
+- **Responding to regulatory or privacy reviews**: Demonstrating that a systematic, verified process was used to remove patient identifiers from shared files
+- **Submitting data for research**: Providing reviewers with evidence of how de-identification was performed and verified
+- **Maintaining institutional records**: Keeping a traceable audit trail of what was done to each file and when
+- **Confirming file integrity**: The SHA-256 hash allows anyone to verify that a file has not been modified since anonymization
 
-### Example
+## Example
 
 ```bash
 pathsafe anonymize /slides/ --output /clean/ --certificate /clean/certificate.json
@@ -288,7 +249,7 @@ pathsafe anonymize /slides/ --output /clean/ --certificate /clean/certificate.js
 
 ---
 
-## Security
+# Security
 
 PathSafe is designed with security in mind:
 
@@ -300,7 +261,7 @@ PathSafe is designed with security in mind:
 
 ---
 
-## Dependencies
+# Dependencies
 
 PathSafe is designed to be lightweight. The only required dependency beyond Python itself is `click` (for the command-line interface). All file parsing uses Python's built-in standard library.
 
@@ -314,10 +275,10 @@ Optional dependencies add extra capabilities:
 
 ---
 
-## Acknowledgments
+# Acknowledgments
 
 Developed and tested at the Department of Pathology, McGill University.
 
-## License
+# License
 
 Apache 2.0

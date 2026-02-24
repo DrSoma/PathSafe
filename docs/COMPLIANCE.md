@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PathSafe ensures that whole-slide image (WSI) files are stripped of Protected Health Information (PHI) before being used in research or shared externally, in accordance with HIPAA Safe Harbor de-identification requirements.
+PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI) files so they can be used in research or shared externally. It provides a documented, verifiable de-identification process with full audit trails.
 
 ## PHI Categories Addressed
 
@@ -176,14 +176,9 @@ For each anonymized file, the certificate records:
 
 ## Regulatory Context
 
-PathSafe supports compliance with:
+PathSafe is a de-identification tool that removes patient identifiers from slide files and provides documentation of what was done. The compliance certificate and verification reports can serve as supporting evidence when responding to regulatory or privacy reviews, submitting data for research, or maintaining institutional records.
 
-- **HIPAA Safe Harbor** (45 CFR 164.514(b)(2)): Removal of identifiers from health information
-- **HIPAA Expert Determination**: When used as part of a broader de-identification workflow
-- **GDPR Article 89**: Processing for research purposes with appropriate safeguards
-- **Institutional Review Board (IRB)** requirements for de-identified data
-
-PathSafe is a tool that assists with de-identification. Compliance ultimately depends on institutional policies and the completeness of PHI detection patterns for your specific data.
+Compliance with any specific regulation or standard depends on your institution's policies, the scope of identifiers in your data, and the broader processes surrounding data handling. PathSafe addresses the identifiers embedded in WSI file metadata and images, but should be used as part of your institution's overall data governance workflow.
 
 ## Software Security
 

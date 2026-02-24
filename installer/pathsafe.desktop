@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=PathSafe
+Comment=Remove patient information from pathology slide files
+Exec=PathSafe
+Terminal=false
+Type=Application
+Categories=Science;Medical;
