@@ -311,7 +311,10 @@ def read_tag_long_array(f: BinaryIO, header: TIFFHeader,
 # We pad the remaining strip/tile bytes with zeros after writing this.
 _BLANK_JPEG = (
     b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01'
-    b'\x00\x01\x00\x00\xff\xdb\x00C\x00' + b'\xff' * 64
+    b'\x00\x01\x00\x00'
+    # JPEG COM marker: positively identifies PathSafe-blanked images
+    b'\xff\xfe\x00\x0aPATHSAFE'
+    b'\xff\xdb\x00C\x00' + b'\xff' * 64
     + b'\xff\xdb\x00C\x01' + b'\xff' * 64
     + b'\xff\xc0\x00\x11\x08\x00\x01\x00\x01\x03\x01"\x00\x02\x11\x01\x03\x11\x01'
     b'\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00'
@@ -443,7 +446,7 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
         return False
 
     f.seek(first_off)
-    head = f.read(min(first_cnt, 8))
+    head = f.read(min(first_cnt, 32))
 
     # All zeros = blanked
     if head == b'\x00' * len(head):
@@ -453,11 +456,15 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
     if head[:2] != b'\xFF\xD8':
         return False
 
-    # Legacy format: SOI + EOI (FFD8FFD9) + zeros
-    if head[:4] == _LEGACY_BLANK_JPEG and head[4:] == b'\x00' * len(head[4:]):
+    # Positive identification: PATHSAFE marker in JPEG COM segment
+    if b'PATHSAFE' in head:
         return True
 
-    # Current format: 630-byte minimal JPEG + zeros.
+    # Legacy format: SOI + EOI (FFD8FFD9) + zeros
+    if head[:4] == _LEGACY_BLANK_JPEG and head[4:8] == b'\x00' * 4:
+        return True
+
+    # Pre-marker format: minimal JPEG (no PATHSAFE marker) + zeros.
     # A real macro/label image has dense JPEG data throughout, so check
     # for zeros right after our known JPEG length.
     if first_cnt > len(_BLANK_JPEG) + 8:

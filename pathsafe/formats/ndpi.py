@@ -70,7 +70,10 @@ SCANNER_PROPS_PHI_KEYS = {
     'Updated',          # Modification date
     'NDP.S/N',          # Scanner serial number
     'Macro.S/N',        # Macro camera serial number
+    'Firmware.Version',  # Device fingerprint
 }
+# Dynamic substrings: any key containing these words is treated as PHI
+_SCANNER_PROPS_DYNAMIC_SUBSTRINGS = {'User', 'Name', 'Operator'}
 
 # NDPI_SOURCELENS values for special (non-slide) images
 NDPI_SOURCELENS_TAG = 65421
@@ -257,7 +260,7 @@ class NDPIHandler(FormatHandler):
             key, _, val = line.partition('=')
             key = key.strip()
             val = val.strip()
-            if key in SCANNER_PROPS_PHI_KEYS and val and val != 'X' * len(val):
+            if _is_scanner_prop_phi(key) and val and val != 'X' * len(val):
                 findings.append(PHIFinding(
                     offset=entry.value_offset,
                     length=entry.total_size,
@@ -477,7 +480,7 @@ class NDPIHandler(FormatHandler):
             key, _, val = line.partition('=')
             key_stripped = key.strip()
             val_stripped = val.strip()
-            if key_stripped in SCANNER_PROPS_PHI_KEYS and val_stripped and val_stripped != 'X' * len(val_stripped):
+            if _is_scanner_prop_phi(key_stripped) and val_stripped and val_stripped != 'X' * len(val_stripped):
                 anon_val = 'X' * len(val_stripped)
                 new_lines.append(f'{key}={anon_val}')
                 modified = True
@@ -580,6 +583,13 @@ class NDPIHandler(FormatHandler):
                 source='companion_file',
             ))
         return cleared
+
+
+def _is_scanner_prop_phi(key: str) -> bool:
+    """Check if a scanner property key is a PHI indicator."""
+    if key in SCANNER_PROPS_PHI_KEYS:
+        return True
+    return any(sub in key for sub in _SCANNER_PROPS_DYNAMIC_SUBSTRINGS)
 
 
 def _find_companion_files(filepath: Path) -> List[Path]:

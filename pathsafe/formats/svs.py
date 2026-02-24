@@ -45,7 +45,7 @@ from pathsafe.tiff import (
 )
 
 # Fields in SVS tag 270 that contain PHI
-SVS_PHI_FIELDS = {'ScanScope ID', 'Filename', 'Date', 'Time', 'User'}
+SVS_PHI_FIELDS = {'ScanScope ID', 'Filename', 'Date', 'Time', 'User', 'DSR ID'}
 
 # Date/time sentinel values indicating already anonymized
 ANON_DATE = '01/01/00'
