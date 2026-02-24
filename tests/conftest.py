@@ -794,3 +794,85 @@ def tmp_ndpi_phi_filename(tmp_path):
     filepath = tmp_path / 'AS-24-999999.ndpi'
     filepath.write_bytes(content)
     return filepath
+
+
+# ---------------------------------------------------------------------------
+# EXIF / GPS sub-IFD fixtures
+# ---------------------------------------------------------------------------
+
+def build_tiff_with_sub_ifd(main_entries, sub_ifd_entries, pointer_tag, endian='<'):
+    """Build a TIFF where the main IFD has a LONG pointer tag to a sub-IFD.
+
+    Two-pass layout: first computes sub-IFD offset, then writes everything.
+
+    Args:
+        main_entries: List of (tag_id, type_id, count, value_or_bytes) for the main IFD.
+            Do NOT include the pointer tag — it will be added automatically.
+        sub_ifd_entries: List of (tag_id, type_id, count, value_or_bytes) for the sub-IFD.
+        pointer_tag: 34665 (EXIF) or 34853 (GPS).
+        endian: '<' or '>'.
+
+    Returns:
+        bytes: Complete TIFF file.
+    """
+    bo = b'II' if endian == '<' else b'MM'
+
+    # The main IFD gets one extra entry: the pointer tag
+    all_main = list(main_entries) + [(pointer_tag, 4, 1, 0)]  # placeholder offset
+    num_main = len(all_main)
+
+    # Main IFD layout: header(8) + count(2) + entries(12*n) + next_ptr(4)
+    main_ool_start = 8 + 2 + 12 * num_main + 4
+    main_ool_size = sum(len(v) for _, _, _, v in main_entries if isinstance(v, bytes))
+
+    # Sub-IFD starts right after main IFD + its out-of-line data
+    sub_ifd_offset = main_ool_start + main_ool_size
+
+    num_sub = len(sub_ifd_entries)
+    sub_ool_start = sub_ifd_offset + 2 + 12 * num_sub + 4
+
+    # Build header
+    result = bo + struct.pack(endian + 'H', 42) + struct.pack(endian + 'I', 8)
+
+    # Build main IFD entries
+    ifd_bytes = struct.pack(endian + 'H', num_main)
+    data_bytes = b''
+
+    for tag_id, type_id, count, value in main_entries:
+        if isinstance(value, bytes):
+            val_offset = main_ool_start + len(data_bytes)
+            ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            ifd_bytes += struct.pack(endian + 'I', val_offset)
+            data_bytes += value
+        else:
+            ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            ifd_bytes += struct.pack(endian + 'I', value)
+
+    # Pointer tag entry: LONG (type 4), count 1, value = sub_ifd_offset
+    ifd_bytes += struct.pack(endian + 'HHI', pointer_tag, 4, 1)
+    ifd_bytes += struct.pack(endian + 'I', sub_ifd_offset)
+
+    # Next IFD = 0
+    ifd_bytes += struct.pack(endian + 'I', 0)
+
+    result += ifd_bytes + data_bytes
+
+    # Build sub-IFD
+    sub_ifd_bytes = struct.pack(endian + 'H', num_sub)
+    sub_data = b''
+
+    for tag_id, type_id, count, value in sub_ifd_entries:
+        if isinstance(value, bytes):
+            val_offset = sub_ool_start + len(sub_data)
+            sub_ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            sub_ifd_bytes += struct.pack(endian + 'I', val_offset)
+            sub_data += value
+        else:
+            sub_ifd_bytes += struct.pack(endian + 'HHI', tag_id, type_id, count)
+            sub_ifd_bytes += struct.pack(endian + 'I', value)
+
+    # Next IFD pointer for sub-IFD = 0
+    sub_ifd_bytes += struct.pack(endian + 'I', 0)
+
+    result += sub_ifd_bytes + sub_data
+    return result

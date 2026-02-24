@@ -11,6 +11,10 @@ Output: dist/pathsafe (Linux/Mac) or dist/pathsafe.exe (Windows)
 
 block_cipher = None
 
+_datas = [
+    ('pathsafe/assets/icon.png', 'pathsafe/assets'),
+]
+
 _hidden = [
     'pathsafe',
     'pathsafe.models',
@@ -33,6 +37,7 @@ _hidden = [
     'pathsafe.converter',
     'tifffile',
     'numpy',
+    'fpdf2',
 ]
 
 # --- CLI executable ---
@@ -40,7 +45,7 @@ a = Analysis(
     ['pathsafe/cli.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=_datas,
     hiddenimports=_hidden,
     hookspath=[],
     hooksconfig={},
@@ -74,7 +79,7 @@ a_gui = Analysis(
     ['pathsafe/gui_qt.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=_datas,
     hiddenimports=_hidden + [
         'pathsafe.gui_qt',
         'PySide6',

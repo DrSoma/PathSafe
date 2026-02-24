@@ -18,7 +18,11 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 | EXIF dates | TIFF tags 36867, 36868 | Zeroed with null bytes |
 | Macro image | IFD with NDPI_SOURCELENS = -1.0 | Image data blanked (minimal JPEG + zeros) |
 | Barcode/label image | IFD with NDPI_SOURCELENS = -2.0 | Image data blanked (minimal JPEG + zeros) |
-| Embedded accession patterns | Raw binary header (first 100KB) | Overwritten with 'X' characters |
+| Unknown private tags | NDPI tags 65420-65480 (string/text type) | Blanked with null bytes |
+| EXIF sub-IFD dates | Tag 34665 pointer: DateTimeOriginal, DateTimeDigitized, UserComment, ImageUniqueID | Zeroed with null bytes |
+| GPS sub-IFD | Tag 34853 pointer: all GPS tags (coordinates, timestamps) | Zeroed with null bytes |
+| ICC Color Profile | Tag 34675 | Zeroed with null bytes |
+| Embedded accession patterns | Raw binary header (first 1MB) | Overwritten with 'X' characters |
 
 #### SVS (Aperio)
 
@@ -32,7 +36,10 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 | Scan dates | TIFF tag 306 (DateTime) | Zeroed with null bytes |
 | Label image | IFD with "label" in ImageDescription | Image data blanked (minimal JPEG + zeros) |
 | Macro image | IFD with "macro" in ImageDescription | Image data blanked (minimal JPEG + zeros) |
-| Embedded accession patterns | Raw binary header (first 100KB) | Overwritten with 'X' characters |
+| EXIF sub-IFD dates | Tag 34665 pointer: DateTimeOriginal, DateTimeDigitized, UserComment, ImageUniqueID | Zeroed with null bytes |
+| GPS sub-IFD | Tag 34853 pointer: all GPS tags | Zeroed with null bytes |
+| ICC Color Profile | Tag 34675 | Zeroed with null bytes |
+| Embedded accession patterns | Raw binary header (first 1MB) | Overwritten with 'X' characters |
 
 #### MRXS (3DHISTECH/MIRAX)
 
@@ -84,8 +91,13 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 | Data Element | Where Found | Anonymization Method |
 |---|---|---|
-| All ASCII string tags | First IFD | Scanned for accession number patterns, matches overwritten |
-| Dates | TIFF tag 306 (DateTime) | Zeroed with null bytes |
+| All ASCII string tags | All IFDs | Scanned for accession number patterns, matches overwritten |
+| Dates | TIFF tag 306 (DateTime) - all IFDs | Zeroed with null bytes |
+| Extra metadata | Tags 270, 305, 315, 316, 700, 33723, 37510, 42016 - all IFDs | Zeroed with null bytes |
+| EXIF sub-IFD dates | Tag 34665 pointer: DateTimeOriginal, DateTimeDigitized, UserComment, ImageUniqueID | Zeroed with null bytes |
+| GPS sub-IFD | Tag 34853 pointer: all GPS tags | Zeroed with null bytes |
+| ICC Color Profile | Tag 34675 | Zeroed with null bytes |
+| Label/macro images | IFDs with "label" or "macro" in ImageDescription | Image data blanked and IFD unlinked |
 
 ### Pattern-Based Detection
 

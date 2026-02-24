@@ -44,7 +44,15 @@ from pathsafe.tiff import (
     scan_extra_metadata_tags,
     blank_extra_metadata_tag,
     unlink_ifd,
+    read_exif_sub_ifd,
+    read_gps_sub_ifd,
+    scan_exif_sub_ifd_tags,
+    scan_gps_sub_ifd,
+    blank_exif_sub_ifd_tags,
+    blank_gps_sub_ifd,
     EXTRA_METADATA_TAGS,
+    EXIF_SUB_IFD_PHI_TAGS,
+    GPS_TAG_NAMES,
     TAG_NAMES,
 )
 
@@ -80,6 +88,18 @@ _SCANNER_PROPS_DYNAMIC_SUBSTRINGS = {'User', 'Name', 'Operator'}
 NDPI_SOURCELENS_TAG = 65421
 NDPI_MACRO_LENS = -1.0   # Map/overview image
 NDPI_BARCODE_LENS = -2.0  # Barcode area image
+
+# Tags already explicitly handled or known to contain non-PHI binary data
+_NDPI_HANDLED_TAGS = {
+    65421, 65427, 65442, 65449, 65468,  # explicitly scanned
+    65420, 65422, 65423, 65424, 65425, 65426, 65428,  # numeric config (offsets, flags, quality)
+    65429, 65432, 65433, 65439, 65440, 65441,  # numeric config (focus, capture mode)
+    65457, 65458, 65459, 65464, 65465, 65469,  # binary scanner config data
+    65476, 65478,  # binary scanner config data
+}
+
+# Range of NDPI private tags that may contain PHI (e.g., SCANPROFILE, BARCODE_TYPE)
+NDPI_PRIVATE_TAG_RANGE = range(65420, 65481)
 
 
 class NDPIHandler(FormatHandler):
@@ -252,6 +272,60 @@ class NDPIHandler(FormatHandler):
                         value_preview=value[:50],
                         source='tiff_tag',
                     ))
+
+                # Sweep unhandled NDPI private tags (string/undefined types)
+                for entry in entries:
+                    if entry.tag_id in NDPI_PRIVATE_TAG_RANGE and \
+                       entry.tag_id not in _NDPI_HANDLED_TAGS and \
+                       entry.dtype in (2, 7) and \
+                       entry.value_offset not in seen_offsets:
+                        raw = read_tag_value_bytes(f, entry)
+                        if raw and raw != b'\x00' * len(raw):
+                            stripped = raw.rstrip(b'\x00')
+                            if stripped and not all(b == ord('X') for b in stripped) \
+                               and _is_printable_content(stripped):
+                                seen_offsets.add(entry.value_offset)
+                                value = stripped.decode('ascii', errors='replace')[:50]
+                                findings.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=entry.tag_id,
+                                    tag_name=TAG_NAMES.get(entry.tag_id, f'NDPI_Tag_{entry.tag_id}'),
+                                    value_preview=value,
+                                    source='tiff_tag',
+                                ))
+
+                # EXIF sub-IFD scanning
+                exif_result = read_exif_sub_ifd(f, header, entries)
+                if exif_result is not None:
+                    sub_offset, sub_entries = exif_result
+                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen_offsets:
+                            seen_offsets.add(sub_entry.value_offset)
+                            findings.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
+                                value_preview=value[:50],
+                                source='tiff_tag',
+                            ))
+
+                # GPS sub-IFD scanning
+                gps_result = read_gps_sub_ifd(f, header, entries)
+                if gps_result is not None:
+                    sub_offset, sub_entries = gps_result
+                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen_offsets:
+                            seen_offsets.add(sub_entry.value_offset)
+                            findings.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
+                                value_preview=preview[:50],
+                                source='tiff_tag',
+                            ))
         return findings
 
     def _scan_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
@@ -471,6 +545,66 @@ class NDPIHandler(FormatHandler):
                         value_preview=value[:50],
                         source='tiff_tag',
                     ))
+
+                # Blank unhandled NDPI private string tags
+                for entry in entries:
+                    if entry.tag_id in NDPI_PRIVATE_TAG_RANGE and \
+                       entry.tag_id not in _NDPI_HANDLED_TAGS and \
+                       entry.dtype in (2, 7) and \
+                       entry.value_offset not in seen_offsets:
+                        raw = read_tag_value_bytes(f, entry)
+                        if raw and raw != b'\x00' * len(raw):
+                            stripped = raw.rstrip(b'\x00')
+                            if stripped and not all(b == ord('X') for b in stripped) \
+                               and _is_printable_content(stripped):
+                                seen_offsets.add(entry.value_offset)
+                                value = stripped.decode('ascii', errors='replace')[:50]
+                                f.seek(entry.value_offset)
+                                f.write(b'\x00' * entry.total_size)
+                                cleared.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=entry.tag_id,
+                                    tag_name=TAG_NAMES.get(entry.tag_id, f'NDPI_Tag_{entry.tag_id}'),
+                                    value_preview=value,
+                                    source='tiff_tag',
+                                ))
+
+                # Blank EXIF sub-IFD PHI tags
+                exif_result = read_exif_sub_ifd(f, header, entries)
+                if exif_result is not None:
+                    sub_offset, sub_entries = exif_result
+                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen_offsets:
+                            seen_offsets.add(sub_entry.value_offset)
+                            f.seek(sub_entry.value_offset)
+                            f.write(b'\x00' * sub_entry.total_size)
+                            cleared.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
+                                value_preview=value[:50],
+                                source='tiff_tag',
+                            ))
+
+                # Blank GPS sub-IFD entirely
+                gps_result = read_gps_sub_ifd(f, header, entries)
+                if gps_result is not None:
+                    sub_offset, sub_entries = gps_result
+                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen_offsets:
+                            seen_offsets.add(sub_entry.value_offset)
+                            f.seek(sub_entry.value_offset)
+                            f.write(b'\x00' * sub_entry.total_size)
+                            cleared.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
+                                value_preview=preview[:50],
+                                source='tiff_tag',
+                            ))
         return cleared
 
     def _anonymize_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
@@ -593,6 +727,20 @@ class NDPIHandler(FormatHandler):
                 source='companion_file',
             ))
         return cleared
+
+
+def _is_printable_content(data: bytes, min_len: int = 4,
+                          min_printable_ratio: float = 0.75) -> bool:
+    """Check if byte data contains meaningful printable text (not binary garbage).
+
+    Returns True only if the data has at least `min_len` bytes and at least
+    `min_printable_ratio` of the bytes are printable ASCII (0x20-0x7E, plus
+    common whitespace like tab/newline).
+    """
+    if len(data) < min_len:
+        return False
+    printable = sum(1 for b in data if 0x20 <= b <= 0x7E or b in (0x09, 0x0A, 0x0D))
+    return (printable / len(data)) >= min_printable_ratio
 
 
 def _is_scanner_prop_phi(key: str) -> bool:

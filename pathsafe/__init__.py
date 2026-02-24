@@ -13,7 +13,7 @@ from pathsafe.models import (
 from pathsafe.anonymizer import anonymize_file, anonymize_batch
 from pathsafe.scanner import scan_file
 from pathsafe.verify import verify_file, verify_batch
-from pathsafe.report import generate_certificate
+from pathsafe.report import generate_certificate, generate_pdf_certificate, generate_scan_report
 
 # Lazy imports for optional conversion module
 def convert_file(*args, **kwargs):
@@ -38,6 +38,8 @@ __all__ = [
     "verify_file",
     "verify_batch",
     "generate_certificate",
+    "generate_pdf_certificate",
+    "generate_scan_report",
     "convert_file",
     "convert_batch",
 ]

@@ -22,7 +22,7 @@ Optional (openslide_utils.py)
 
 ### Core Layer
 
-- **`tiff.py`**: Low-level TIFF/BigTIFF binary parser using Python's `struct` module. Reads headers, IFD entries, tag values. Handles both byte orders and BigTIFF. Also provides label/macro image blanking utilities (`blank_ifd_image_data`, `get_ifd_image_size`, `get_ifd_image_data_size`).
+- **`tiff.py`**: Low-level TIFF/BigTIFF binary parser using Python's `struct` module. Reads headers, IFD entries, tag values. Handles both byte orders and BigTIFF. Also provides label/macro image blanking utilities (`blank_ifd_image_data`, `get_ifd_image_size`, `get_ifd_image_data_size`), EXIF/GPS sub-IFD traversal (`read_exif_sub_ifd`, `read_gps_sub_ifd`, `scan_exif_sub_ifd_tags`, `scan_gps_sub_ifd`, `blank_exif_sub_ifd_tags`, `blank_gps_sub_ifd`), and ICC Profile scanning via `EXTRA_METADATA_TAGS`.
 - **`scanner.py`**: PHI detection patterns (regex for accession numbers, dates). Provides `scan_bytes_for_phi()` and `scan_string_for_phi()`.
 - **`models.py`**: Dataclasses (`PHIFinding`, `ScanResult`, `AnonymizationResult`, `BatchResult`).
 
@@ -42,23 +42,24 @@ Handlers are registered in `formats/__init__.py` in priority order. The first ha
 
 ### Current Format Handlers
 
-- **`formats/ndpi.py`**: Hamamatsu NDPI: tag 65468 (barcode), 65427 (reference), DateTime, macro/barcode image blanking (via NDPI_SOURCELENS tag), regex safety scan.
+- **`formats/ndpi.py`**: Hamamatsu NDPI: tag 65468 (barcode), 65427 (reference), DateTime, macro/barcode image blanking (via NDPI_SOURCELENS tag), private tag sweep (65420-65480), EXIF/GPS sub-IFD scanning, regex safety scan.
 - **`formats/svs.py`**: Aperio SVS: tag 270 (ImageDescription) pipe-delimited key=value parsing for ScanScope ID, Filename, Date, Time, User. DateTime tags. Label/macro image blanking. Regex safety scan.
 - **`formats/mrxs.py`**: 3DHISTECH/MIRAX MRXS: Slidedat.ini parsing (configparser), SLIDE_ID, SLIDE_NAME, SLIDE_BARCODE, SLIDE_CREATIONDATETIME in [GENERAL] section. Regex safety scan of both .mrxs file and Slidedat.ini.
 - **`formats/dicom.py`**: DICOM WSI: uses `pydicom` (optional dependency). Blanks Type 2 tags (PatientName, PatientID, etc.), deletes Type 3 tags (PatientAddress, OtherPatientIDs, etc.), removes all private tags. Only loaded if pydicom is installed.
-- **`formats/generic_tiff.py`**: Fallback that scans all ASCII string tags for PHI patterns.
+- **`formats/bif.py`**: Roche/Ventana BIF: XMP barcode/patient/device fields, label/macro image blanking, EXIF/GPS sub-IFD scanning, regex safety scan.
+- **`formats/scn.py`**: Leica SCN: XML-based metadata in ImageDescription, label/macro image blanking, EXIF/GPS sub-IFD scanning, regex safety scan.
+- **`formats/generic_tiff.py`**: Fallback that scans all ASCII string tags for PHI patterns, detects and blanks label/macro images via ImageDescription keywords, scans EXIF/GPS sub-IFDs.
 
 ### Orchestration Layer
 
 - **`anonymizer.py`**: `anonymize_file()` handles copy-then-anonymize and in-place modes. `anonymize_batch()` processes directories with progress callbacks. Supports parallel processing via `ThreadPoolExecutor` (`workers` parameter).
 - **`verify.py`**: Re-scans files after anonymization.
-- **`report.py`**: Generates JSON compliance certificates with SHA-256 hashes.
+- **`report.py`**: Generates JSON compliance certificates with SHA-256 hashes, PDF scan reports (with SHA-256, friendly tag names, and findings legend), and PDF compliance certificates.
 
 ### Interface Layer
 
 - **`cli.py`**: Click-based CLI with `scan`, `anonymize`, `verify`, `info`, and `gui` subcommands.
-- **`gui_qt.py`**: PySide6 Qt GUI with Catppuccin dark theme, drag-and-drop, workflow step indicator, menu bar with keyboard shortcuts, tooltips, status bar. Runs operations in background threads via `QThread` workers.
-- **`gui.py`**: Tkinter GUI fallback. Same core functionality with simpler styling.
+- **`gui_qt.py`**: PySide6 Qt GUI with Catppuccin dark/light themes, drag-and-drop, workflow step indicator (with [Default]/[Done] states), multi-file selection, menu bar with keyboard shortcuts, tooltips, status bar, application icon, styled scrollbars. Runs operations in background threads via `QThread` workers. Supports right-click "Open with" via command-line file argument. Settings (institution, workers, theme) persist via QSettings.
 
 ### Optional Utilities
 

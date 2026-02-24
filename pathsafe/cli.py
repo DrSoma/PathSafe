@@ -3,6 +3,7 @@
 Color-coded terminal output with structured log file support.
 """
 
+import hashlib
 import json
 import sys
 import time
@@ -18,7 +19,7 @@ from pathsafe.log import (
     cli_separator, cli_success, cli_warning,
     log_error, log_info, log_warn,
 )
-from pathsafe.report import generate_certificate
+from pathsafe.report import generate_certificate, generate_scan_report, friendly_tag_name
 from pathsafe.verify import verify_batch, verify_file
 
 
@@ -41,7 +42,10 @@ def main():
 @click.option('--json-out', type=click.Path(), help='Write results as JSON to file.')
 @click.option('--workers', '-w', type=int, default=1,
               help='Number of parallel workers (default: 1, sequential).')
-def scan(path, verbose, fmt, json_out, workers):
+@click.option('--report', '-r', type=click.Path(), help='Write scan report PDF to this path.')
+@click.option('--institution', '-i', type=str, default='',
+              help='Institution name to display on the PDF report header.')
+def scan(path, verbose, fmt, json_out, workers, report, institution):
     """Scan files for PHI (read-only).
 
     PATH can be a single file or a directory to scan recursively.
@@ -62,6 +66,7 @@ def scan(path, verbose, fmt, json_out, workers):
     clean_count = 0
     error_count = 0
     results_json = []
+    report_results = []
 
     def on_result(i, total, filepath, result):
         nonlocal total_findings, clean_count, error_count
@@ -82,9 +87,24 @@ def scan(path, verbose, fmt, json_out, workers):
                        f'{cli_warning(f"{n} finding(s)")}')
             if verbose:
                 for f in result.findings:
-                    click.echo(f'         {cli_finding(f.tag_name)} '
+                    click.echo(f'         {cli_finding(friendly_tag_name(f.tag_name))} '
                                f'{cli_dim("at offset")} {f.offset}: '
                                f'{cli_warning(f.value_preview)}')
+
+        # Compute SHA-256 for scan report
+        file_sha256 = ''
+        if report:
+            try:
+                h = hashlib.sha256()
+                with open(str(filepath), 'rb') as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        h.update(chunk)
+                file_sha256 = h.hexdigest()
+            except (OSError, FileNotFoundError):
+                pass
 
         if json_out:
             results_json.append({
@@ -94,6 +114,18 @@ def scan(path, verbose, fmt, json_out, workers):
                 'findings': len(result.findings),
                 'scan_time_ms': round(result.scan_time_ms, 1),
                 'error': result.error,
+            })
+
+        if report:
+            report_results.append({
+                'filepath': str(filepath),
+                'is_clean': result.is_clean,
+                'error': result.error,
+                'sha256': file_sha256,
+                'findings': [
+                    {'tag_name': f.tag_name, 'value_preview': f.value_preview}
+                    for f in result.findings
+                ] if result.findings else [],
             })
 
     scan_batch(input_path, format_filter=fmt, progress_callback=on_result,
@@ -117,6 +149,19 @@ def scan(path, verbose, fmt, json_out, workers):
     elif phi_count > 0:
         click.echo(cli_warning(f'\n{phi_count} file(s) contain PHI — run "pathsafe anonymize" to clean.'))
 
+    if report:
+        scan_data = {
+            'total': len(files),
+            'clean': clean_count,
+            'phi_files': phi_count,
+            'phi_findings': total_findings,
+            'errors': error_count,
+            'results': report_results,
+        }
+        report_path = generate_scan_report(scan_data, Path(report),
+                                                 institution=institution)
+        click.echo(cli_info(f'Scan report saved to {report_path}'))
+
     if json_out:
         with open(json_out, 'w') as f:
             json.dump(results_json, f, indent=2)
@@ -134,7 +179,7 @@ def scan(path, verbose, fmt, json_out, workers):
 @click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'bif', 'scn', 'dicom', 'tiff']),
               help='Only process files of this format.')
 @click.option('--certificate', '-c', type=click.Path(),
-              help='Write compliance certificate JSON to this path.')
+              help='Write compliance certificate (JSON + PDF) to this path.')
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed progress.')
 @click.option('--workers', '-w', type=int, default=1,
               help='Number of parallel workers (default: 1, sequential).')
@@ -143,8 +188,10 @@ def scan(path, verbose, fmt, json_out, workers):
               help='Reset file timestamps to epoch (default: on). Use --no-reset-timestamps to keep original timestamps.')
 @click.option('--verify-integrity/--no-verify-integrity', default=True,
               help='Verify image tile data integrity via SHA-256 checksums (default: on).')
+@click.option('--institution', '-i', type=str, default='',
+              help='Institution name to display on the PDF certificate header.')
 def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verbose, workers, log,
-              reset_timestamps, verify_integrity):
+              reset_timestamps, verify_integrity, institution):
     """Anonymize PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
@@ -226,6 +273,11 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
                 emit(f'         {cli_error("Image integrity: FAILED")}',
                      log_error(f'  Image integrity: FAILED'))
 
+            # SHA-256 of output file
+            if result.sha256_after:
+                emit(f'         {cli_dim("SHA-256: " + result.sha256_after)}',
+                     log_info(f'  SHA-256: {result.sha256_after}'))
+
             # Filename PHI warning
             if result.filename_has_phi:
                 emit(f'         {cli_error("WARNING: Filename contains PHI — rename file manually")}',
@@ -264,10 +316,14 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
         # Generate certificate
         if certificate and not dry_run:
             cert = generate_certificate(batch_result, output_path=Path(certificate),
-                                        timestamps_reset=reset_timestamps)
+                                        timestamps_reset=reset_timestamps,
+                                        institution=institution)
             batch_result.certificate_path = Path(certificate)
+            pdf_path = Path(certificate).with_suffix('.pdf')
             emit(cli_info(f'\nCompliance certificate: {certificate}'),
                  log_info(f'Compliance certificate: {certificate}'))
+            emit(cli_info(f'PDF certificate: {pdf_path}'),
+                 log_info(f'PDF certificate: {pdf_path}'))
 
         if batch_result.files_errored > 0:
             sys.exit(1)
@@ -519,7 +575,7 @@ def info(path):
     else:
         click.echo(f'  PHI Status: {cli_warning(f"{len(result.findings)} finding(s)")}')
         for f in result.findings:
-            click.echo(f'    {cli_finding(f.tag_name)} '
+            click.echo(f'    {cli_finding(friendly_tag_name(f.tag_name))} '
                        f'{cli_dim("at offset")} {f.offset}: '
                        f'{cli_warning(f.value_preview)}')
 

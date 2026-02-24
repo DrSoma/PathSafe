@@ -153,11 +153,14 @@ pathsafe gui
 
 If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a modern Qt GUI with:
 
-- **Dark theme**: Catppuccin-inspired dark color scheme, easy on the eyes
+- **Dark / Light theme**: Catppuccin-inspired color schemes, remembered between sessions
 - **Drag-and-drop**: Drop files or folders directly onto the window
-- **Workflow step indicator**: Visual progress through Select Files > Scan > Anonymize > Verify
+- **Multi-file selection**: Select multiple files at once when browsing (hold Ctrl or Shift)
+- **Workflow step indicator**: Visual progress through Select Files > Scan > Select Output > Anonymize, with [Default] and [Done] status labels
+- **Application icon**: Custom PathSafe icon in the title bar and taskbar
+- **Right-click integration**: On Linux, right-click any slide file and choose "Open with PathSafe"
 - **Menu bar with keyboard shortcuts**:
- - `Ctrl+O`: Open file
+ - `Ctrl+O`: Open file(s)
  - `Ctrl+Shift+O`: Open folder
  - `Ctrl+S`: Scan
  - `Ctrl+R`: Anonymize
@@ -165,13 +168,12 @@ If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a moder
  - `Esc`: Stop current operation
 - **Tooltips**: Hover over any control for guidance
 - **Status bar**: Live file count and elapsed time
-- **Log panel**: Real-time output of what's happening
+- **Log panel**: Real-time output with human-readable finding names
+- **PDF reports**: Scan reports and compliance certificates generated automatically with SHA-256 hashes and a findings legend
 - **Copy/in-place mode**: Select via radio buttons
-- **Workers**: Adjust parallel processing from the GUI
-
-### Tkinter GUI (Fallback)
-
-If PySide6 is not installed, PathSafe falls back to a simpler Tkinter GUI with the same core functionality.
+- **Workers**: Adjust parallel processing for anonymization
+- **Institution name**: Optional field for PDF report headers, remembered between sessions
+- **Persistent settings**: Institution, worker count, and theme are saved between sessions
 
 ## Common Options
 
@@ -202,7 +204,9 @@ PathSafe removes these categories of PHI:
 - **Institution information**: Found in DICOM tags and device serial numbers
 - **Label/macro images**: Photographed slide labels that may show patient information (NDPI, SVS, BIF, SCN)
 - **Slide identifiers**: MRXS slide names, barcodes, IDs
-- **Extra metadata**: XMP, EXIF UserComment, IPTC, Copyright, ImageUniqueID
+- **Extra metadata**: XMP, EXIF UserComment, IPTC, Copyright, ImageUniqueID, ICC Color Profile
+- **EXIF sub-IFD**: Dates, UserComment, ImageUniqueID hidden in EXIF sub-directories
+- **GPS sub-IFD**: Location coordinates and timestamps hidden in GPS sub-directories
 - **Social Security numbers**: Detected via pattern matching as a HIPAA safe harbor measure
 - **Date of birth**: DOB patterns detected in filenames and metadata
 

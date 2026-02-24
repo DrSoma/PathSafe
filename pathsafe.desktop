@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=PathSafe
+Comment=Hospital-grade WSI anonymizer
+Exec=/media/fernandosoto/Expansion3/LungAI project/pathsafe/dist/pathsafe-gui %f
+Icon=/media/fernandosoto/Expansion3/LungAI project/pathsafe/pathsafe/assets/icon.png
+Terminal=false
+Type=Application
+Categories=Science;Medical;
+MimeType=image/tiff;

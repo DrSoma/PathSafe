@@ -3,6 +3,7 @@
 Supports both sequential and parallel (thread pool) batch processing.
 """
 
+import hashlib
 import os
 import shutil
 import sys
@@ -168,6 +169,21 @@ def anonymize_file(
     from pathsafe.scanner import scan_filename_for_phi
     filename_has_phi = len(scan_filename_for_phi(target)) > 0
 
+    # Compute SHA-256 of the final output file (before timestamp reset
+    # so that opening the file doesn't update st_atime after reset)
+    file_sha256 = None
+    try:
+        h = hashlib.sha256()
+        with open(str(target), 'rb') as fh:
+            while True:
+                chunk = fh.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        file_sha256 = h.hexdigest()
+    except (OSError, FileNotFoundError):
+        pass
+
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps:
         os.utime(target, (0, 0))
@@ -197,6 +213,7 @@ def anonymize_file(
         anonymization_time_ms=elapsed,
         image_integrity_verified=integrity_result,
         filename_has_phi=filename_has_phi,
+        sha256_after=file_sha256,
     )
 
 
@@ -217,6 +234,8 @@ def collect_wsi_files(path: Path, format_filter: Optional[str] = None) -> List[P
             allowed = ext_map.get(format_filter, WSI_EXTENSIONS)
             if path.suffix.lower() not in allowed:
                 return []
+        elif path.suffix.lower() not in WSI_EXTENSIONS:
+            return []
         return [path]
 
     extensions = WSI_EXTENSIONS
@@ -247,6 +266,8 @@ def anonymize_batch(
     workers: int = 1,
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
+    stop_check: Optional[Callable] = None,
+    file_list: Optional[List[Path]] = None,
 ) -> BatchResult:
     """Anonymize a batch of WSI files.
 
@@ -260,6 +281,8 @@ def anonymize_batch(
         workers: Number of parallel workers. 1 = sequential (default).
         reset_timestamps: If True, reset file timestamps to epoch after anonymization.
         verify_integrity: If True, verify image tile data integrity via SHA-256.
+        stop_check: Optional callable returning True to abort immediately.
+        file_list: If provided, use these files instead of collecting from input_path.
 
     Returns:
         BatchResult with summary statistics.
@@ -267,7 +290,10 @@ def anonymize_batch(
     input_path = Path(input_path)
     t0 = time.monotonic()
 
-    files = collect_wsi_files(input_path, format_filter)
+    if file_list:
+        files = list(file_list)
+    else:
+        files = collect_wsi_files(input_path, format_filter)
     total = len(files)
 
     batch = BatchResult(total_files=total)
@@ -276,8 +302,11 @@ def anonymize_batch(
     file_pairs = []
     for filepath in files:
         if output_dir is not None:
-            relative = filepath.relative_to(input_path) if input_path.is_dir() else filepath.name
-            out = Path(output_dir) / relative
+            if file_list:
+                out = Path(output_dir) / filepath.name
+            else:
+                relative = filepath.relative_to(input_path) if input_path.is_dir() else filepath.name
+                out = Path(output_dir) / relative
         else:
             out = None
         file_pairs.append((filepath, out))
@@ -285,11 +314,11 @@ def anonymize_batch(
     if workers > 1 and total > 1:
         results = _batch_parallel(file_pairs, verify, dry_run, workers,
                                   progress_callback, batch, reset_timestamps,
-                                  verify_integrity)
+                                  verify_integrity, stop_check)
     else:
         results = _batch_sequential(file_pairs, verify, dry_run,
                                     progress_callback, batch, reset_timestamps,
-                                    verify_integrity)
+                                    verify_integrity, stop_check)
 
     batch.results = results
     batch.total_time_seconds = time.monotonic() - t0
@@ -304,12 +333,15 @@ def _batch_sequential(
     batch: BatchResult,
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
+    stop_check: Optional[Callable] = None,
 ) -> List[AnonymizationResult]:
     """Process files sequentially."""
     results = []
     total = len(file_pairs)
 
     for i, (filepath, out) in enumerate(file_pairs):
+        if stop_check and stop_check():
+            break
         try:
             result = anonymize_file(filepath, output_path=out, verify=verify,
                                     dry_run=dry_run,
@@ -341,6 +373,7 @@ def _batch_parallel(
     batch: BatchResult,
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
+    stop_check: Optional[Callable] = None,
 ) -> List[AnonymizationResult]:
     """Process files in parallel using a thread pool.
 
@@ -370,10 +403,16 @@ def _batch_parallel(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {}
         for i, (filepath, out) in enumerate(file_pairs):
+            if stop_check and stop_check():
+                break
             future = executor.submit(process_one, i, filepath, out)
             futures[future] = (i, filepath)
 
         for future in as_completed(futures):
+            if stop_check and stop_check():
+                for f in futures:
+                    f.cancel()
+                break
             idx, filepath = futures[future]
             index, result = future.result()
             results[index] = result
@@ -384,7 +423,7 @@ def _batch_parallel(
                 if progress_callback:
                     progress_callback(completed_count[0], total, filepath, result)
 
-    return results
+    return [r for r in results if r is not None]
 
 
 def scan_batch(
@@ -392,6 +431,8 @@ def scan_batch(
     format_filter: Optional[str] = None,
     progress_callback: Optional[Callable] = None,
     workers: int = 1,
+    stop_check: Optional[Callable] = None,
+    file_list: Optional[List[Path]] = None,
 ) -> List:
     """Scan a batch of WSI files for PHI (read-only).
 
@@ -400,6 +441,8 @@ def scan_batch(
         format_filter: Only scan files of this format.
         progress_callback: Called with (index, total, filepath, result) after each file.
         workers: Number of parallel workers. 1 = sequential (default).
+        stop_check: Optional callable returning True to abort immediately.
+        file_list: If provided, use these files instead of collecting from input_path.
 
     Returns:
         List of (filepath, ScanResult) tuples.
@@ -407,8 +450,11 @@ def scan_batch(
     from pathsafe.formats import get_handler
     from pathsafe.models import ScanResult
 
-    input_path = Path(input_path)
-    files = collect_wsi_files(input_path, format_filter)
+    if file_list:
+        files = list(file_list)
+    else:
+        input_path = Path(input_path)
+        files = collect_wsi_files(input_path, format_filter)
     total = len(files)
 
     if total == 0:
@@ -437,10 +483,16 @@ def scan_batch(
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {}
             for i, fp in enumerate(files):
+                if stop_check and stop_check():
+                    break
                 future = executor.submit(_do_scan, i, fp)
                 futures[future] = i
 
             for future in as_completed(futures):
+                if stop_check and stop_check():
+                    for f in futures:
+                        f.cancel()
+                    break
                 idx, filepath, result = future.result()
                 ordered[idx] = (filepath, result)
 
@@ -449,9 +501,11 @@ def scan_batch(
                     if progress_callback:
                         progress_callback(completed[0], total, filepath, result)
 
-        results = ordered
+        results = [r for r in ordered if r is not None]
     else:
         for i, filepath in enumerate(files):
+            if stop_check and stop_check():
+                break
             try:
                 result = scan_one(filepath)
             except Exception as e:

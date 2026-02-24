@@ -37,7 +37,15 @@ from pathsafe.tiff import (
     scan_extra_metadata_tags,
     blank_extra_metadata_tag,
     unlink_ifd,
+    read_exif_sub_ifd,
+    read_gps_sub_ifd,
+    scan_exif_sub_ifd_tags,
+    scan_gps_sub_ifd,
+    blank_exif_sub_ifd_tags,
+    blank_gps_sub_ifd,
     EXTRA_METADATA_TAGS,
+    EXIF_SUB_IFD_PHI_TAGS,
+    GPS_TAG_NAMES,
 )
 
 # XMP attributes in <iScan> that contain PHI
@@ -210,6 +218,38 @@ class BIFHandler(FormatHandler):
                             value_preview=value[:50],
                             source='tiff_tag',
                         ))
+
+                # EXIF sub-IFD scanning
+                exif_result = read_exif_sub_ifd(f, header, entries)
+                if exif_result is not None:
+                    _, sub_entries = exif_result
+                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen:
+                            seen.add(sub_entry.value_offset)
+                            findings.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
+                                value_preview=value[:50],
+                                source='tiff_tag',
+                            ))
+
+                # GPS sub-IFD scanning
+                gps_result = read_gps_sub_ifd(f, header, entries)
+                if gps_result is not None:
+                    _, sub_entries = gps_result
+                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen:
+                            seen.add(sub_entry.value_offset)
+                            findings.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
+                                value_preview=preview[:50],
+                                source='tiff_tag',
+                            ))
         return findings
 
     def _scan_label_macro(self, filepath: Path) -> List[PHIFinding]:
@@ -368,6 +408,42 @@ class BIFHandler(FormatHandler):
                             value_preview=value[:50],
                             source='tiff_tag',
                         ))
+
+                # Blank EXIF sub-IFD PHI tags
+                exif_result = read_exif_sub_ifd(f, header, entries)
+                if exif_result is not None:
+                    _, sub_entries = exif_result
+                    for sub_entry, value in scan_exif_sub_ifd_tags(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen:
+                            seen.add(sub_entry.value_offset)
+                            f.seek(sub_entry.value_offset)
+                            f.write(b'\x00' * sub_entry.total_size)
+                            cleared.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'EXIF:{EXIF_SUB_IFD_PHI_TAGS[sub_entry.tag_id]}',
+                                value_preview=value[:50],
+                                source='tiff_tag',
+                            ))
+
+                # Blank GPS sub-IFD entirely
+                gps_result = read_gps_sub_ifd(f, header, entries)
+                if gps_result is not None:
+                    _, sub_entries = gps_result
+                    for sub_entry, preview in scan_gps_sub_ifd(f, header, sub_entries):
+                        if sub_entry.value_offset not in seen:
+                            seen.add(sub_entry.value_offset)
+                            f.seek(sub_entry.value_offset)
+                            f.write(b'\x00' * sub_entry.total_size)
+                            cleared.append(PHIFinding(
+                                offset=sub_entry.value_offset,
+                                length=sub_entry.total_size,
+                                tag_id=sub_entry.tag_id,
+                                tag_name=f'GPS:{GPS_TAG_NAMES.get(sub_entry.tag_id, f"Tag_{sub_entry.tag_id}")}',
+                                value_preview=preview[:50],
+                                source='tiff_tag',
+                            ))
         return cleared
 
     def _blank_label_macro(self, filepath: Path) -> List[PHIFinding]:

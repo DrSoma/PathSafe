@@ -11,7 +11,7 @@ Features:
 - Tooltips on all controls
 - Status bar with live stats
 - Tabbed interface for Anonymize and Convert workflows
-- Format filtering, dry-run mode, and JSON/log export
+- Format filtering, dry-run mode, and log export
 """
 
 import json
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize, QSettings, QStandardPaths
 from PySide6.QtGui import (
-    QFont, QTextCursor, QAction, QKeySequence, QColor,
+    QFont, QTextCursor, QAction, QKeySequence, QColor, QIcon,
     QPainter, QPen, QBrush, QDragEnterEvent, QDropEvent,
     QActionGroup,
 )
@@ -36,14 +36,14 @@ from PySide6.QtWidgets import (
 )
 
 import pathsafe
-from pathsafe.anonymizer import anonymize_batch, anonymize_file, collect_wsi_files, scan_batch
+from pathsafe.anonymizer import anonymize_batch, anonymize_file, collect_wsi_files, scan_batch, WSI_EXTENSIONS
 from pathsafe.formats import detect_format, get_handler
 from pathsafe.log import (
     html_dim, html_error, html_finding, html_header, html_info,
     html_separator, html_success, html_summary_line, html_warning,
     set_html_theme,
 )
-from pathsafe.report import generate_certificate
+from pathsafe.report import generate_certificate, generate_scan_report, friendly_tag_name
 from pathsafe.verify import verify_batch
 
 
@@ -230,6 +230,44 @@ QTextEdit {
     border: 1px solid #313244;
     border-radius: 4px;
     selection-background-color: #45475a;
+}
+QScrollBar:vertical {
+    background-color: #181825;
+    width: 12px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical {
+    background-color: #585b70;
+    min-height: 30px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: #6c7086;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+QScrollBar:horizontal {
+    background-color: #181825;
+    height: 12px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal {
+    background-color: #585b70;
+    min-width: 30px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal:hover {
+    background-color: #6c7086;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
 }
 QTabWidget::pane {
     border: 1px solid #45475a;
@@ -469,6 +507,44 @@ QTextEdit {
     border-radius: 4px;
     selection-background-color: #a8d0f0;
 }
+QScrollBar:vertical {
+    background-color: #f0f0f0;
+    width: 12px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical {
+    background-color: #a0a0a0;
+    min-height: 30px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: #888888;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+QScrollBar:horizontal {
+    background-color: #f0f0f0;
+    height: 12px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal {
+    background-color: #a0a0a0;
+    min-width: 30px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal:hover {
+    background-color: #888888;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
 QTabWidget::pane {
     border: 1px solid #c0c0c0;
     border-radius: 4px;
@@ -579,12 +655,16 @@ class WorkerSignals(QObject):
 class ScanWorker(QThread):
     """Background thread for scanning files."""
 
-    def __init__(self, input_path, workers, signals, format_filter=None):
+    def __init__(self, input_path, workers, signals, format_filter=None,
+                 institution="", output_dir=None, file_list=None):
         super().__init__()
         self.input_path = input_path
         self.workers = workers
         self.signals = signals
         self.format_filter = format_filter
+        self.institution = institution
+        self.output_dir = output_dir
+        self.file_list = file_list
         self._stop = False
 
     def stop(self):
@@ -592,18 +672,20 @@ class ScanWorker(QThread):
 
     def run(self):
         try:
-            files = collect_wsi_files(self.input_path,
-                                      format_filter=self.format_filter)
+            if self.file_list:
+                files = list(self.file_list)
+            else:
+                files = collect_wsi_files(self.input_path,
+                                          format_filter=self.format_filter)
             total = len(files)
             if total == 0:
                 self.signals.log.emit(html_warning('No WSI files found.'))
                 return
 
-            workers_str = f', {self.workers} workers' if self.workers > 1 else ''
             fmt_str = f' [{self.format_filter.upper()}]' if self.format_filter else ''
             self.signals.log.emit(
                 html_header(f'PathSafe v{pathsafe.__version__} - PHI Scan'
-                            f'{fmt_str}{workers_str}'))
+                            f'{fmt_str}'))
             self.signals.log.emit(
                 html_info(f'Scanning {total} file(s)...'))
             self.signals.log.emit(html_separator())
@@ -621,11 +703,27 @@ class ScanWorker(QThread):
                 self.signals.status.emit(
                     f'Scanning {i}/{total_files}: {filepath.name}')
 
+                # Compute SHA-256 of the scanned file (pre-anonymization)
+                sha256 = ''
+                try:
+                    import hashlib
+                    h = hashlib.sha256()
+                    with open(filepath, 'rb') as fh:
+                        while True:
+                            chunk = fh.read(65536)
+                            if not chunk:
+                                break
+                            h.update(chunk)
+                    sha256 = h.hexdigest()
+                except OSError:
+                    pass
+
                 # Collect JSON-serializable result
                 entry = {
                     'filepath': str(filepath),
                     'is_clean': result.is_clean,
                     'error': result.error,
+                    'sha256': sha256,
                     'findings': [
                         {'tag_name': f.tag_name, 'value_preview': f.value_preview}
                         for f in result.findings
@@ -648,11 +746,13 @@ class ScanWorker(QThread):
                         f'{len(result.findings)} finding(s):'))
                     for f in result.findings:
                         self.signals.log.emit(html_finding(
-                            f'    {f.tag_name}: {f.value_preview}'))
+                            f'    {friendly_tag_name(f.tag_name)}: {f.value_preview}'))
 
             scan_batch(self.input_path, progress_callback=on_result,
                        workers=self.workers,
-                       format_filter=self.format_filter)
+                       format_filter=self.format_filter,
+                       stop_check=lambda: self._stop,
+                       file_list=self.file_list)
 
             # Summary
             self.signals.log.emit(html_separator())
@@ -676,6 +776,34 @@ class ScanWorker(QThread):
                 self.signals.log.emit(html_success(
                     'All files are clean - no PHI detected.'))
 
+            # Generate scan report PDF
+            scan_report_path = ''
+            try:
+                scan_data = {
+                    'total': total,
+                    'clean': clean,
+                    'phi_files': phi_files,
+                    'phi_findings': phi_count,
+                    'errors': error_count,
+                    'results': results_json,
+                }
+                if self.output_dir:
+                    report_dir = Path(self.output_dir)
+                    report_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    report_dir = Path(self.input_path) if Path(self.input_path).is_dir() \
+                        else Path(self.input_path).parent
+                stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                report_path = report_dir / f'pathsafe_scan_report_{stamp}.pdf'
+                generate_scan_report(scan_data, report_path,
+                                     institution=self.institution)
+                scan_report_path = str(report_path)
+                self.signals.log.emit(html_info(
+                    f'Scan report saved: {report_path.name}'))
+            except Exception as e:
+                self.signals.log.emit(html_warning(
+                    f'Could not generate scan report PDF: {e}'))
+
             self.signals.summary.emit({
                 'type': 'scan',
                 'total': total,
@@ -684,6 +812,7 @@ class ScanWorker(QThread):
                 'phi_findings': phi_count,
                 'errors': error_count,
                 'results_json': results_json,
+                'scan_report': scan_report_path,
             })
             self.signals.status.emit('Scan complete')
         except Exception as e:
@@ -699,7 +828,8 @@ class AnonymizeWorker(QThread):
     def __init__(self, input_path, output_dir, verify, workers, signals,
                  reset_timestamps=True,
                  format_filter=None,
-                 dry_run=False, verify_integrity=True):
+                 dry_run=False, verify_integrity=True,
+                 institution="", file_list=None):
         super().__init__()
         self.input_path = input_path
         self.output_dir = output_dir
@@ -708,8 +838,10 @@ class AnonymizeWorker(QThread):
         self.signals = signals
         self.reset_timestamps = reset_timestamps
         self.format_filter = format_filter
+        self.institution = institution
         self.dry_run = dry_run
         self.verify_integrity = verify_integrity
+        self.file_list = file_list
         self._stop = False
 
     def stop(self):
@@ -717,8 +849,11 @@ class AnonymizeWorker(QThread):
 
     def run(self):
         try:
-            files = collect_wsi_files(self.input_path,
-                                      format_filter=self.format_filter)
+            if self.file_list:
+                files = list(self.file_list)
+            else:
+                files = collect_wsi_files(self.input_path,
+                                          format_filter=self.format_filter)
             total = len(files)
             if total == 0:
                 self.signals.log.emit(html_warning('No WSI files found.'))
@@ -773,6 +908,11 @@ class AnonymizeWorker(QThread):
                     self.signals.log.emit(html_error(
                         '    Image data integrity: FAILED'))
 
+                # SHA-256 of output file
+                if result.sha256_after:
+                    self.signals.log.emit(html_dim(
+                        f'    SHA-256: {result.sha256_after}'))
+
                 # Filename PHI warning
                 if result.filename_has_phi:
                     self.signals.log.emit(html_error(
@@ -786,6 +926,8 @@ class AnonymizeWorker(QThread):
                 dry_run=self.dry_run,
                 format_filter=self.format_filter,
                 verify_integrity=self.verify_integrity,
+                stop_check=lambda: self._stop,
+                file_list=self.file_list,
             )
 
             cert_path = None
@@ -802,6 +944,7 @@ class AnonymizeWorker(QThread):
                 generate_certificate(
                     batch_result, output_path=cert_path,
                     timestamps_reset=self.reset_timestamps,
+                    institution=self.institution,
                 )
 
             # Summary
@@ -822,9 +965,13 @@ class AnonymizeWorker(QThread):
                 self.signals.log.emit(
                     html_summary_line('Errors:',
                                       batch_result.files_errored, 'red'))
+            pdf_cert_path = None
             if cert_path:
+                pdf_cert_path = cert_path.with_suffix('.pdf')
                 self.signals.log.emit(
                     html_info(f'Certificate: {cert_path}'))
+                self.signals.log.emit(
+                    html_info(f'PDF certificate: {pdf_cert_path}'))
             if self.dry_run:
                 self.signals.log.emit(
                     html_warning('DRY RUN - no files were modified.'))
@@ -854,6 +1001,7 @@ class AnonymizeWorker(QThread):
                 'errors': batch_result.files_errored,
                 'time': f'{batch_result.total_time_seconds:.1f}s',
                 'certificate': str(cert_path) if cert_path else '',
+                'pdf_certificate': str(pdf_cert_path) if pdf_cert_path else '',
                 'output_dir': str(self.output_dir) if self.output_dir else '',
                 'timestamps_reset': self.reset_timestamps,
                 'dry_run': self.dry_run,
@@ -1232,10 +1380,11 @@ class DropZoneWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setFixedHeight(50)
+        self.setFixedHeight(36)
 
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
+        layout.setContentsMargins(4, 2, 4, 2)
 
         self._icon_label = QLabel("Drag files or folders here")
         self._icon_label.setAlignment(Qt.AlignCenter)
@@ -1378,6 +1527,15 @@ class PathSafeWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(
             f'PathSafe v{pathsafe.__version__} - WSI Anonymizer')
+        # Set application icon (works both from source and PyInstaller bundle)
+        base = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+        icon_path = base / 'pathsafe' / 'assets' / 'icon.png'
+        if not icon_path.exists():
+            icon_path = Path(__file__).parent / 'assets' / 'icon.png'
+        if icon_path.exists():
+            app_icon = QIcon(str(icon_path))
+            self.setWindowIcon(app_icon)
+            QApplication.instance().setWindowIcon(app_icon)
         self.resize(1050, 760)
         self.setMinimumSize(1050, 700)
 
@@ -1385,9 +1543,11 @@ class PathSafeWindow(QMainWindow):
         self._last_dir = str(Path.home())
         self._last_anonymized_paths = []  # output paths from last anonymize run
         self._last_output_dir = None  # actual output dir (date-stamped subfolder)
+        self._selected_files = []  # multi-file selection list
         self._settings = QSettings('PathSafe', 'PathSafe')
         self._current_theme = self._settings.value('theme', 'dark')
-        self._scan_results_json = None
+        self._institution_name = self._settings.value('institution_name', '')
+        self._saved_workers = int(self._settings.value('workers', 4))
         self._step_completed = set()  # track completed steps {1, 2, 3}
         self._step_labels = {
             1: ('Step 1', 'Select Files'),
@@ -1405,7 +1565,7 @@ class PathSafeWindow(QMainWindow):
         # Set default output path
         default_output = self._get_default_output_dir()
         self.output_edit.setText(str(default_output))
-        self._mark_step_completed(3)
+        self._mark_step_default(3)
 
     def _build_menu_bar(self):
         menu_bar = self.menuBar()
@@ -1464,12 +1624,6 @@ class PathSafeWindow(QMainWindow):
         self._save_log_action.setShortcut("Ctrl+L")
         self._save_log_action.triggered.connect(self._save_log)
         actions_menu.addAction(self._save_log_action)
-
-        self._export_json_action = QAction("Export &JSON...", self)
-        self._export_json_action.setShortcut("Ctrl+J")
-        self._export_json_action.triggered.connect(self._export_json)
-        self._export_json_action.setEnabled(False)
-        actions_menu.addAction(self._export_json_action)
 
         actions_menu.addSeparator()
 
@@ -1610,7 +1764,7 @@ class PathSafeWindow(QMainWindow):
         # Wrap top section with max height so log gets priority
         top_widget = QWidget()
         top_widget.setLayout(top_split)
-        top_widget.setMaximumHeight(380)
+        top_widget.setMaximumHeight(440)
         layout.addWidget(top_widget)
 
         # === Progress bar (full width) ===
@@ -1643,14 +1797,6 @@ class PathSafeWindow(QMainWindow):
         self.btn_save_log.setToolTip("Save the log output as an HTML file.")
         self.btn_save_log.clicked.connect(self._save_log)
         export_row.addWidget(self.btn_save_log)
-
-        self.btn_export_json = QPushButton('Export JSON')
-        self.btn_export_json.setToolTip(
-            "Export scan results as a structured JSON file.\n"
-            "Available after running a scan.")
-        self.btn_export_json.setEnabled(False)
-        self.btn_export_json.clicked.connect(self._export_json)
-        export_row.addWidget(self.btn_export_json)
 
         export_row.addStretch()
         layout.addLayout(export_row)
@@ -1705,24 +1851,43 @@ class PathSafeWindow(QMainWindow):
 
         # Row 2: Workers
         workers_row = QHBoxLayout()
-        workers_label = QLabel('Workers:')
-        workers_label.setFixedWidth(70)
+        workers_label = QLabel('Workers (anonymize only):')
+        workers_label.setMinimumWidth(70)
         workers_row.addWidget(workers_label)
         self.slider_workers = QSlider(Qt.Horizontal)
         self.slider_workers.setRange(1, 16)
-        self.slider_workers.setValue(4)
+        self.slider_workers.setValue(self._saved_workers)
         self.slider_workers.setToolTip(
             "Number of files to process simultaneously.\n"
+            "Applies to anonymization only (scanning is single-threaded).\n"
             "Higher values are faster but use more memory.\n"
             "Recommended: 2-4 for most systems.")
-        self._workers_label = QLabel('4')
+        self._workers_label = QLabel(str(self._saved_workers))
         self._workers_label.setFixedWidth(24)
         self._workers_label.setAlignment(Qt.AlignCenter)
-        self.slider_workers.valueChanged.connect(
-            lambda v: self._workers_label.setText(str(v)))
+        self.slider_workers.valueChanged.connect(self._on_workers_changed)
         workers_row.addWidget(self.slider_workers, 1)
         workers_row.addWidget(self._workers_label)
         opts_vlayout.addLayout(workers_row)
+
+        # Row 2b: Institution name
+        institution_row = QHBoxLayout()
+        institution_label = QLabel('Institution for report (optional):')
+        institution_label.setMinimumWidth(70)
+        institution_row.addWidget(institution_label)
+        self.institution_edit = QLineEdit()
+        self.institution_edit.setMinimumHeight(36)
+        self.institution_edit.setMaximumWidth(500)
+        self.institution_edit.setPlaceholderText(
+            'e.g. "Memorial General Hospital"')
+        self.institution_edit.setToolTip(
+            "Institution name displayed on PDF scan reports\n"
+            "and anonymization certificates.\n"
+            "Leave empty to omit from reports.")
+        self.institution_edit.setText(self._institution_name)
+        self.institution_edit.textChanged.connect(self._on_institution_changed)
+        institution_row.addWidget(self.institution_edit, 1)
+        opts_vlayout.addLayout(institution_row)
 
         # Row 3: Format + Dry run
         format_row = QHBoxLayout()
@@ -1947,18 +2112,36 @@ class PathSafeWindow(QMainWindow):
             self._browse_input_dir()
 
     def _browse_input_file(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, 'Select WSI file', self._last_dir,
-            'WSI files (*.ndpi *.svs *.mrxs *.dcm *.tif *.tiff);;All files (*)')
-        if path:
-            self.input_edit.setText(path)
-            self._last_dir = str(Path(path).parent)
-            self._mark_step_completed(1)
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, 'Select WSI file(s)', self._last_dir,
+            'WSI files (*.ndpi *.svs *.mrxs *.bif *.scn *.dcm *.dicom *.tif *.tiff);;All files (*)')
+        if not paths:
+            return
+        # Validate extensions
+        for path in paths:
+            ext = Path(path).suffix.lower()
+            if ext not in WSI_EXTENSIONS:
+                supported = ', '.join(sorted(WSI_EXTENSIONS))
+                QMessageBox.warning(
+                    self, 'Unsupported File Type',
+                    f'<p>The selected file (<b>{Path(path).name}</b>) is not a '
+                    f'supported whole-slide image format.</p>'
+                    f'<p>Supported extensions: <code>{supported}</code></p>')
+                return
+        self._selected_files = [Path(p) for p in paths]
+        if len(paths) == 1:
+            self.input_edit.setText(paths[0])
+        else:
+            self.input_edit.setText(
+                f'{paths[0]} (+ {len(paths) - 1} more)')
+        self._last_dir = str(Path(paths[0]).parent)
+        self._mark_step_completed(1)
 
     def _browse_input_dir(self):
         path = QFileDialog.getExistingDirectory(
             self, 'Select folder with WSI files', self._last_dir)
         if path:
+            self._selected_files = []
             self.input_edit.setText(path)
             self._last_dir = path
             self._mark_step_completed(1)
@@ -2008,6 +2191,7 @@ class PathSafeWindow(QMainWindow):
     def _on_path_dropped(self, path):
         p = Path(path)
         if p.exists():
+            self._selected_files = []
             self.input_edit.setText(path)
             self._last_dir = str(p.parent if p.is_file() else p)
             self._mark_step_completed(1)
@@ -2050,20 +2234,6 @@ class PathSafeWindow(QMainWindow):
         except OSError:
             pass  # non-critical, don't interrupt the user
 
-    def _export_json(self):
-        if not self._scan_results_json:
-            QMessageBox.warning(
-                self, 'Error', 'No scan results to export. Run a scan first.')
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self, 'Export JSON', self._last_dir + '/pathsafe_scan.json',
-            'JSON files (*.json);;All files (*)')
-        if path:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self._scan_results_json, f, indent=2)
-            self._last_dir = str(Path(path).parent)
-            self.statusBar().showMessage(f'JSON exported to {path}')
-
     # --- Summary popup ---
 
     def _show_summary(self, data):
@@ -2077,18 +2247,15 @@ class PathSafeWindow(QMainWindow):
             phi_findings = data.get('phi_findings', 0)
             errors = data.get('errors', 0)
 
-            # Store scan results for JSON export
-            results_json = data.get('results_json')
-            if results_json is not None:
-                self._scan_results_json = results_json
-                self.btn_export_json.setEnabled(True)
-                self._export_json_action.setEnabled(True)
-
             if phi_files == 0 and errors == 0:
                 icon = QMessageBox.Information
                 title = 'Scan Complete: All Clean'
+                scan_report = data.get('scan_report', '')
+                report_line = (f'<p>Scan report:<br><code>{Path(scan_report).name}</code></p>'
+                               if scan_report else '')
                 msg = (f'<h3>All {total} files are clean</h3>'
-                       f'<p>No patient information (PHI) was detected.</p>')
+                       f'<p>No patient information (PHI) was detected.</p>'
+                       f'{report_line}')
             else:
                 icon = QMessageBox.Warning
                 title = 'Scan Complete: PHI Detected'
@@ -2105,6 +2272,10 @@ class PathSafeWindow(QMainWindow):
                 lines.append('</table>')
                 if phi_files:
                     lines.append('<p>Run <b>Anonymize</b> to remove detected PHI.</p>')
+                scan_report = data.get('scan_report', '')
+                if scan_report:
+                    lines.append(
+                        f'<p>Scan report:<br><code>{Path(scan_report).name}</code></p>')
                 msg = ''.join(lines)
 
         elif op == 'anonymize':
@@ -2176,8 +2347,13 @@ class PathSafeWindow(QMainWindow):
                     lines.append(
                         f'<p>Output folder:<br><code>{output_dir}</code></p>')
                 if cert:
+                    pdf_cert = data.get('pdf_certificate', '')
                     lines.append(
-                        f'<p>Certificate:<br><code>{Path(cert).name}</code></p>')
+                        f'<p>Certificate:<br><code>{Path(cert).name}</code>')
+                    if pdf_cert:
+                        lines.append(
+                            f'<br><code>{Path(pdf_cert).name}</code>')
+                    lines.append('</p>')
 
 
             msg = ''.join(lines)
@@ -2260,6 +2436,14 @@ class PathSafeWindow(QMainWindow):
             num, name = self._step_labels[step]
             btn.setText(f'{num} [Done]\n{name}')
 
+    def _mark_step_default(self, step):
+        """Mark a workflow step as using its default value."""
+        self._step_completed.add(step)
+        btn = self._step_buttons.get(step)
+        if btn and step in self._step_labels:
+            num, name = self._step_labels[step]
+            btn.setText(f'{num} [Default]\n{name}')
+
     def _reset_step(self, step):
         """Reset a step button to its default text."""
         self._step_completed.discard(step)
@@ -2267,6 +2451,16 @@ class PathSafeWindow(QMainWindow):
         if btn and step in self._step_labels:
             num, name = self._step_labels[step]
             btn.setText(f'{num}\n{name}')
+
+    # --- Persistent settings callbacks ---
+
+    def _on_workers_changed(self, value):
+        self._workers_label.setText(str(value))
+        self._settings.setValue('workers', value)
+
+    def _on_institution_changed(self, text):
+        self._institution_name = text
+        self._settings.setValue('institution_name', text)
 
     # --- Run state ---
 
@@ -2291,6 +2485,7 @@ class PathSafeWindow(QMainWindow):
         self.radio_copy.setEnabled(not running)
         self.radio_inplace.setEnabled(not running)
         self.slider_workers.setEnabled(not running)
+        self.institution_edit.setEnabled(not running)
         self.combo_format_filter.setEnabled(not running)
         self.check_dry_run.setEnabled(not running)
         # Convert tab controls
@@ -2315,9 +2510,12 @@ class PathSafeWindow(QMainWindow):
     def _request_stop(self):
         if self._worker:
             self._worker.stop()
-            self._log('Stop requested... finishing current file.')
+            self._log('Stopped.')
 
     def _validate_input(self):
+        if self._selected_files:
+            # Multi-file selection: files already validated at selection time
+            return self._selected_files[0].parent
         path = self.input_edit.text().strip()
         if not path:
             QMessageBox.warning(
@@ -2358,9 +2556,14 @@ class PathSafeWindow(QMainWindow):
 
         signals.finished.connect(on_done)
 
+        output_dir = self.output_edit.text().strip() or None
+        file_list = self._selected_files if self._selected_files else None
         self._worker = ScanWorker(
             input_p, self.slider_workers.value(), signals,
-            format_filter=self._get_format_filter())
+            format_filter=self._get_format_filter(),
+            institution=self._institution_name,
+            output_dir=output_dir,
+            file_list=file_list)
         self._worker.start()
 
     # --- Anonymize ---
@@ -2415,6 +2618,7 @@ class PathSafeWindow(QMainWindow):
 
         signals.finished.connect(on_done)
 
+        file_list = self._selected_files if self._selected_files else None
         self._worker = AnonymizeWorker(
             input_p, output_dir,
             True,
@@ -2424,6 +2628,8 @@ class PathSafeWindow(QMainWindow):
             format_filter=self._get_format_filter(),
             dry_run=dry_run,
             verify_integrity=True,
+            institution=self._institution_name,
+            file_list=file_list,
         )
         self._worker.start()
 
@@ -2562,6 +2768,37 @@ class PathSafeWindow(QMainWindow):
         self._light_action.setChecked(theme == 'light')
         self._settings.setValue('theme', theme)
 
+    # --- Close guard ---
+
+    def closeEvent(self, event):
+        if self._worker is not None:
+            is_read_only = isinstance(self._worker, (ScanWorker, VerifyWorker, InfoWorker))
+            if is_read_only:
+                reply = QMessageBox.question(
+                    self, 'Scan In Progress',
+                    'A scan is still running. It is safe to quit now — '
+                    'scanning is read-only and will not corrupt any files.\n\n'
+                    'Close the application?',
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    event.ignore()
+                    return
+                self._worker.stop()
+                self._worker.terminate()
+                self._worker.wait(2000)
+            else:
+                reply = QMessageBox.question(
+                    self, 'Operation In Progress',
+                    'An anonymization or conversion is still running. '
+                    'Closing now may leave partially written output files.\n\n'
+                    'Are you sure you want to quit?',
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    event.ignore()
+                    return
+                self._worker.stop()
+        event.accept()
+
     # --- About ---
 
     def _show_about(self):
@@ -2572,7 +2809,7 @@ class PathSafeWindow(QMainWindow):
             "<p>Removes patient-identifying information (PHI) from "
             "NDPI, SVS, MRXS, DICOM, and other whole-slide image formats.</p>"
             "<p>Includes label/macro image blanking, post-anonymization "
-            "verification, and JSON compliance certificates.</p>"
+            "verification, and PDF compliance certificates.</p>"
         )
 
 
@@ -2582,6 +2819,16 @@ def main():
     app.setStyle('Fusion')
     app.setStyleSheet(DARK_QSS)
     window = PathSafeWindow()
+
+    # Accept a file/folder path as command-line argument (e.g., "Open with")
+    args = app.arguments()[1:]  # skip the program name
+    if args:
+        path = Path(args[0])
+        if path.exists():
+            window.input_edit.setText(str(path))
+            window._last_dir = str(path.parent if path.is_file() else path)
+            window._mark_step_completed(1)
+
     window.show()
     sys.exit(app.exec())
 

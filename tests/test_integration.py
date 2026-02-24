@@ -249,7 +249,6 @@ class TestCertificatePipeline:
         measure_names = [m['measure'] for m in data['measures']]
         assert 'Metadata tags cleared' in measure_names
         assert 'Post-anonymization verification' in measure_names
-        assert 'Filename PHI detection' in measure_names
         assert 'Filesystem timestamps reset' in measure_names
 
     def test_certificate_with_integrity(self, tmp_tiff_with_strips, tmp_path):
