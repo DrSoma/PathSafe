@@ -277,7 +277,7 @@ Optional dependencies add extra capabilities:
 
 # Acknowledgments
 
-Developed and tested at the Department of Pathology, McGill University.
+Developed and tested at the McGill University Research Institute, Department of Pathology.
 
 # License
 
