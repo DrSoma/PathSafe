@@ -81,8 +81,8 @@ PHI_STRING_PATTERNS: List[Tuple[re.Pattern, str]] = [
 # Anonymized date sentinel — dates that have already been zeroed
 ANONYMIZED_DATE_SENTINEL = b'1900:01:01 00:00:00'
 
-# Default header scan size for regex safety scan (256KB)
-DEFAULT_SCAN_SIZE = 256_000
+# Default header scan size for regex safety scan (1MB)
+DEFAULT_SCAN_SIZE = 1_000_000
 
 
 def scan_bytes_for_phi(data: bytes,

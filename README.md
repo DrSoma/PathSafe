@@ -178,7 +178,7 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Macro/label image | Embedded overview photo | A photograph of the entire slide, including the label with patient info |
 | Companion files | .ndpa annotation files | XML annotation files that may reference patient identifiers |
 | Filename patterns | Accession numbers in filenames | Filenames like `AS-24-123456.ndpi` contain case numbers |
-| Remaining patterns | Binary scan of header (256KB) | A safety net that catches accession numbers, MRNs, SSNs, and dates embedded elsewhere |
+| Remaining patterns | Binary scan of header (1MB) | A safety net that catches accession numbers, MRNs, SSNs, and dates embedded elsewhere |
 
 ## SVS (Aperio)
 
@@ -190,7 +190,7 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Label image | Embedded label photo | A photograph of the physical slide label, which often has the patient name or ID |
 | Macro image | Embedded overview photo | A wide-angle photo that may capture the label |
 | Filename patterns | Accession numbers in filenames | Filenames containing case identifiers |
-| Remaining patterns | Binary scan of header (256KB) | A safety net that catches accession numbers, MRNs, SSNs, and dates embedded elsewhere |
+| Remaining patterns | Binary scan of header (1MB) | A safety net that catches accession numbers, MRNs, SSNs, and dates embedded elsewhere |
 
 ## MRXS (3DHISTECH/MIRAX)
 
@@ -214,7 +214,7 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Device/operator info | XMP tag: DeviceSerialNumber, OperatorID, UniqueID | Institutional fingerprints |
 | Base filename | XMP tag: BaseFileName | May contain patient identifiers |
 | Label/macro image | IFDs labeled "Label Image" or "Macro" | Photographed slide labels with patient info |
-| Remaining patterns | Binary scan of header (256KB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
+| Remaining patterns | Binary scan of header (1MB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
 
 ## SCN (Leica)
 
@@ -224,7 +224,7 @@ pathsafe convert slide.ndpi -o label.png --extract label # Extract label image
 | Creation date | ImageDescription XML: creationDate element | Cross-referenceable timestamp |
 | Device info | ImageDescription XML: device/model/version | Institutional fingerprints |
 | Label/macro image | Separate TIFF IFDs | Photographed slide labels |
-| Remaining patterns | Binary scan of header (256KB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
+| Remaining patterns | Binary scan of header (1MB) | Safety net for stray identifiers (accession numbers, MRNs, SSNs, dates) |
 
 ## DICOM WSI
 
@@ -268,7 +268,7 @@ PathSafe implements **Level IV** anonymization. The table below shows how PathSa
 | Format-specific deep parsing | Yes (structured tag fields) | No | String replacement only |
 | Multi-IFD scanning | All IFDs with deduplication | Stops at first match | Unknown |
 | Extra metadata tags (XMP, IPTC, EXIF, etc.) | Yes (9 tag types) | No | No |
-| Regex safety scan (binary header) | Yes (first 256KB, 17+ pattern types) | No | No |
+| Regex safety scan (binary header) | Yes (first 1MB, 17+ pattern types) | No | No |
 | Post-anonymization verification | Yes (re-scan + report) | No | No |
 | Image integrity verification | Yes (SHA-256 per IFD) | No | No |
 | Compliance certificate | Yes (JSON audit trail) | No | No |

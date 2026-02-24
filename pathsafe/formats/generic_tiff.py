@@ -1,6 +1,6 @@
 """Generic TIFF fallback handler.
 
-Scans all string tags in the first IFD for PHI patterns.
+Scans all string tags across ALL IFDs for PHI patterns.
 Used as a fallback when no specific handler matches.
 """
 
@@ -23,6 +23,7 @@ from pathsafe.tiff import (
     read_tag_string,
     read_tag_value_bytes,
     get_all_string_tags,
+    iter_ifds,
     scan_extra_metadata_tags,
     blank_extra_metadata_tag,
     EXTRA_METADATA_TAGS,
@@ -72,44 +73,53 @@ class GenericTIFFHandler(FormatHandler):
                         error="Not a valid TIFF file",
                     )
 
-                # Check all string tags in first IFD
-                string_tags = get_all_string_tags(f, header, header.first_ifd_offset)
-                for entry, value in string_tags:
-                    # Check for PHI patterns in string values
-                    str_findings = scan_string_for_phi(value)
-                    for char_off, length, matched, label in str_findings:
+                # Scan all IFDs for string tags and extra metadata
+                seen = set()
+                for _, entries in iter_ifds(f, header):
+                    for entry in entries:
+                        if entry.value_offset in seen:
+                            continue
+                        if entry.dtype == 2:  # ASCII string tags
+                            seen.add(entry.value_offset)
+                            value = read_tag_string(f, entry)
+                            if not value:
+                                continue
+                            # Check for PHI patterns in string values
+                            str_findings = scan_string_for_phi(value)
+                            for char_off, length, matched, label in str_findings:
+                                findings.append(PHIFinding(
+                                    offset=entry.value_offset + char_off,
+                                    length=length,
+                                    tag_id=entry.tag_id,
+                                    tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
+                                    value_preview=matched[:50],
+                                    source='tiff_tag',
+                                ))
+                            # Check date tags
+                            if entry.tag_id in GENERIC_DATE_TAGS:
+                                if not is_date_anonymized(value):
+                                    findings.append(PHIFinding(
+                                        offset=entry.value_offset,
+                                        length=entry.total_size,
+                                        tag_id=entry.tag_id,
+                                        tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
+                                        value_preview=value[:30],
+                                        source='tiff_tag',
+                                    ))
+
+                    # Scan extra metadata (XMP, EXIF UserComment, Artist, etc.)
+                    for entry, value in scan_extra_metadata_tags(f, header, entries):
+                        if entry.value_offset in seen:
+                            continue
+                        seen.add(entry.value_offset)
                         findings.append(PHIFinding(
-                            offset=entry.value_offset + char_off,
-                            length=length,
+                            offset=entry.value_offset,
+                            length=entry.total_size,
                             tag_id=entry.tag_id,
-                            tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
-                            value_preview=matched[:50],
+                            tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                            value_preview=value[:50],
                             source='tiff_tag',
                         ))
-
-                    # Check date tags
-                    if entry.tag_id in GENERIC_DATE_TAGS:
-                        if value and not is_date_anonymized(value):
-                            findings.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=entry.tag_id,
-                                tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
-                                value_preview=value[:30],
-                                source='tiff_tag',
-                            ))
-
-                # Scan extra metadata (XMP, EXIF UserComment, Artist, etc.)
-                entries_all, _ = read_ifd(f, header, header.first_ifd_offset)
-                for entry, value in scan_extra_metadata_tags(f, header, entries_all):
-                    findings.append(PHIFinding(
-                        offset=entry.value_offset,
-                        length=entry.total_size,
-                        tag_id=entry.tag_id,
-                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
-                        value_preview=value[:50],
-                        source='tiff_tag',
-                    ))
 
             # Regex safety scan
             with open(filepath, 'rb') as f:
@@ -145,50 +155,53 @@ class GenericTIFFHandler(FormatHandler):
         """Anonymize PHI in a generic TIFF file."""
         cleared: List[PHIFinding] = []
 
+        seen = set()
         with open(filepath, 'r+b') as f:
             header = read_header(f)
             if header is None:
                 return cleared
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.dtype == 2:  # ASCII string tags
-                    value = read_tag_string(f, entry)
-                    str_findings = scan_string_for_phi(value)
-                    if str_findings:
-                        # Overwrite entire tag value with X's + null
-                        replacement = b'X' * (entry.total_size - 1) + b'\x00'
-                        f.seek(entry.value_offset)
-                        f.write(replacement)
-                        for _, _, matched, label in str_findings:
-                            cleared.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=entry.tag_id,
-                                tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
-                                value_preview=matched[:50],
-                                source='tiff_tag',
-                            ))
-
-                    if entry.tag_id in GENERIC_DATE_TAGS:
-                        if value and not is_date_anonymized(value):
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.value_offset in seen:
+                        continue
+                    if entry.dtype == 2:  # ASCII string tags
+                        seen.add(entry.value_offset)
+                        value = read_tag_string(f, entry)
+                        str_findings = scan_string_for_phi(value)
+                        if str_findings:
+                            # Overwrite entire tag value with X's + null
+                            replacement = b'X' * (entry.total_size - 1) + b'\x00'
                             f.seek(entry.value_offset)
-                            f.write(b'\x00' * entry.total_size)
-                            cleared.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=entry.tag_id,
-                                tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
-                                value_preview=value[:30],
-                                source='tiff_tag',
-                            ))
+                            f.write(replacement)
+                            for _, _, matched, label in str_findings:
+                                cleared.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=entry.tag_id,
+                                    tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
+                                    value_preview=matched[:50],
+                                    source='tiff_tag',
+                                ))
 
-        # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
-        with open(filepath, 'r+b') as f:
-            header = read_header(f)
-            if header:
-                entries_all, _ = read_ifd(f, header, header.first_ifd_offset)
-                for entry, value in scan_extra_metadata_tags(f, header, entries_all):
+                        if entry.tag_id in GENERIC_DATE_TAGS:
+                            if value and not is_date_anonymized(value):
+                                f.seek(entry.value_offset)
+                                f.write(b'\x00' * entry.total_size)
+                                cleared.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=entry.tag_id,
+                                    tag_name=TAG_NAMES.get(entry.tag_id, f'Tag_{entry.tag_id}'),
+                                    value_preview=value[:30],
+                                    source='tiff_tag',
+                                ))
+
+                # Extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+                for entry, value in scan_extra_metadata_tags(f, header, entries):
+                    if entry.value_offset in seen:
+                        continue
+                    seen.add(entry.value_offset)
                     blank_extra_metadata_tag(f, entry)
                     cleared.append(PHIFinding(
                         offset=entry.value_offset,

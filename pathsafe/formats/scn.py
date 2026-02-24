@@ -26,7 +26,6 @@ from pathsafe.scanner import (
 )
 from pathsafe.tiff import (
     read_header,
-    read_ifd,
     read_tag_string,
     read_tag_value_bytes,
     iter_ifds,
@@ -42,6 +41,9 @@ from pathsafe.tiff import (
 # XML elements/attributes in Leica SCN ImageDescription that contain PHI
 SCN_PHI_ELEMENTS = {
     'barcode', 'creationDate', 'device', 'model', 'version',
+    'slideName', 'description', 'user', 'operator',
+    'institution', 'uniqueID', 'serialNumber',
+    'acquisitionDate', 'acquisitionTime',
 }
 
 DATE_TAGS = {
@@ -126,55 +128,56 @@ class SCNHandler(FormatHandler):
     # --- Internal methods ---
 
     def _scan_xml_metadata(self, filepath: Path) -> List[PHIFinding]:
-        """Scan ImageDescription XML for PHI elements (barcode, dates, device)."""
+        """Scan ImageDescription XML for PHI elements across all IFDs."""
         findings = []
+        seen = set()
         with open(filepath, 'rb') as f:
             header = read_header(f)
             if header is None:
                 return findings
 
-            # Check first IFD's ImageDescription for XML
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id == 270:
-                    raw = read_tag_value_bytes(f, entry)
-                    xml_text = raw.rstrip(b'\x00').decode('utf-8', errors='replace')
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 270 and entry.value_offset not in seen:
+                        seen.add(entry.value_offset)
+                        raw = read_tag_value_bytes(f, entry)
+                        xml_text = raw.rstrip(b'\x00').decode('utf-8', errors='replace')
 
-                    if '<' not in xml_text:
-                        break  # Not XML
+                        if '<' not in xml_text:
+                            break  # Not XML
 
-                    for elem_name in SCN_PHI_ELEMENTS:
-                        # Match <element>value</element> pattern
-                        pattern = re.compile(
-                            rf'<{elem_name}[^>]*>([^<]+)</{elem_name}>',
-                            re.IGNORECASE)
-                        for m in pattern.finditer(xml_text):
-                            val = m.group(1).strip()
-                            if val and not _is_scn_anonymized(val):
-                                findings.append(PHIFinding(
-                                    offset=entry.value_offset,
-                                    length=entry.total_size,
-                                    tag_id=270,
-                                    tag_name=f'SCN:XML:{elem_name}',
-                                    value_preview=f'{elem_name}={val[:40]}',
-                                    source='tiff_tag',
-                                ))
+                        for elem_name in SCN_PHI_ELEMENTS:
+                            # Match <element>value</element> pattern
+                            pattern = re.compile(
+                                rf'<{elem_name}[^>]*>([^<]+)</{elem_name}>',
+                                re.IGNORECASE)
+                            for m in pattern.finditer(xml_text):
+                                val = m.group(1).strip()
+                                if val and not _is_scn_anonymized(val):
+                                    findings.append(PHIFinding(
+                                        offset=entry.value_offset,
+                                        length=entry.total_size,
+                                        tag_id=270,
+                                        tag_name=f'SCN:XML:{elem_name}',
+                                        value_preview=f'{elem_name}={val[:40]}',
+                                        source='tiff_tag',
+                                    ))
 
-                        # Match attribute= pattern (e.g., barcode="...")
-                        pattern2 = re.compile(
-                            rf'{elem_name}\s*=\s*"([^"]*)"', re.IGNORECASE)
-                        for m in pattern2.finditer(xml_text):
-                            val = m.group(1).strip()
-                            if val and not _is_scn_anonymized(val):
-                                findings.append(PHIFinding(
-                                    offset=entry.value_offset,
-                                    length=entry.total_size,
-                                    tag_id=270,
-                                    tag_name=f'SCN:XML:{elem_name}',
-                                    value_preview=f'{elem_name}={val[:40]}',
-                                    source='tiff_tag',
-                                ))
-                    break
+                            # Match attribute= pattern (e.g., barcode="...")
+                            pattern2 = re.compile(
+                                rf'{elem_name}\s*=\s*"([^"]*)"', re.IGNORECASE)
+                            for m in pattern2.finditer(xml_text):
+                                val = m.group(1).strip()
+                                if val and not _is_scn_anonymized(val):
+                                    findings.append(PHIFinding(
+                                        offset=entry.value_offset,
+                                        length=entry.total_size,
+                                        tag_id=270,
+                                        tag_name=f'SCN:XML:{elem_name}',
+                                        value_preview=f'{elem_name}={val[:40]}',
+                                        source='tiff_tag',
+                                    ))
+                        break  # Only one tag 270 per IFD
         return findings
 
     def _scan_date_tags(self, filepath: Path) -> List[PHIFinding]:
@@ -277,73 +280,75 @@ class SCNHandler(FormatHandler):
         return findings
 
     def _anonymize_xml_metadata(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize PHI in ImageDescription XML."""
+        """Anonymize PHI in ImageDescription XML across all IFDs."""
         cleared = []
+        seen = set()
         with open(filepath, 'r+b') as f:
             header = read_header(f)
             if header is None:
                 return cleared
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id == 270:
-                    raw = read_tag_value_bytes(f, entry)
-                    xml_text = raw.rstrip(b'\x00').decode('utf-8', errors='replace')
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 270 and entry.value_offset not in seen:
+                        seen.add(entry.value_offset)
+                        raw = read_tag_value_bytes(f, entry)
+                        xml_text = raw.rstrip(b'\x00').decode('utf-8', errors='replace')
 
-                    if '<' not in xml_text:
-                        break
+                        if '<' not in xml_text:
+                            break
 
-                    modified = False
-                    for elem_name in SCN_PHI_ELEMENTS:
-                        # Replace element content
-                        pattern = re.compile(
-                            rf'(<{elem_name}[^>]*>)([^<]+)(</{elem_name}>)',
-                            re.IGNORECASE)
+                        modified = False
+                        for elem_name in SCN_PHI_ELEMENTS:
+                            # Replace element content
+                            pattern = re.compile(
+                                rf'(<{elem_name}[^>]*>)([^<]+)(</{elem_name}>)',
+                                re.IGNORECASE)
 
-                        def _replace_elem(m):
-                            val = m.group(2)
-                            if val.strip() and not _is_scn_anonymized(val.strip()):
-                                return m.group(1) + 'X' * len(val) + m.group(3)
-                            return m.group(0)
+                            def _replace_elem(m):
+                                val = m.group(2)
+                                if val.strip() and not _is_scn_anonymized(val.strip()):
+                                    return m.group(1) + 'X' * len(val) + m.group(3)
+                                return m.group(0)
 
-                        new_text, count = pattern.subn(_replace_elem, xml_text)
-                        if count > 0 and new_text != xml_text:
-                            xml_text = new_text
-                            modified = True
-                            cleared.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=270,
-                                tag_name=f'SCN:XML:{elem_name}',
-                                value_preview=f'{elem_name} anonymized',
-                                source='tiff_tag',
-                            ))
+                            new_text, count = pattern.subn(_replace_elem, xml_text)
+                            if count > 0 and new_text != xml_text:
+                                xml_text = new_text
+                                modified = True
+                                cleared.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=270,
+                                    tag_name=f'SCN:XML:{elem_name}',
+                                    value_preview=f'{elem_name} anonymized',
+                                    source='tiff_tag',
+                                ))
 
-                        # Replace attribute values
-                        pattern2 = re.compile(
-                            rf'({elem_name}\s*=\s*")([^"]*?)(")',
-                            re.IGNORECASE)
+                            # Replace attribute values
+                            pattern2 = re.compile(
+                                rf'({elem_name}\s*=\s*")([^"]*?)(")',
+                                re.IGNORECASE)
 
-                        def _replace_attr(m):
-                            val = m.group(2)
-                            if val and not _is_scn_anonymized(val):
-                                return m.group(1) + 'X' * len(val) + m.group(3)
-                            return m.group(0)
+                            def _replace_attr(m):
+                                val = m.group(2)
+                                if val and not _is_scn_anonymized(val):
+                                    return m.group(1) + 'X' * len(val) + m.group(3)
+                                return m.group(0)
 
-                        new_text, count = pattern2.subn(_replace_attr, xml_text)
-                        if count > 0 and new_text != xml_text:
-                            xml_text = new_text
-                            modified = True
+                            new_text, count = pattern2.subn(_replace_attr, xml_text)
+                            if count > 0 and new_text != xml_text:
+                                xml_text = new_text
+                                modified = True
 
-                    if modified:
-                        new_bytes = xml_text.encode('utf-8', errors='replace')
-                        if len(new_bytes) < entry.total_size:
-                            new_bytes += b'\x00' * (entry.total_size - len(new_bytes))
-                        else:
-                            new_bytes = new_bytes[:entry.total_size]
-                        f.seek(entry.value_offset)
-                        f.write(new_bytes)
-                    break
+                        if modified:
+                            new_bytes = xml_text.encode('utf-8', errors='replace')
+                            if len(new_bytes) < entry.total_size:
+                                new_bytes += b'\x00' * (entry.total_size - len(new_bytes))
+                            else:
+                                new_bytes = new_bytes[:entry.total_size]
+                            f.seek(entry.value_offset)
+                            f.write(new_bytes)
+                        break  # Only one tag 270 per IFD
         return cleared
 
     def _anonymize_date_tags(self, filepath: Path) -> List[PHIFinding]:

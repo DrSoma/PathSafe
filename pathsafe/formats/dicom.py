@@ -80,6 +80,23 @@ TAGS_TO_BLANK = {
     # Device module
     (0x0018, 0x1000): ('DeviceSerialNumber', 'LO'),
     (0x0018, 0x1020): ('SoftwareVersions', 'LO'),
+    # Instance creation
+    (0x0008, 0x0012): ('InstanceCreationDate', 'DA'),
+    (0x0008, 0x0013): ('InstanceCreationTime', 'TM'),
+    # Patient demographics (PS3.15 Annex E)
+    (0x0010, 0x2180): ('Occupation', 'SH'),
+    # Issuer of Patient ID
+    (0x0010, 0x0021): ('IssuerOfPatientID', 'LO'),
+    (0x0010, 0x0022): ('TypeOfPatientID', 'CS'),
+    # Performed procedure
+    (0x0040, 0x0241): ('PerformedStationAETitle', 'AE'),
+    (0x0040, 0x0242): ('PerformedStationName', 'SH'),
+    (0x0040, 0x0243): ('PerformedLocation', 'SH'),
+    (0x0040, 0x0253): ('PerformedProcedureStepID', 'SH'),
+    (0x0040, 0x0244): ('PerformedProcedureStepStartDate', 'DA'),
+    (0x0040, 0x0245): ('PerformedProcedureStepStartTime', 'TM'),
+    (0x0040, 0x0250): ('PerformedProcedureStepEndDate', 'DA'),
+    (0x0040, 0x0251): ('PerformedProcedureStepEndTime', 'TM'),
 }
 
 # Tags to DELETE entirely (Type 3: optional, remove)
@@ -153,6 +170,24 @@ TAGS_TO_DELETE = {
     (0x0008, 0x1115): 'ReferencedSeriesSequence',
     (0x0088, 0x0140): 'StorageMediaFileSetUID',
     (0x3006, 0x0024): 'ReferencedFrameOfReferenceUID',
+    # Verifying observer (structured reports)
+    (0x0040, 0xA073): 'VerifyingObserverSequence',
+    (0x0040, 0xA075): 'VerifyingObserverName',
+    (0x0040, 0xA088): 'VerifyingObserverIdentificationCodeSequence',
+    # Clinical trial tags (PS3.15 Annex E)
+    (0x0012, 0x0020): 'ClinicalTrialProtocolID',
+    (0x0012, 0x0021): 'ClinicalTrialProtocolName',
+    (0x0012, 0x0030): 'ClinicalTrialSiteID',
+    (0x0012, 0x0031): 'ClinicalTrialSiteName',
+    (0x0012, 0x0040): 'ClinicalTrialSubjectID',
+    (0x0012, 0x0042): 'ClinicalTrialSubjectReadingID',
+    (0x0012, 0x0050): 'ClinicalTrialTimePointID',
+    (0x0012, 0x0051): 'ClinicalTrialTimePointDescription',
+    # Referenced patient
+    (0x0008, 0x1120): 'ReferencedPatientSequence',
+    (0x0008, 0x1110): 'ReferencedStudySequence',
+    # Failed SOP reference
+    (0x0008, 0x0058): 'FailedSOPInstanceUIDList',
 }
 
 # Tags whose UIDs should be remapped (not simply deleted)
@@ -160,6 +195,7 @@ UID_TAGS = {
     (0x0008, 0x0018): 'SOPInstanceUID',
     (0x0020, 0x000D): 'StudyInstanceUID',
     (0x0020, 0x000E): 'SeriesInstanceUID',
+    (0x0020, 0x0052): 'FrameOfReferenceUID',
     (0x0008, 0x0016): 'SOPClassUID',  # Keep original (functional, not PHI)
 }
 
@@ -488,17 +524,23 @@ def _remap_uids(ds, filepath: Path) -> List[PHIFinding]:
 _SQ_PHI_TAG_TUPLES = [
     (0x0010, 0x0010),  # PatientName (in nested)
     (0x0010, 0x0020),  # PatientID (in nested)
+    (0x0010, 0x0021),  # IssuerOfPatientID (in nested)
+    (0x0008, 0x0050),  # AccessionNumber (in nested)
     (0x0008, 0x0080),  # InstitutionName (in nested)
+    (0x0008, 0x0081),  # InstitutionAddress (in nested)
     (0x0008, 0x0090),  # ReferringPhysicianName (in nested)
     (0x0008, 0x1050),  # PerformingPhysicianName (in nested)
     (0x0008, 0x1070),  # OperatorsName (in nested)
     (0x0040, 0xA123),  # PersonName (in nested)
-    (0x0008, 0x0081),  # InstitutionAddress (in nested)
+    (0x0040, 0xA075),  # VerifyingObserverName (in nested)
     # Specimen-related in sequences
     (0x0040, 0x0512),  # ContainerIdentifier (in nested)
     (0x0040, 0x0551),  # SpecimenIdentifier (in nested)
     (0x0040, 0x0554),  # SpecimenUID (in nested)
-    (0x0008, 0x0050),  # AccessionNumber (in nested)
+    # Procedure-related in sequences
+    (0x0040, 0x0009),  # ScheduledProcedureStepID (in nested)
+    (0x0040, 0x1001),  # RequestedProcedureID (in nested)
+    (0x0040, 0x0253),  # PerformedProcedureStepID (in nested)
 ]
 
 # VRs that typically contain text/name PHI within sequences

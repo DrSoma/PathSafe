@@ -108,7 +108,7 @@ PathSafe takes a SHA-256 fingerprint of all diagnostic image data before and aft
 WSI files contain multiple image layers (IFDs). PathSafe scans **every** IFD in the file for PHI tags, not just the first one. Duplicate tag offsets shared across IFDs are automatically deduplicated to avoid redundant processing.
 
 #### Regex Safety Scan
-After structured tag processing, PathSafe runs a regex-based scan of the first 256KB of each file to catch any accession numbers, medical record numbers (MRN), Social Security numbers (SSN), or date patterns that may have been missed by the format-specific parser. This covers 17+ pattern types across common hospital naming conventions (AS-, AC-, SP-, AP-, CY-, H-, S-, CH, MRN, and more).
+After structured tag processing, PathSafe runs a regex-based scan of the first 1 MB of each file to catch any accession numbers, medical record numbers (MRN), Social Security numbers (SSN), or date patterns that may have been missed by the format-specific parser. This covers 17+ pattern types across common hospital naming conventions (AS-, AC-, SP-, AP-, CY-, H-, S-, CH, MRN, and more).
 
 #### Post-Anonymization Verification
 After anonymizing each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.

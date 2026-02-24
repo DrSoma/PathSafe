@@ -27,7 +27,6 @@ from pathsafe.scanner import (
 )
 from pathsafe.tiff import (
     read_header,
-    read_ifd,
     read_tag_string,
     read_tag_value_bytes,
     iter_ifds,
@@ -129,33 +128,35 @@ class BIFHandler(FormatHandler):
     # --- Internal methods ---
 
     def _scan_xmp(self, filepath: Path) -> List[PHIFinding]:
-        """Scan XMP tag (700) for PHI in <iScan> attributes."""
+        """Scan XMP tag (700) for PHI in <iScan> attributes across all IFDs."""
         findings = []
+        seen = set()
         with open(filepath, 'rb') as f:
             header = read_header(f)
             if header is None:
                 return findings
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id == 700:
-                    raw = read_tag_value_bytes(f, entry)
-                    xmp_text = raw.decode('utf-8', errors='replace')
-                    for attr in XMP_PHI_ATTRIBUTES:
-                        pattern = re.compile(
-                            rf'{attr}\s*=\s*"([^"]*)"', re.IGNORECASE)
-                        for m in pattern.finditer(xmp_text):
-                            val = m.group(1).strip()
-                            if val and not _is_xmp_anonymized(val):
-                                findings.append(PHIFinding(
-                                    offset=entry.value_offset,
-                                    length=entry.total_size,
-                                    tag_id=700,
-                                    tag_name=f'XMP:iScan:{attr}',
-                                    value_preview=f'{attr}={val[:40]}',
-                                    source='tiff_tag',
-                                ))
-                    break
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 700 and entry.value_offset not in seen:
+                        seen.add(entry.value_offset)
+                        raw = read_tag_value_bytes(f, entry)
+                        xmp_text = raw.decode('utf-8', errors='replace')
+                        for attr in XMP_PHI_ATTRIBUTES:
+                            pattern = re.compile(
+                                rf'{attr}\s*=\s*"([^"]*)"', re.IGNORECASE)
+                            for m in pattern.finditer(xmp_text):
+                                val = m.group(1).strip()
+                                if val and not _is_xmp_anonymized(val):
+                                    findings.append(PHIFinding(
+                                        offset=entry.value_offset,
+                                        length=entry.total_size,
+                                        tag_id=700,
+                                        tag_name=f'XMP:iScan:{attr}',
+                                        value_preview=f'{attr}={val[:40]}',
+                                        source='tiff_tag',
+                                    ))
+                        break  # Only one tag 700 per IFD
         return findings
 
     def _scan_date_tags(self, filepath: Path) -> List[PHIFinding]:
@@ -262,52 +263,54 @@ class BIFHandler(FormatHandler):
         return findings
 
     def _anonymize_xmp(self, filepath: Path) -> List[PHIFinding]:
-        """Anonymize PHI in XMP tag by replacing attribute values."""
+        """Anonymize PHI in XMP tag by replacing attribute values across all IFDs."""
         cleared = []
+        seen = set()
         with open(filepath, 'r+b') as f:
             header = read_header(f)
             if header is None:
                 return cleared
 
-            entries, _ = read_ifd(f, header, header.first_ifd_offset)
-            for entry in entries:
-                if entry.tag_id == 700:
-                    raw = read_tag_value_bytes(f, entry)
-                    xmp_text = raw.decode('utf-8', errors='replace')
-                    modified = False
+            for _, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 700 and entry.value_offset not in seen:
+                        seen.add(entry.value_offset)
+                        raw = read_tag_value_bytes(f, entry)
+                        xmp_text = raw.decode('utf-8', errors='replace')
+                        modified = False
 
-                    for attr in XMP_PHI_ATTRIBUTES:
-                        pattern = re.compile(
-                            rf'({attr}\s*=\s*")([^"]*?)(")', re.IGNORECASE)
+                        for attr in XMP_PHI_ATTRIBUTES:
+                            pattern = re.compile(
+                                rf'({attr}\s*=\s*")([^"]*?)(")', re.IGNORECASE)
 
-                        def _replace(m):
-                            val = m.group(2)
-                            if val and not _is_xmp_anonymized(val):
-                                return m.group(1) + 'X' * len(val) + m.group(3)
-                            return m.group(0)
+                            def _replace(m):
+                                val = m.group(2)
+                                if val and not _is_xmp_anonymized(val):
+                                    return m.group(1) + 'X' * len(val) + m.group(3)
+                                return m.group(0)
 
-                        new_text, count = pattern.subn(_replace, xmp_text)
-                        if count > 0 and new_text != xmp_text:
-                            xmp_text = new_text
-                            modified = True
-                            cleared.append(PHIFinding(
-                                offset=entry.value_offset,
-                                length=entry.total_size,
-                                tag_id=700,
-                                tag_name=f'XMP:iScan:{attr}',
-                                value_preview=f'{attr} anonymized',
-                                source='tiff_tag',
-                            ))
+                            new_text, count = pattern.subn(_replace, xmp_text)
+                            if count > 0 and new_text != xmp_text:
+                                xmp_text = new_text
+                                modified = True
+                                cleared.append(PHIFinding(
+                                    offset=entry.value_offset,
+                                    length=entry.total_size,
+                                    tag_id=700,
+                                    tag_name=f'XMP:iScan:{attr}',
+                                    value_preview=f'{attr} anonymized',
+                                    source='tiff_tag',
+                                ))
 
-                    if modified:
-                        new_bytes = xmp_text.encode('utf-8', errors='replace')
-                        if len(new_bytes) < entry.total_size:
-                            new_bytes += b'\x00' * (entry.total_size - len(new_bytes))
-                        else:
-                            new_bytes = new_bytes[:entry.total_size]
-                        f.seek(entry.value_offset)
-                        f.write(new_bytes)
-                    break
+                        if modified:
+                            new_bytes = xmp_text.encode('utf-8', errors='replace')
+                            if len(new_bytes) < entry.total_size:
+                                new_bytes += b'\x00' * (entry.total_size - len(new_bytes))
+                            else:
+                                new_bytes = new_bytes[:entry.total_size]
+                            f.seek(entry.value_offset)
+                            f.write(new_bytes)
+                        break  # Only one tag 700 per IFD
         return cleared
 
     def _anonymize_date_tags(self, filepath: Path) -> List[PHIFinding]:
