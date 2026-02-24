@@ -29,6 +29,9 @@ cp dist/pathsafe "${APP_BUNDLE}/Contents/MacOS/pathsafe"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/PathSafe"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/pathsafe"
 
+# Copy icon
+cp pathsafe/assets/icon.icns "${APP_BUNDLE}/Contents/Resources/icon.icns"
+
 # Create Info.plist
 cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -45,6 +48,8 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
+    <key>CFBundleIconFile</key>
+    <string>icon</string>
     <key>CFBundleExecutable</key>
     <string>PathSafe</string>
     <key>CFBundlePackageType</key>

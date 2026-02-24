@@ -26,6 +26,7 @@ AllowNoIcons=yes
 LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=PathSafe-Setup
+SetupIconFile=..\pathsafe\assets\icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

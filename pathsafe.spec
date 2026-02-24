@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for PathSafe -- builds standalone executables.
+"""PyInstaller spec for PathSafe: builds standalone executables.
 
 Build with:
     pip install pyinstaller
@@ -11,9 +11,19 @@ Output: dist/pathsafe (Linux/Mac) or dist/pathsafe.exe (Windows)
 
 block_cipher = None
 
+import sys
+
 _datas = [
     ('pathsafe/assets/icon.png', 'pathsafe/assets'),
 ]
+
+# Platform-specific icon for the executable
+if sys.platform == 'win32':
+    _icon = 'pathsafe/assets/icon.ico'
+elif sys.platform == 'darwin':
+    _icon = 'pathsafe/assets/icon.icns'
+else:
+    _icon = None
 
 _hidden = [
     'pathsafe',
@@ -74,6 +84,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
+    icon=_icon,
 )
 
 # --- GUI executable ---
@@ -114,4 +125,5 @@ exe_gui = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # No console window for GUI
+    icon=_icon,
 )
