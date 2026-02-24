@@ -9,6 +9,14 @@ from click.testing import CliRunner
 from pathsafe.models import ConversionResult, ConversionBatchResult
 
 
+def _has_tifffile():
+    try:
+        import tifffile  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Mock helpers
 # ---------------------------------------------------------------------------
@@ -85,7 +93,7 @@ class TestConvertFile:
 
     def test_convert_to_pyramidal_tiff(self, tmp_path):
         """Conversion produces a valid BigTIFF with multiple levels."""
-        import tifffile
+        tifffile = pytest.importorskip("tifffile")
 
         slide = _make_mock_slide(
             dimensions=(512, 512),
@@ -462,6 +470,9 @@ class TestConvertCLI:
         assert result.exit_code == 0
         assert 'label' in result.output.lower()
 
+    @pytest.mark.skipif(
+        not _has_tifffile(),
+        reason="tifffile not installed (optional convert dependency)")
     def test_convert_batch_directory(self, runner, tmp_path):
         """CLI batch convert a directory."""
         slide = _make_mock_slide(dimensions=(256, 256), level_count=1,
