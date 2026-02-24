@@ -167,6 +167,10 @@ class SCNHandler(FormatHandler):
                             pattern2 = re.compile(
                                 rf'{elem_name}\s*=\s*"([^"]*)"', re.IGNORECASE)
                             for m in pattern2.finditer(xml_text):
+                                # Skip matches inside XML processing instructions (<?...?>)
+                                prefix = xml_text[:m.start()]
+                                if prefix.rfind('<?') > prefix.rfind('?>'):
+                                    continue
                                 val = m.group(1).strip()
                                 if val and not _is_scn_anonymized(val):
                                     findings.append(PHIFinding(
@@ -330,6 +334,10 @@ class SCNHandler(FormatHandler):
                                 re.IGNORECASE)
 
                             def _replace_attr(m):
+                                # Skip matches inside XML processing instructions (<?...?>)
+                                prefix = xml_text[:m.start()]
+                                if prefix.rfind('<?') > prefix.rfind('?>'):
+                                    return m.group(0)
                                 val = m.group(2)
                                 if val and not _is_scn_anonymized(val):
                                     return m.group(1) + 'X' * len(val) + m.group(3)
