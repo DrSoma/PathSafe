@@ -25,6 +25,7 @@ TIFF_TYPES: Dict[int, Tuple[int, str]] = {
     11: (4, 'f'),   # FLOAT
     12: (8, 'd'),   # DOUBLE
     16: (8, 'Q'),   # LONG8 (BigTIFF)
+    17: (8, 'q'),   # SLONG8 (BigTIFF, signed)
 }
 
 # Well-known TIFF tag names
@@ -125,11 +126,20 @@ def read_ifd(f: BinaryIO, header: TIFFHeader,
     f.seek(ifd_offset)
 
     if header.is_bigtiff:
-        num_entries = struct.unpack(endian + 'Q', f.read(8))[0]
+        data = f.read(8)
+        if len(data) < 8:
+            return [], 0
+        num_entries = struct.unpack(endian + 'Q', data)[0]
+        # Sanity cap: BigTIFF num_entries could be garbage in corrupt files
+        if num_entries > 100_000:
+            num_entries = 100_000
         entry_size = 20
         inline_threshold = 8
     else:
-        num_entries = struct.unpack(endian + 'H', f.read(2))[0]
+        data = f.read(2)
+        if len(data) < 2:
+            return [], 0
+        num_entries = struct.unpack(endian + 'H', data)[0]
         entry_size = 12
         inline_threshold = 4
 
@@ -242,7 +252,7 @@ def find_tag_in_first_ifd(filepath: str,
 
 
 def iter_ifds(f: BinaryIO, header: TIFFHeader,
-              max_pages: int = 100) -> List[Tuple[int, List[IFDEntry]]]:
+              max_pages: int = 500) -> List[Tuple[int, List[IFDEntry]]]:
     """Iterate through IFD chain. Returns list of (ifd_offset, entries)."""
     result = []
     offset = header.first_ifd_offset
@@ -359,6 +369,100 @@ def get_ifd_image_size(header: TIFFHeader,
             if val is not None:
                 height = val
     return width, height
+
+
+def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
+                         entries: List[IFDEntry]) -> bool:
+    """Check if the image data in an IFD has been blanked.
+
+    Returns True if the first strip/tile starts with the blank JPEG
+    header (FFD8FFD9) followed by zeros, indicating it was already
+    anonymized by PathSafe.
+    """
+    offset_entry = None
+    count_entry = None
+    for entry in entries:
+        if entry.tag_id == 273:    # StripOffsets
+            offset_entry = entry
+        elif entry.tag_id == 279:  # StripByteCounts
+            count_entry = entry
+        elif entry.tag_id == 324:  # TileOffsets
+            if offset_entry is None:
+                offset_entry = entry
+        elif entry.tag_id == 325:  # TileByteCounts
+            if count_entry is None:
+                count_entry = entry
+
+    if offset_entry is None or count_entry is None:
+        return False
+
+    offsets = read_tag_long_array(f, header, offset_entry)
+    counts = read_tag_long_array(f, header, count_entry)
+    if not offsets or not counts:
+        return False
+
+    # Check first strip/tile
+    first_off = offsets[0]
+    first_cnt = counts[0]
+    if first_cnt < len(_BLANK_JPEG) + 4:
+        return False
+
+    f.seek(first_off)
+    head = f.read(min(first_cnt, 8))
+    # Blank = starts with FFD8FFD9 + zeros
+    if head[:4] == _BLANK_JPEG and head[4:] == b'\x00' * len(head[4:]):
+        return True
+    # Or all zeros
+    if head == b'\x00' * len(head):
+        return True
+    return False
+
+
+# Tags that may contain PHI in any TIFF-based format
+# These are scanned across NDPI, SVS, and generic TIFF handlers
+EXTRA_METADATA_TAGS = {
+    315: 'Artist',           # Operator/photographer name
+    700: 'XMP',              # XML metadata blob (creator, dates, etc.)
+    33432: 'Copyright',      # May contain institutional or personal names
+    33723: 'IPTC',           # IPTC/IIM metadata (byline, caption, etc.)
+    37510: 'UserComment',    # EXIF free-text comment
+    42016: 'ImageUniqueID',  # Linkable unique identifier
+}
+
+
+def scan_extra_metadata_tags(f: BinaryIO, header: TIFFHeader,
+                              entries: List[IFDEntry]) -> List[Tuple[IFDEntry, str]]:
+    """Scan IFD entries for extra metadata tags that may contain PHI.
+
+    Returns list of (entry, value_preview) for tags that have non-empty content.
+    Used by NDPI, SVS, and generic TIFF handlers as an extra safety check.
+    """
+    findings = []
+    for entry in entries:
+        if entry.tag_id not in EXTRA_METADATA_TAGS:
+            continue
+        # Only check string (ASCII) or undefined (EXIF) types
+        if entry.dtype not in (2, 7):
+            continue
+        raw = read_tag_value_bytes(f, entry)
+        if not raw or raw == b'\x00' * len(raw):
+            continue
+        # Check if already anonymized (all X's + null)
+        stripped = raw.rstrip(b'\x00')
+        if stripped and all(b == ord('X') for b in stripped):
+            continue
+        # For XMP (tag 700), check if it's an XML blob with potentially identifying content
+        value = stripped.decode('utf-8', errors='replace')[:200]
+        if value.strip():
+            findings.append((entry, value))
+    return findings
+
+
+def blank_extra_metadata_tag(f: BinaryIO, entry: IFDEntry) -> int:
+    """Overwrite an extra metadata tag with null bytes. Returns bytes blanked."""
+    f.seek(entry.value_offset)
+    f.write(b'\x00' * entry.total_size)
+    return entry.total_size
 
 
 def get_ifd_image_data_size(header: TIFFHeader,

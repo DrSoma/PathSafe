@@ -284,7 +284,7 @@ def _read_slidedat(slidedat_path: Path) -> configparser.ConfigParser:
     """Read Slidedat.ini with configparser."""
     config = configparser.ConfigParser()
     config.optionxform = str  # Preserve case
-    config.read(str(slidedat_path), encoding='utf-8')
+    config.read(str(slidedat_path), encoding='utf-8-sig')
     return config
 
 

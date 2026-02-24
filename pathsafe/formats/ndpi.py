@@ -3,6 +3,7 @@
 Handles PHI detection and anonymization for NDPI files, including:
 - Tag 65468 (NDPI_BARCODE): accession numbers
 - Tag 65427 (NDPI_REFERENCE): reference strings
+- Tag 65449 (NDPI_SCANNER_PROPS): scanner properties with dates and serials
 - Tag 306 (DateTime): scan date/time
 - Tags 36867/36868 (DateTimeOriginal/Digitized): EXIF dates
 - Regex safety scan of first 100KB for accession patterns
@@ -37,8 +38,12 @@ from pathsafe.tiff import (
     read_tag_numeric,
     iter_ifds,
     blank_ifd_image_data,
+    is_ifd_image_blanked,
     get_ifd_image_size,
     get_ifd_image_data_size,
+    scan_extra_metadata_tags,
+    blank_extra_metadata_tag,
+    EXTRA_METADATA_TAGS,
     TAG_NAMES,
 )
 
@@ -55,6 +60,16 @@ DATE_TAGS = {
 }
 
 ALL_PHI_TAGS = {**PHI_TAGS, **DATE_TAGS}
+
+# Tag 65449 (NDPI_SCANNER_PROPS): key=value property map
+# These keys contain dates or serial numbers that are indirect identifiers
+NDPI_SCANNER_PROPS_TAG = 65449
+SCANNER_PROPS_PHI_KEYS = {
+    'Created',          # Scan date (e.g., "2022/04/28")
+    'Updated',          # Modification date
+    'NDP.S/N',          # Scanner serial number
+    'Macro.S/N',        # Macro camera serial number
+}
 
 # NDPI_SOURCELENS values for special (non-slide) images
 NDPI_SOURCELENS_TAG = 65421
@@ -89,10 +104,11 @@ class NDPIHandler(FormatHandler):
             except Exception:
                 pass
             if not findings:
+                # Could not scan properly — do NOT report as clean
                 elapsed = (time.monotonic() - t0) * 1000
                 return ScanResult(
                     filepath=filepath, format="ndpi", findings=[],
-                    is_clean=True, scan_time_ms=elapsed,
+                    is_clean=False, scan_time_ms=elapsed,
                     file_size=file_size, error=str(e),
                 )
 
@@ -195,6 +211,43 @@ class NDPIHandler(FormatHandler):
                             value_preview=value[:30],
                             source='tiff_tag',
                         ))
+                elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
+                    findings += self._scan_scanner_props(f, entry)
+
+            # Scan extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+            for entry, value in scan_extra_metadata_tags(f, header, entries):
+                findings.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=entry.tag_id,
+                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                    value_preview=value[:50],
+                    source='tiff_tag',
+                ))
+        return findings
+
+    def _scan_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
+        """Scan NDPI_SCANNER_PROPS (tag 65449) for PHI key-value pairs."""
+        findings = []
+        value = read_tag_string(f, entry)
+        if not value:
+            return findings
+
+        for line in value.split('\n'):
+            if '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            key = key.strip()
+            val = val.strip()
+            if key in SCANNER_PROPS_PHI_KEYS and val and val != 'X' * len(val):
+                findings.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=NDPI_SCANNER_PROPS_TAG,
+                    tag_name=f'NDPI_SCANNER_PROPS:{key}',
+                    value_preview=f'{key}={val[:40]}',
+                    source='tiff_tag',
+                ))
         return findings
 
     def _scan_regex(self, filepath: Path,
@@ -257,6 +310,9 @@ class NDPIHandler(FormatHandler):
                             img_type = 'LabelImage'
 
                         if img_type:
+                            # Skip if already blanked
+                            if is_ifd_image_blanked(f, header, entries):
+                                break
                             w, h = get_ifd_image_size(
                                 header, entries, f)
                             data_size = get_ifd_image_data_size(
@@ -297,6 +353,8 @@ class NDPIHandler(FormatHandler):
                             img_type = 'LabelImage'
 
                         if img_type:
+                            if is_ifd_image_blanked(f, header, entries):
+                                break
                             w, h = get_ifd_image_size(
                                 header, entries, f)
                             blanked = blank_ifd_image_data(
@@ -357,6 +415,63 @@ class NDPIHandler(FormatHandler):
                         value_preview=value[:30],
                         source='tiff_tag',
                     ))
+                elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
+                    cleared += self._anonymize_scanner_props(f, entry)
+
+            # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+            for entry, value in scan_extra_metadata_tags(f, header, entries):
+                blank_extra_metadata_tag(f, entry)
+                cleared.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=entry.tag_id,
+                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                    value_preview=value[:50],
+                    source='tiff_tag',
+                ))
+        return cleared
+
+    def _anonymize_scanner_props(self, f, entry: IFDEntry) -> List[PHIFinding]:
+        """Anonymize PHI keys in NDPI_SCANNER_PROPS (tag 65449)."""
+        cleared = []
+        raw = read_tag_value_bytes(f, entry)
+        value = raw.rstrip(b'\x00').decode('ascii', errors='replace')
+        if not value:
+            return cleared
+
+        modified = False
+        new_lines = []
+        for line in value.split('\n'):
+            if '=' not in line:
+                new_lines.append(line)
+                continue
+            key, _, val = line.partition('=')
+            key_stripped = key.strip()
+            val_stripped = val.strip()
+            if key_stripped in SCANNER_PROPS_PHI_KEYS and val_stripped and val_stripped != 'X' * len(val_stripped):
+                anon_val = 'X' * len(val_stripped)
+                new_lines.append(f'{key}={anon_val}')
+                modified = True
+                cleared.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=NDPI_SCANNER_PROPS_TAG,
+                    tag_name=f'NDPI_SCANNER_PROPS:{key_stripped}',
+                    value_preview=f'{key_stripped}={val_stripped[:40]}',
+                    source='tiff_tag',
+                ))
+            else:
+                new_lines.append(line)
+
+        if modified:
+            new_bytes = '\n'.join(new_lines).encode('ascii', errors='replace')
+            # Pad to original size
+            if len(new_bytes) < entry.total_size:
+                new_bytes += b'\x00' * (entry.total_size - len(new_bytes))
+            else:
+                new_bytes = new_bytes[:entry.total_size - 1] + b'\x00'
+            f.seek(entry.value_offset)
+            f.write(new_bytes)
         return cleared
 
     def _anonymize_regex(self, filepath: Path,

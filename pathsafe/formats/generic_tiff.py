@@ -23,6 +23,9 @@ from pathsafe.tiff import (
     read_tag_string,
     read_tag_value_bytes,
     get_all_string_tags,
+    scan_extra_metadata_tags,
+    blank_extra_metadata_tag,
+    EXTRA_METADATA_TAGS,
     TAG_NAMES,
 )
 
@@ -96,6 +99,18 @@ class GenericTIFFHandler(FormatHandler):
                                 source='tiff_tag',
                             ))
 
+                # Scan extra metadata (XMP, EXIF UserComment, Artist, etc.)
+                entries_all, _ = read_ifd(f, header, header.first_ifd_offset)
+                for entry, value in scan_extra_metadata_tags(f, header, entries_all):
+                    findings.append(PHIFinding(
+                        offset=entry.value_offset,
+                        length=entry.total_size,
+                        tag_id=entry.tag_id,
+                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                        value_preview=value[:50],
+                        source='tiff_tag',
+                    ))
+
             # Regex safety scan
             with open(filepath, 'rb') as f:
                 data = f.read(DEFAULT_SCAN_SIZE)
@@ -164,6 +179,22 @@ class GenericTIFFHandler(FormatHandler):
                                 value_preview=value[:30],
                                 source='tiff_tag',
                             ))
+
+        # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
+        with open(filepath, 'r+b') as f:
+            header = read_header(f)
+            if header:
+                entries_all, _ = read_ifd(f, header, header.first_ifd_offset)
+                for entry, value in scan_extra_metadata_tags(f, header, entries_all):
+                    blank_extra_metadata_tag(f, entry)
+                    cleared.append(PHIFinding(
+                        offset=entry.value_offset,
+                        length=entry.total_size,
+                        tag_id=entry.tag_id,
+                        tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                        value_preview=value[:50],
+                        source='tiff_tag',
+                    ))
 
         # Regex safety pass
         with open(filepath, 'rb') as f:

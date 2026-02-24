@@ -123,7 +123,11 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
                     'to modify originals directly.', err=True)
         sys.exit(1)
 
-    log_file = open(log, 'w') if log else None
+    log_file = None
+    try:
+        log_file = open(log, 'w') if log else None
+    except OSError as e:
+        click.echo(f'Warning: Could not open log file: {e}', err=True)
 
     def log_msg(msg):
         click.echo(msg)
@@ -131,61 +135,62 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
             log_file.write(msg + '\n')
             log_file.flush()
 
-    files = collect_wsi_files(input_path, format_filter=fmt)
-    if not files:
-        log_msg(f'No WSI files found in {input_path}')
-        return
+    try:
+        files = collect_wsi_files(input_path, format_filter=fmt)
+        if not files:
+            log_msg(f'No WSI files found in {input_path}')
+            return
 
-    mode_str = 'DRY RUN' if dry_run else ('copy' if output_dir else 'in-place')
-    workers_str = f', {workers} workers' if workers > 1 else ''
-    log_msg(f'PathSafe v{pathsafe.__version__} — {mode_str} anonymization{workers_str}')
-    log_msg(f'Processing {len(files)} file(s)...\n')
+        mode_str = 'DRY RUN' if dry_run else ('copy' if output_dir else 'in-place')
+        workers_str = f', {workers} workers' if workers > 1 else ''
+        log_msg(f'PathSafe v{pathsafe.__version__} — {mode_str} anonymization{workers_str}')
+        log_msg(f'Processing {len(files)} file(s)...\n')
 
-    t0 = time.time()
+        t0 = time.time()
 
-    def progress(i, total, filepath, result):
-        elapsed = time.time() - t0
-        rate = i / elapsed if elapsed > 0 else 0
-        eta = (total - i) / rate / 60 if rate > 0 else 0
+        def progress(i, total, filepath, result):
+            elapsed = time.time() - t0
+            rate = i / elapsed if elapsed > 0 else 0
+            eta = (total - i) / rate / 60 if rate > 0 else 0
 
-        if result.error:
-            status = f'ERROR: {result.error}'
-        elif result.findings_cleared > 0:
-            status = f'cleared {result.findings_cleared} finding(s)'
-            if result.verified:
-                status += ' [verified]'
-        else:
-            status = 'already clean'
+            if result.error:
+                status = f'ERROR: {result.error}'
+            elif result.findings_cleared > 0:
+                status = f'cleared {result.findings_cleared} finding(s)'
+                if result.verified:
+                    status += ' [verified]'
+            else:
+                status = 'already clean'
 
-        msg = (f'  [{i}/{total}] {rate:.1f}/s ETA {eta:.0f}m | '
-               f'{filepath.name} | {status}')
-        log_msg(msg)
+            msg = (f'  [{i}/{total}] {rate:.1f}/s ETA {eta:.0f}m | '
+                   f'{filepath.name} | {status}')
+            log_msg(msg)
 
-    batch_result = anonymize_batch(
-        input_path, output_dir=output_dir,
-        verify=not no_verify, dry_run=dry_run,
-        format_filter=fmt, progress_callback=progress,
-        workers=workers,
-    )
+        batch_result = anonymize_batch(
+            input_path, output_dir=output_dir,
+            verify=not no_verify, dry_run=dry_run,
+            format_filter=fmt, progress_callback=progress,
+            workers=workers,
+        )
 
-    # Summary
-    log_msg(f'\nDone in {batch_result.total_time_seconds:.1f}s')
-    log_msg(f'  Total:         {batch_result.total_files}')
-    log_msg(f'  Anonymized:    {batch_result.files_anonymized}')
-    log_msg(f'  Already clean: {batch_result.files_already_clean}')
-    log_msg(f'  Errors:        {batch_result.files_errored}')
+        # Summary
+        log_msg(f'\nDone in {batch_result.total_time_seconds:.1f}s')
+        log_msg(f'  Total:         {batch_result.total_files}')
+        log_msg(f'  Anonymized:    {batch_result.files_anonymized}')
+        log_msg(f'  Already clean: {batch_result.files_already_clean}')
+        log_msg(f'  Errors:        {batch_result.files_errored}')
 
-    # Generate certificate
-    if certificate and not dry_run:
-        cert = generate_certificate(batch_result, output_path=Path(certificate))
-        batch_result.certificate_path = Path(certificate)
-        log_msg(f'\nCompliance certificate: {certificate}')
+        # Generate certificate
+        if certificate and not dry_run:
+            cert = generate_certificate(batch_result, output_path=Path(certificate))
+            batch_result.certificate_path = Path(certificate)
+            log_msg(f'\nCompliance certificate: {certificate}')
 
-    if log_file:
-        log_file.close()
-
-    if batch_result.files_errored > 0:
-        sys.exit(1)
+        if batch_result.files_errored > 0:
+            sys.exit(1)
+    finally:
+        if log_file:
+            log_file.close()
 
 
 @main.command()
@@ -240,7 +245,12 @@ def gui():
     try:
         from pathsafe.gui_qt import main as gui_main
     except ImportError:
-        from pathsafe.gui import main as gui_main
+        click.echo(
+            'Error: PySide6 is required for the GUI. '
+            'Install it with: pip install pathsafe[gui]',
+            err=True,
+        )
+        raise SystemExit(1)
     gui_main()
 
 

@@ -35,8 +35,12 @@ from pathsafe.tiff import (
     read_tag_value_bytes,
     iter_ifds,
     blank_ifd_image_data,
+    is_ifd_image_blanked,
     get_ifd_image_size,
     get_ifd_image_data_size,
+    scan_extra_metadata_tags,
+    blank_extra_metadata_tag,
+    EXTRA_METADATA_TAGS,
     TAG_NAMES,
 )
 
@@ -71,6 +75,7 @@ class SVSHandler(FormatHandler):
         try:
             findings = self._scan_tag270(filepath)
             findings += self._scan_date_tags(filepath)
+            findings += self._scan_extra_metadata(filepath)
             findings += self._scan_label_macro(filepath)
             tag270_offsets = {f.offset for f in findings}
             findings += self._scan_regex(filepath, skip_offsets=tag270_offsets)
@@ -94,6 +99,7 @@ class SVSHandler(FormatHandler):
         cleared: List[PHIFinding] = []
         cleared += self._anonymize_tag270(filepath)
         cleared += self._anonymize_date_tags(filepath)
+        cleared += self._anonymize_extra_metadata(filepath)
         cleared += self._blank_label_macro(filepath)
         cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
         return cleared
@@ -203,6 +209,45 @@ class SVSHandler(FormatHandler):
                         ))
         return findings
 
+    def _scan_extra_metadata(self, filepath: Path) -> List[PHIFinding]:
+        """Scan extra metadata tags (XMP, EXIF UserComment, Artist, etc.)."""
+        findings = []
+        with open(filepath, 'rb') as f:
+            header = read_header(f)
+            if header is None:
+                return findings
+            entries, _ = read_ifd(f, header, header.first_ifd_offset)
+            for entry, value in scan_extra_metadata_tags(f, header, entries):
+                findings.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=entry.tag_id,
+                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                    value_preview=value[:50],
+                    source='tiff_tag',
+                ))
+        return findings
+
+    def _anonymize_extra_metadata(self, filepath: Path) -> List[PHIFinding]:
+        """Anonymize extra metadata tags."""
+        cleared = []
+        with open(filepath, 'r+b') as f:
+            header = read_header(f)
+            if header is None:
+                return cleared
+            entries, _ = read_ifd(f, header, header.first_ifd_offset)
+            for entry, value in scan_extra_metadata_tags(f, header, entries):
+                blank_extra_metadata_tag(f, entry)
+                cleared.append(PHIFinding(
+                    offset=entry.value_offset,
+                    length=entry.total_size,
+                    tag_id=entry.tag_id,
+                    tag_name=EXTRA_METADATA_TAGS[entry.tag_id],
+                    value_preview=value[:50],
+                    source='tiff_tag',
+                ))
+        return cleared
+
     def _scan_regex(self, filepath: Path,
                     skip_offsets: set = None) -> List[PHIFinding]:
         """Regex safety scan of header bytes."""
@@ -239,6 +284,9 @@ class SVSHandler(FormatHandler):
                             img_type = 'MacroImage'
 
                         if img_type:
+                            # Skip if already blanked
+                            if is_ifd_image_blanked(f, header, entries):
+                                break
                             w, h = get_ifd_image_size(header, entries, f)
                             data_size = get_ifd_image_data_size(
                                 header, entries, f)
@@ -275,6 +323,8 @@ class SVSHandler(FormatHandler):
                             img_type = 'MacroImage'
 
                         if img_type:
+                            if is_ifd_image_blanked(f, header, entries):
+                                break
                             w, h = get_ifd_image_size(header, entries, f)
                             blanked = blank_ifd_image_data(
                                 f, header, entries)

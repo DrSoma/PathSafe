@@ -79,6 +79,12 @@ def anonymize_file(
     if mode == "copy":
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(str(filepath), str(target))
+        # MRXS: also copy companion data directory (slide/ next to slide.mrxs)
+        companion_dir = filepath.parent / filepath.stem
+        if companion_dir.is_dir():
+            target_companion = target.parent / target.stem
+            if not target_companion.exists():
+                shutil.copytree(str(companion_dir), str(target_companion))
 
     # Anonymize
     try:

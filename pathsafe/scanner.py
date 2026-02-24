@@ -9,11 +9,25 @@ from typing import List, Tuple
 
 # PHI regex patterns for binary scanning: (compiled_pattern, label)
 # These are applied to raw file bytes.
+#
+# Covers common hospital accession formats:
+#   AS-YY-NNNNN  (MUHC surgical pathology)
+#   AC-YY-NNNNN  (MUHC cytology)
+#   SP-YY-NNNNN  (generic surgical pathology)
+#   H-YY-NNNNN   (histology)
+#   S-YY-NNNNN   (surgical)
+#   CH12345       (CHUM-style)
+#   00000AS12345  (padded barcodes)
 PHI_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(rb'AS-\d\d-\d{3,}'), 'Accession_AS'),
     (re.compile(rb'AC-\d\d-\d{3,}'), 'Accession_AC'),
+    (re.compile(rb'SP-\d\d-\d{3,}'), 'Accession_SP'),
+    (re.compile(rb'(?<![A-Z])H-\d\d-\d{3,}'), 'Accession_H'),
+    (re.compile(rb'(?<![A-Z])S-\d\d-\d{3,}'), 'Accession_S'),
     (re.compile(rb'CH\d{5,}'), 'Accession_CH'),
     (re.compile(rb'00000AS\d+'), 'Accession_Padded'),
+    # SSN pattern (unlikely in WSI but HIPAA safe harbor identifier)
+    (re.compile(rb'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)'), 'SSN_Pattern'),
 ]
 
 # Date patterns (byte-level) — these match TIFF DateTime format and variants.
@@ -26,15 +40,19 @@ DATE_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
 PHI_STRING_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r'AS-\d\d-\d{3,}'), 'Accession_AS'),
     (re.compile(r'AC-\d\d-\d{3,}'), 'Accession_AC'),
+    (re.compile(r'SP-\d\d-\d{3,}'), 'Accession_SP'),
+    (re.compile(r'(?<![A-Z])H-\d\d-\d{3,}'), 'Accession_H'),
+    (re.compile(r'(?<![A-Z])S-\d\d-\d{3,}'), 'Accession_S'),
     (re.compile(r'CH\d{5,}'), 'Accession_CH'),
     (re.compile(r'00000AS\d+'), 'Accession_Padded'),
+    (re.compile(r'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)'), 'SSN_Pattern'),
 ]
 
 # Anonymized date sentinel — dates that have already been zeroed
 ANONYMIZED_DATE_SENTINEL = b'1900:01:01 00:00:00'
 
-# Default header scan size for regex safety scan
-DEFAULT_SCAN_SIZE = 100_000  # 100KB
+# Default header scan size for regex safety scan (256KB)
+DEFAULT_SCAN_SIZE = 256_000
 
 
 def scan_bytes_for_phi(data: bytes,
