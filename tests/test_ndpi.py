@@ -148,7 +148,7 @@ class TestNDPIPrivateTags:
         entries = [
             (256, 3, 1, 1024),
             (257, 3, 1, 768),
-            (65427, 2, len(reference), reference),  # NDPI_REFERENCE — handled explicitly
+            (65427, 2, len(reference), reference),  # NDPI_REFERENCE -- handled explicitly
         ]
         data = build_tiff(entries)
         fp = tmp_path / 'handled_tag.ndpi'

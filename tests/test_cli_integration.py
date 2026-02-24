@@ -1,9 +1,9 @@
-"""CLI integration tests — end-to-end via click.testing.CliRunner.
+"""CLI integration tests -- end-to-end via click.testing.CliRunner.
 
 Tests the actual CLI commands (scan, anonymize, verify, info) including
 argument parsing, output formatting, exit codes, and error handling.
 
-All tests use synthetic temporary files — no original WSI images are touched.
+All tests use synthetic temporary files -- no original WSI images are touched.
 """
 
 import json

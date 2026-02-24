@@ -23,7 +23,7 @@ from tests.conftest import build_tiff, build_tiff_with_sub_ifd, build_tiff_with_
 # ---------------------------------------------------------------------------
 
 class TestExifSubIFDParser:
-    """Test read_exif_sub_ifd() — finding and parsing EXIF sub-IFDs."""
+    """Test read_exif_sub_ifd() -- finding and parsing EXIF sub-IFDs."""
 
     def test_returns_entries_when_present(self):
         """Tag 34665 pointing to a valid sub-IFD returns entries."""
@@ -61,7 +61,7 @@ class TestExifSubIFDParser:
 
 
 class TestExifSubIFDScanning:
-    """Test scan_exif_sub_ifd_tags() — PHI detection in EXIF sub-IFDs."""
+    """Test scan_exif_sub_ifd_tags() -- PHI detection in EXIF sub-IFDs."""
 
     def test_date_tags_detected(self):
         """DateTimeOriginal in EXIF sub-IFD is detected as PHI."""
@@ -147,7 +147,7 @@ class TestExifSubIFDScanning:
 # ---------------------------------------------------------------------------
 
 class TestGPSSubIFDParser:
-    """Test read_gps_sub_ifd() — finding and parsing GPS sub-IFDs."""
+    """Test read_gps_sub_ifd() -- finding and parsing GPS sub-IFDs."""
 
     def test_returns_entries_when_present(self):
         """Tag 34853 pointing to a valid sub-IFD returns entries."""
@@ -174,7 +174,7 @@ class TestGPSSubIFDParser:
 
 
 class TestGPSScanning:
-    """Test scan_gps_sub_ifd() — GPS PHI detection."""
+    """Test scan_gps_sub_ifd() -- GPS PHI detection."""
 
     def test_ascii_ref_detected(self):
         """GPS latitude reference (ASCII) detected as PHI."""

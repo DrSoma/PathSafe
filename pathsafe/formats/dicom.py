@@ -9,7 +9,7 @@ DICOM WSI structure:
 - PHI stored in standard DICOM tags (Patient module, Study module, etc.)
 
 This handler processes individual .dcm files. For multi-file WSI slides,
-each file in the series should be processed separately — they all contain
+each file in the series should be processed separately -- they all contain
 the same PHI tags.
 
 Anonymization follows DICOM PS3.15 Basic Application Level Confidentiality
@@ -211,7 +211,7 @@ class DICOMHandler(FormatHandler):
         return _has_dicom_magic(filepath)
 
     def scan(self, filepath: Path) -> ScanResult:
-        """Scan DICOM file for PHI — read-only."""
+        """Scan DICOM file for PHI -- read-only."""
         t0 = time.monotonic()
         file_size = os.path.getsize(filepath)
         findings: List[PHIFinding] = []

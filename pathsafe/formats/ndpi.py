@@ -8,7 +8,7 @@ Handles PHI detection and anonymization for NDPI files, including:
 - Tags 36867/36868 (DateTimeOriginal/Digitized): EXIF dates
 - Regex safety scan of first 100KB for accession patterns
 
-All IFDs are scanned with seen_offsets dedup — most NDPI pages share
+All IFDs are scanned with seen_offsets dedup -- most NDPI pages share
 the same tag byte offset, but some tags may differ across IFDs.
 
 Corrupt file fallback: if TIFF structure is invalid, falls back to raw
@@ -111,7 +111,7 @@ class NDPIHandler(FormatHandler):
         return filepath.suffix.lower() == '.ndpi'
 
     def scan(self, filepath: Path) -> ScanResult:
-        """Scan NDPI file for PHI — read-only."""
+        """Scan NDPI file for PHI -- read-only."""
         t0 = time.monotonic()
         file_size = os.path.getsize(filepath)
         findings: List[PHIFinding] = []
@@ -131,7 +131,7 @@ class NDPIHandler(FormatHandler):
             except Exception:
                 pass
             if not findings:
-                # Could not scan properly — do NOT report as clean
+                # Could not scan properly -- do NOT report as clean
                 elapsed = (time.monotonic() - t0) * 1000
                 return ScanResult(
                     filepath=filepath, format="ndpi", findings=[],
@@ -153,15 +153,15 @@ class NDPIHandler(FormatHandler):
         try:
             cleared += self._anonymize_tags(filepath)
         except Exception:
-            # Fallback for corrupt TIFF structure — regex-based anonymization
+            # Fallback for corrupt TIFF structure -- regex-based anonymization
             cleared += self._anonymize_fallback(filepath)
 
         # Label/macro blanking must always be attempted, even if tag
-        # anonymization failed above — labels contain photographed PHI
+        # anonymization failed above -- labels contain photographed PHI
         try:
             cleared += self._blank_label_macro(filepath)
         except Exception:
-            pass  # Label blanking failed — file may have corrupt IFD structure
+            pass  # Label blanking failed -- file may have corrupt IFD structure
 
         cleared += self._anonymize_companion_files(filepath)
         cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
@@ -456,7 +456,7 @@ class NDPIHandler(FormatHandler):
 
                         if img_type:
                             if is_ifd_image_blanked(f, header, entries):
-                                # Already blanked but may still be linked — unlink it
+                                # Already blanked but may still be linked -- unlink it
                                 unlink_ifd(f, header, ifd_offset)
                                 break
                             w, h = get_ifd_image_size(

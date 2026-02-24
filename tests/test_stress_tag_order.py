@@ -1,4 +1,4 @@
-"""Stress tests — unsorted IFD tag ordering from real scanners."""
+"""Stress tests -- unsorted IFD tag ordering from real scanners."""
 
 import io
 import struct
@@ -17,7 +17,7 @@ def _build_tiff_ordered(entries_with_strips, strip_data, endian='<'):
     """Build a TIFF where entries appear in the given order.
 
     StripOffsets (273) and StripByteCounts (279) entries in the list
-    must use placeholder value 0 — they will be patched to point at
+    must use placeholder value 0 -- they will be patched to point at
     strip_data appended via extra_data.
     """
     ool_size = sum(len(v) for _, _, _, v in entries_with_strips if isinstance(v, bytes))
@@ -40,7 +40,7 @@ class TestStripTagsBeforeImageTags:
     """Verify parsing works when strip tags precede dimension tags."""
 
     def test_strip_offsets_before_width(self):
-        """StripOffsets before ImageWidth — both parsed correctly."""
+        """StripOffsets before ImageWidth -- both parsed correctly."""
         strip_data = b'\xAB' * 100
         entries = [
             (273, 4, 1, 0),       # StripOffsets (placeholder)
@@ -59,7 +59,7 @@ class TestStripTagsBeforeImageTags:
         assert 256 in tags
 
     def test_strip_bytecounts_before_offsets(self):
-        """StripByteCounts before StripOffsets — blanking still works."""
+        """StripByteCounts before StripOffsets -- blanking still works."""
         strip_data = b'\xCD' * 200
         entries = [
             (256, 3, 1, 64),
@@ -81,7 +81,7 @@ class TestMetadataTagsInterspersed:
     """Metadata tags mixed among strip/dimension tags."""
 
     def test_tag270_after_strip_tags(self):
-        """Tag 270 (ImageDescription) after strip tags — still readable."""
+        """Tag 270 (ImageDescription) after strip tags -- still readable."""
         desc = b'Test description\x00'
         strip_data = b'\xEF' * 100
         entries = [
@@ -130,7 +130,7 @@ class TestNDPISourceLensTagPosition:
     """Test NDPI SOURCELENS tag at various positions."""
 
     def test_sourcelens_before_other_ndpi_tags(self):
-        """SOURCELENS (65421) before BARCODE (65468) — still detected."""
+        """SOURCELENS (65421) before BARCODE (65468) -- still detected."""
         barcode = b'AS-24-123456\x00'
         entries = [
             (65421, 11, 1, 0),   # SOURCELENS (FLOAT, inline = 0.0 = slide image)

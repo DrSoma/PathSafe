@@ -1,4 +1,4 @@
-"""Logging utilities — ANSI terminal colors, HTML rich text, timestamps.
+"""Logging utilities -- ANSI terminal colors, HTML rich text, timestamps.
 
 Provides consistent color-coded output for CLI (ANSI) and GUI (HTML),
 with structured timestamped log file support.
@@ -37,7 +37,7 @@ def _is_tty():
         return False
 
 
-# Module-level flag — set once at import time
+# Module-level flag -- set once at import time
 _USE_COLOR = _is_tty()
 
 
@@ -130,7 +130,7 @@ def log_error(msg: str) -> str:
 # HTML formatting helpers (for Qt GUI QTextEdit)
 # ---------------------------------------------------------------------------
 
-# Color palette — works on both dark and light themes
+# Color palette -- works on both dark and light themes
 _HTML_COLORS = {
     'green': '#a6e3a1',
     'yellow': '#f9e2af',
@@ -189,7 +189,7 @@ def html_success(text: str) -> str:
 
 
 def html_warning(text: str) -> str:
-    """Orange/yellow line with timestamp — PHI found."""
+    """Orange/yellow line with timestamp -- PHI found."""
     return f'{_html_ts()} {_html_span("orange", text, bold=True)}'
 
 

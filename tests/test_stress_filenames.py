@@ -1,4 +1,4 @@
-"""Stress tests — Unicode and special filenames, filename PHI detection."""
+"""Stress tests -- Unicode and special filenames, filename PHI detection."""
 
 import pytest
 from pathlib import Path

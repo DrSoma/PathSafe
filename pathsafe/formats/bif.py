@@ -81,7 +81,7 @@ class BIFHandler(FormatHandler):
             return False
 
     def scan(self, filepath: Path) -> ScanResult:
-        """Scan BIF file for PHI — read-only."""
+        """Scan BIF file for PHI -- read-only."""
         t0 = time.monotonic()
         file_size = os.path.getsize(filepath)
         findings: List[PHIFinding] = []
@@ -466,7 +466,7 @@ class BIFHandler(FormatHandler):
 
                         if img_type:
                             if is_ifd_image_blanked(f, header, entries):
-                                # Already blanked but may still be linked — unlink it
+                                # Already blanked but may still be linked -- unlink it
                                 unlink_ifd(f, header, ifd_offset)
                                 break
                             w, h = get_ifd_image_size(header, entries, f)

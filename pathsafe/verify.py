@@ -1,4 +1,4 @@
-"""Verification — re-scan anonymized files to confirm all PHI cleared."""
+"""Verification -- re-scan anonymized files to confirm all PHI cleared."""
 
 import os
 import sys

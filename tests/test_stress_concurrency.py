@@ -1,4 +1,4 @@
-"""Stress tests — batch concurrency, thread pool edge cases, partial failures."""
+"""Stress tests -- batch concurrency, thread pool edge cases, partial failures."""
 
 import pytest
 from pathlib import Path
@@ -91,7 +91,7 @@ class TestBatchWorkerEdgeCases:
     """Test thread pool behavior with unusual worker/file counts."""
 
     def test_workers_exceed_files(self, tmp_path):
-        """workers=4 with only 1 file — should still process correctly."""
+        """workers=4 with only 1 file -- should still process correctly."""
         _make_ndpi(tmp_path, 'single.ndpi')
         result = anonymize_batch(tmp_path, workers=4)
         assert result.total_files == 1
@@ -99,7 +99,7 @@ class TestBatchWorkerEdgeCases:
         assert result.files_errored == 0
 
     def test_many_workers_few_files(self, tmp_path):
-        """workers=8 with only 3 files — should still work."""
+        """workers=8 with only 3 files -- should still work."""
         for i in range(3):
             _make_ndpi(tmp_path, f'slide_{i}.ndpi')
         result = anonymize_batch(tmp_path, workers=8)
@@ -176,7 +176,7 @@ class TestPartialFailureBatch:
     """Test batch with mix of valid and corrupt files."""
 
     def test_partial_success(self, tmp_path):
-        """2 valid + 1 corrupt file — expect partial success."""
+        """2 valid + 1 corrupt file -- expect partial success."""
         _make_ndpi(tmp_path, 'good1.ndpi')
         _make_ndpi(tmp_path, 'good2.ndpi')
         # Create a corrupt file (invalid TIFF header)

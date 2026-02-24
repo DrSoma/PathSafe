@@ -1,10 +1,10 @@
-"""Round-trip consistency tests — structural validity after anonymization.
+"""Round-trip consistency tests -- structural validity after anonymization.
 
 Verifies that anonymized files remain structurally valid: TIFF header intact,
 IFDs parseable, dimensions preserved, strip/tile data intact for main images,
 byte order preserved.
 
-All tests use synthetic temporary files — no original WSI images are touched.
+All tests use synthetic temporary files -- no original WSI images are touched.
 """
 
 import struct

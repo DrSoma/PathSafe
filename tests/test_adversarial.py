@@ -1,8 +1,8 @@
-"""Adversarial edge-case tests — malformed inputs, hostile data, boundary conditions.
+"""Adversarial edge-case tests -- malformed inputs, hostile data, boundary conditions.
 
 Tests that the parser and handlers gracefully handle corrupt, truncated,
 or pathological files without crashing or reporting false negatives.
-All tests use synthetic temporary files — no original WSI images are touched.
+All tests use synthetic temporary files -- no original WSI images are touched.
 """
 
 import os
@@ -52,7 +52,7 @@ class TestTruncatedFiles:
         data = b'II' + struct.pack('<HI', 42, 8)
         data += struct.pack('<H', 5)  # num_entries = 5
         data += struct.pack('<HHI I', 256, 3, 1, 100)  # only 1 complete entry
-        # File ends here — remaining 4 entries missing
+        # File ends here -- remaining 4 entries missing
         f = tmp_path / 'partial.tif'
         f.write_bytes(data)
         with open(f, 'rb') as fh:
@@ -70,12 +70,12 @@ class TestTruncatedFiles:
         f = tmp_path / 'trunc_val.tif'
         f.write_bytes(build_tiff(entries))
         handler = get_handler(f)
-        # Should not crash — may find partial data or nothing
+        # Should not crash -- may find partial data or nothing
         result = handler.scan(f)
         assert result is not None
 
     def test_zero_length_file_scan(self, tmp_path):
-        """Zero-byte .tif file — handler should not crash."""
+        """Zero-byte .tif file -- handler should not crash."""
         f = tmp_path / 'zero.tif'
         f.write_bytes(b'')
         handler = get_handler(f)

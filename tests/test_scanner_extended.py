@@ -1,4 +1,4 @@
-"""Extended tests for the PHI detection scanner — all pattern types."""
+"""Extended tests for the PHI detection scanner -- all pattern types."""
 
 import pytest
 from pathsafe.scanner import (

@@ -4,7 +4,7 @@ Handles PHI detection and anonymization for MRXS files, including:
 - Slidedat.ini metadata: SLIDE_ID, SLIDE_NAME, SLIDE_BARCODE,
   SLIDE_CREATIONDATETIME, and other PHI fields across ALL sections
 - Non-hierarchical associated images (label, macro, thumbnail)
-  stored in Data*.dat files — blanked to remove photographed PHI
+  stored in Data*.dat files -- blanked to remove photographed PHI
 - Regex safety scan of Slidedat.ini and the .mrxs index file
 
 MRXS structure:
@@ -79,7 +79,7 @@ class MRXSHandler(FormatHandler):
         return filepath.suffix.lower() == '.mrxs'
 
     def scan(self, filepath: Path) -> ScanResult:
-        """Scan MRXS file for PHI — read-only."""
+        """Scan MRXS file for PHI -- read-only."""
         t0 = time.monotonic()
         file_size = os.path.getsize(filepath)
         findings: List[PHIFinding] = []

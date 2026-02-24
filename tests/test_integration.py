@@ -1,4 +1,4 @@
-"""Integration tests — full scan → anonymize → verify → report pipeline.
+"""Integration tests -- full scan → anonymize → verify → report pipeline.
 
 These test the entire flow end-to-end using synthetic temporary files.
 No original WSI images are touched.
@@ -34,7 +34,7 @@ class TestNDPIPipeline:
         assert result.findings_cleared > 0
         assert result.verified
 
-        # 2. Original untouched — still has PHI
+        # 2. Original untouched -- still has PHI
         handler = get_handler(tmp_ndpi)
         original_scan = handler.scan(tmp_ndpi)
         assert not original_scan.is_clean
@@ -149,7 +149,7 @@ class TestGenericTIFFPipeline:
 
 
 class TestBatchPipeline:
-    """Batch pipeline — multiple files of different formats."""
+    """Batch pipeline -- multiple files of different formats."""
 
     def test_batch_scan_and_anonymize(self, tmp_ndpi, tmp_svs, tmp_path):
         # Set up input directory

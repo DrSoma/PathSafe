@@ -916,7 +916,7 @@ class AnonymizeWorker(QThread):
                 # Filename PHI warning
                 if result.filename_has_phi:
                     self.signals.log.emit(html_error(
-                        '    WARNING: Filename contains PHI — rename file manually'))
+                        '    WARNING: Filename contains PHI -- rename file manually'))
 
             batch_result = anonymize_batch(
                 self.input_path, output_dir=self.output_dir,
@@ -991,7 +991,7 @@ class AnonymizeWorker(QThread):
             if phi_filenames:
                 self.signals.log.emit(html_error(
                     f'WARNING: {phi_filenames} file(s) have PHI in their '
-                    f'filename — rename manually'))
+                    f'filename -- rename manually'))
 
             self.signals.summary.emit({
                 'type': 'anonymize',
@@ -2787,7 +2787,7 @@ class PathSafeWindow(QMainWindow):
             if is_read_only:
                 reply = QMessageBox.question(
                     self, 'Scan In Progress',
-                    'A scan is still running. It is safe to quit now — '
+                    'A scan is still running. It is safe to quit now -- '
                     'scanning is read-only and will not corrupt any files.\n\n'
                     'Close the application?',
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)

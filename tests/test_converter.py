@@ -77,7 +77,7 @@ def _make_mock_openslide(slide):
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — converter logic with mocked OpenSlide
+# Unit tests -- converter logic with mocked OpenSlide
 # ---------------------------------------------------------------------------
 
 class TestConvertFile:

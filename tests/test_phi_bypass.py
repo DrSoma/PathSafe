@@ -1,10 +1,10 @@
-"""PHI bypass / evasion tests — attempts to evade the scanner.
+"""PHI bypass / evasion tests -- attempts to evade the scanner.
 
 Each test crafts metadata that might slip past PHI detection.
 Tests that PASS confirm the scanner catches the pattern.
 Tests that FAIL reveal a real detection gap (potential bug).
 
-All tests use synthetic temporary files — no original WSI images are touched.
+All tests use synthetic temporary files -- no original WSI images are touched.
 """
 
 import pytest
@@ -28,14 +28,14 @@ class TestAccessionBypass:
     """Attempts to evade accession number detection."""
 
     def test_lowercase_accession(self):
-        """Lowercase 'as-24-123456' — scanner uses case-sensitive patterns."""
+        """Lowercase 'as-24-123456' -- scanner uses case-sensitive patterns."""
         results = scan_bytes_for_phi(b'as-24-123456\x00')
         # Lowercase should NOT match (accession codes are uppercase by convention)
         # This is expected behavior, not a bug
         assert len(results) == 0
 
     def test_accession_no_dashes(self):
-        """'AS24123456' without dashes — no standard separator."""
+        """'AS24123456' without dashes -- no standard separator."""
         results = scan_bytes_for_phi(b'AS24123456\x00')
         assert len(results) == 0  # Expected: no match without dashes
 
@@ -50,7 +50,7 @@ class TestAccessionBypass:
         assert len(results) == 0  # Expected: underscores not a separator
 
     def test_accession_embedded_in_long_string(self):
-        """Accession buried in a long string — should still match."""
+        """Accession buried in a long string -- should still match."""
         data = b'A' * 500 + b'AS-24-123456' + b'B' * 500 + b'\x00'
         results = scan_bytes_for_phi(data)
         labels = [r[3] for r in results]
@@ -70,22 +70,22 @@ class TestAccessionBypass:
         assert any('SP' in l for l in labels)
 
     def test_accession_just_under_min_digits(self):
-        """'AS-24-12' only 2 digits — should NOT match (min is 3)."""
+        """'AS-24-12' only 2 digits -- should NOT match (min is 3)."""
         results = scan_bytes_for_phi(b'AS-24-12\x00')
         assert len(results) == 0
 
     def test_accession_exactly_min_digits(self):
-        """'AS-24-123' exactly 3 digits — should match."""
+        """'AS-24-123' exactly 3 digits -- should match."""
         results = scan_bytes_for_phi(b'AS-24-123\x00')
         assert len(results) > 0
 
     def test_ch_accession_just_under_min(self):
-        """'CH1234' only 4 digits — should NOT match (min is 5)."""
+        """'CH1234' only 4 digits -- should NOT match (min is 5)."""
         results = scan_bytes_for_phi(b'CH1234\x00')
         assert len(results) == 0
 
     def test_ch_accession_exactly_min(self):
-        """'CH12345' exactly 5 digits — should match."""
+        """'CH12345' exactly 5 digits -- should match."""
         results = scan_bytes_for_phi(b'CH12345\x00')
         assert len(results) > 0
 
@@ -98,30 +98,30 @@ class TestDateBypass:
     """Attempts to evade date detection."""
 
     def test_standard_tiff_date(self):
-        """Standard TIFF DateTime format — should match."""
+        """Standard TIFF DateTime format -- should match."""
         results = scan_bytes_for_dates(b'2024:06:15 10:30:00')
         assert len(results) > 0
 
     def test_slash_date(self):
-        """Slash-delimited date — should match."""
+        """Slash-delimited date -- should match."""
         results = scan_bytes_for_dates(b'2024/06/15')
         assert len(results) > 0
 
     def test_iso_date(self):
-        """ISO 8601 date — should match."""
+        """ISO 8601 date -- should match."""
         results = scan_bytes_for_dates(b'2024-06-15')
         assert len(results) > 0
 
     def test_dot_separated_date(self):
-        """Dot-separated date '2024.06.15' — NOT a standard pattern."""
+        """Dot-separated date '2024.06.15' -- NOT a standard pattern."""
         results = scan_bytes_for_dates(b'2024.06.15')
-        # Not matched — known limitation
+        # Not matched -- known limitation
         assert len(results) == 0
 
     def test_human_readable_date(self):
-        """'June 15, 2024' — natural language date not detected."""
+        """'June 15, 2024' -- natural language date not detected."""
         results = scan_bytes_for_dates(b'June 15, 2024')
-        # Not matched — known limitation (would need NLP)
+        # Not matched -- known limitation (would need NLP)
         assert len(results) == 0
 
     def test_anonymized_tiff_date_skipped(self):
@@ -138,22 +138,22 @@ class TestDateBypass:
         assert len(results) == 0
 
     def test_date_19xx(self):
-        """Old date (1980) — should still match."""
+        """Old date (1980) -- should still match."""
         results = scan_bytes_for_dates(b'1980:03:25 12:00:00')
         assert len(results) > 0
 
     def test_future_date(self):
-        """Future date (2099) — should still match."""
+        """Future date (2099) -- should still match."""
         results = scan_bytes_for_dates(b'2099:12:31 23:59:59')
         assert len(results) > 0
 
     def test_date_outside_range(self):
-        """Date outside 1900-2099 range — should NOT match."""
+        """Date outside 1900-2099 range -- should NOT match."""
         results = scan_bytes_for_dates(b'1800:01:01 00:00:00')
         assert len(results) == 0
 
     def test_partial_date(self):
-        """'2024:06' — partial date, no time component."""
+        """'2024:06' -- partial date, no time component."""
         results = scan_bytes_for_dates(b'2024:06')
         # Should NOT match the TIFF DateTime pattern (needs full format)
         assert len(results) == 0
@@ -179,7 +179,7 @@ class TestMRNSSNDOBBypass:
         assert any(r[3] == 'MRN_Pattern' for r in results)
 
     def test_mrn_too_few_digits(self):
-        """MRN with only 4 digits — should NOT match (min 5)."""
+        """MRN with only 4 digits -- should NOT match (min 5)."""
         results = scan_bytes_for_phi(b'MRN-1234\x00')
         assert not any(r[3] == 'MRN_Pattern' for r in results)
 
@@ -188,13 +188,13 @@ class TestMRNSSNDOBBypass:
         assert any(r[3] == 'SSN_Pattern' for r in results)
 
     def test_ssn_no_dashes(self):
-        """'123456789' without dashes — should NOT match SSN pattern."""
+        """'123456789' without dashes -- should NOT match SSN pattern."""
         results = scan_bytes_for_phi(b'123456789\x00')
         # SSN pattern requires dashes
         assert not any(r[3] == 'SSN_Pattern' for r in results)
 
     def test_ssn_surrounded_by_digits(self):
-        """SSN-like pattern inside a larger number — should NOT match."""
+        """SSN-like pattern inside a larger number -- should NOT match."""
         results = scan_bytes_for_phi(b'9123-45-67890\x00')
         # Negative lookbehind/lookahead should exclude this
         assert not any(r[3] == 'SSN_Pattern' for r in results)
@@ -240,7 +240,7 @@ class TestFilenamePHIBypass:
         assert len(results) == 0
 
     def test_timestamp_only_filename(self):
-        """Filename with only a timestamp — should match as a date."""
+        """Filename with only a timestamp -- should match as a date."""
         results = scan_filename_for_phi(Path('2024-06-15_scan.tif'))
         # May or may not match depending on pattern scope
         # The important thing: accession patterns should not false-positive here
@@ -263,14 +263,14 @@ class TestEncodingBypass:
         """Null bytes inserted into accession: 'AS-\x0024-123456'."""
         data = b'AS-\x0024-123456\x00'
         results = scan_bytes_for_phi(data)
-        # The null byte breaks the pattern — this is a known limitation
+        # The null byte breaks the pattern -- this is a known limitation
         # but acceptable since TIFF strings are null-terminated
 
     def test_accession_in_utf16(self):
-        """Accession encoded as UTF-16 — byte patterns won't match."""
+        """Accession encoded as UTF-16 -- byte patterns won't match."""
         data = 'AS-24-123456'.encode('utf-16-le')
         results = scan_bytes_for_phi(data)
-        # UTF-16 interleaves null bytes — pattern won't match
+        # UTF-16 interleaves null bytes -- pattern won't match
         # This is a known limitation for binary scanning
         assert len(results) == 0
 

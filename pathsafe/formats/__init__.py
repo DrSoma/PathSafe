@@ -1,4 +1,4 @@
-"""Format registry — auto-detection by extension and magic bytes."""
+"""Format registry -- auto-detection by extension and magic bytes."""
 
 from pathlib import Path
 from typing import Optional

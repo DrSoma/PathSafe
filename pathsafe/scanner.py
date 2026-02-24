@@ -1,4 +1,4 @@
-"""PHI detection engine — regex patterns and tag scanning.
+"""PHI detection engine -- regex patterns and tag scanning.
 
 Provides configurable pattern sets for detecting Protected Health Information
 in WSI file headers and metadata.
@@ -49,7 +49,7 @@ PHI_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(rb'DOB[-_:# ]?(?:19|20)\d{2}[-/]?\d{2}[-/]?\d{2}'), 'DOB_Pattern'),
 ]
 
-# Date patterns (byte-level) — these match common date formats in metadata.
+# Date patterns (byte-level) -- these match common date formats in metadata.
 # Excluded: dates containing 1900:01:01 or 0000:00:00 (already anonymized).
 DATE_BYTE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(rb'(?:19|20)\d{2}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}'), 'DateTime_TIFF'),
@@ -83,7 +83,7 @@ PHI_STRING_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r'DOB[-_:# ]?(?:19|20)\d{2}[-/]?\d{2}[-/]?\d{2}'), 'DOB_Pattern'),
 ]
 
-# Anonymized date sentinel — dates that have already been zeroed
+# Anonymized date sentinel -- dates that have already been zeroed
 ANONYMIZED_DATE_SENTINEL = b'1900:01:01 00:00:00'
 
 # Default header scan size for regex safety scan (1MB)

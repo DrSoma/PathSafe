@@ -1,4 +1,4 @@
-"""Shared test fixtures — synthetic TIFF/NDPI/SVS/BIF/SCN/MRXS file generators."""
+"""Shared test fixtures -- synthetic TIFF/NDPI/SVS/BIF/SCN/MRXS file generators."""
 
 import struct
 import pytest
@@ -404,7 +404,7 @@ def tmp_scn_clean(tmp_path):
 @pytest.fixture
 def tmp_mrxs(tmp_path):
     """Create a synthetic MRXS file with companion directory and Slidedat.ini."""
-    # .mrxs file (can be minimal — MRXS handler just checks extension)
+    # .mrxs file (can be minimal -- MRXS handler just checks extension)
     filepath = tmp_path / 'test_slide.mrxs'
     filepath.write_bytes(b'MIRAX\x00')
 
@@ -807,7 +807,7 @@ def build_tiff_with_sub_ifd(main_entries, sub_ifd_entries, pointer_tag, endian='
 
     Args:
         main_entries: List of (tag_id, type_id, count, value_or_bytes) for the main IFD.
-            Do NOT include the pointer tag — it will be added automatically.
+            Do NOT include the pointer tag -- it will be added automatically.
         sub_ifd_entries: List of (tag_id, type_id, count, value_or_bytes) for the sub-IFD.
         pointer_tag: 34665 (EXIF) or 34853 (GPS).
         endian: '<' or '>'.

@@ -506,7 +506,7 @@ class TestInstitutionInCertificate:
 # ---------------------------------------------------------------------------
 
 class TestFriendlyTagName:
-    """Tests for friendly_tag_name() — human-readable tag labels."""
+    """Tests for friendly_tag_name() -- human-readable tag labels."""
 
     def test_direct_lookup(self):
         assert friendly_tag_name('NDPI_BARCODE') == 'Barcode'

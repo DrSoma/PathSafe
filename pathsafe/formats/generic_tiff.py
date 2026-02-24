@@ -235,7 +235,7 @@ class GenericTIFFHandler(FormatHandler):
                 return cleared
 
             for ifd_offset, entries in iter_ifds(f, header):
-                # Label/macro blanking FIRST — must read tag 270 before
+                # Label/macro blanking FIRST -- must read tag 270 before
                 # string tag loop overwrites it
                 for entry in entries:
                     if entry.tag_id == 270 and entry.dtype == 2:

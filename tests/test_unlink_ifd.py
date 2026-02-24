@@ -1,4 +1,4 @@
-"""Tests for IFD unlinking — unlink_ifd() and handler integration."""
+"""Tests for IFD unlinking -- unlink_ifd() and handler integration."""
 
 import struct
 import pytest
@@ -141,12 +141,12 @@ class TestUnlinkAlreadyUnlinked:
             ifds = iter_ifds(f, header)
         second_offset = ifds[1][0]
 
-        # Unlink second IFD — first time succeeds
+        # Unlink second IFD -- first time succeeds
         with open(fp, 'r+b') as f:
             header = read_header(f)
             assert unlink_ifd(f, header, second_offset) is True
 
-        # Second time — target is no longer in chain
+        # Second time -- target is no longer in chain
         with open(fp, 'r+b') as f:
             header = read_header(f)
             assert unlink_ifd(f, header, second_offset) is False
@@ -210,7 +210,7 @@ class TestUnlinkBigTIFF:
 
 
 # ---------------------------------------------------------------------------
-# Handler integration tests — label/macro IFDs unlinked after anonymize
+# Handler integration tests -- label/macro IFDs unlinked after anonymize
 # ---------------------------------------------------------------------------
 
 class TestNDPIUnlinksLabelMacro:
@@ -427,7 +427,7 @@ class TestRerunUnlinksOldBlanked:
             _, label_entries = ifds[1]
             assert is_ifd_image_blanked(f, header, label_entries)
 
-        # Re-anonymize — should unlink the already-blanked label
+        # Re-anonymize -- should unlink the already-blanked label
         from pathsafe.formats.svs import SVSHandler
         handler = SVSHandler()
         handler.anonymize(fp)

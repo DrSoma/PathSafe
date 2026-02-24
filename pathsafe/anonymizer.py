@@ -1,4 +1,4 @@
-"""Core anonymization logic — copy-then-anonymize, in-place, and batch processing.
+"""Core anonymization logic -- copy-then-anonymize, in-place, and batch processing.
 
 Supports both sequential and parallel (thread pool) batch processing.
 """
@@ -75,7 +75,7 @@ def anonymize_file(
         output_path: If provided, copy file here first (copy mode).
                      If None, anonymize in-place.
         verify: If True, re-scan after anonymization to confirm all PHI cleared.
-        dry_run: If True, only scan — don't modify anything.
+        dry_run: If True, only scan -- don't modify anything.
         reset_timestamps: If True, reset file access/modification times to epoch.
         verify_integrity: If True, verify image tile data integrity via SHA-256.
 
@@ -158,7 +158,7 @@ def anonymize_file(
     if verify_integrity and not dry_run:
         integrity_result = _verify_image_integrity(target, pre_hashes)
 
-    # Verify — always re-scan when verify is enabled (not just when findings > 0)
+    # Verify -- always re-scan when verify is enabled (not just when findings > 0)
     verified = False
     if verify:
         from pathsafe.verify import verify_file

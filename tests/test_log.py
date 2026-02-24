@@ -1,4 +1,4 @@
-"""Tests for pathsafe/log.py — CLI color, HTML formatting, timestamps, escaping."""
+"""Tests for pathsafe/log.py -- CLI color, HTML formatting, timestamps, escaping."""
 
 import re
 

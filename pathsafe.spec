@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for PathSafe — builds standalone executables.
+"""PyInstaller spec for PathSafe -- builds standalone executables.
 
 Build with:
     pip install pyinstaller

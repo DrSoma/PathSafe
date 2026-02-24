@@ -1,4 +1,4 @@
-"""Stress tests — mixed-state re-anonymization, double-anonymize, legacy detection."""
+"""Stress tests -- mixed-state re-anonymization, double-anonymize, legacy detection."""
 
 import io
 import struct

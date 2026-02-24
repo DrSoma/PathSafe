@@ -1,4 +1,4 @@
-"""Extended tests for TIFF parser — multi-IFD, integrity hashing, ICC profile."""
+"""Extended tests for TIFF parser -- multi-IFD, integrity hashing, ICC profile."""
 
 import io
 import struct
@@ -165,7 +165,7 @@ class TestICCProfile:
 
     def test_scan_detects_icc_profile(self):
         """ICC profile with content is detected by scan_extra_metadata_tags."""
-        # ICC profile data (UNDEFINED type 7) — contains a device serial
+        # ICC profile data (UNDEFINED type 7) -- contains a device serial
         icc_data = b'Device: SN-12345-XYZ\x00' + b'\x00' * 20
         entries = [
             (256, 3, 1, 1024),

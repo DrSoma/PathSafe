@@ -1,4 +1,4 @@
-"""PathSafe — Production-tested WSI anonymizer for pathology slide files."""
+"""PathSafe -- Production-tested WSI anonymizer for pathology slide files."""
 
 __version__ = "1.0.0"
 

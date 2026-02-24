@@ -1,4 +1,4 @@
-"""Low-level TIFF/BigTIFF binary parser — stdlib only (struct module).
+"""Low-level TIFF/BigTIFF binary parser -- stdlib only (struct module).
 
 Handles both standard TIFF (magic 42) and BigTIFF (magic 43) formats,
 with little-endian (II) and big-endian (MM) byte orders.
@@ -302,7 +302,7 @@ def iter_ifds(f: BinaryIO, header: TIFFHeader,
         seen.add(offset)
         entries, next_offset = read_ifd(f, header, offset)
         if not entries:
-            break  # Corrupt IFD (e.g. absurd tag count) — stop chain
+            break  # Corrupt IFD (e.g. absurd tag count) -- stop chain
         result.append((offset, entries))
         offset = next_offset
         count += 1
@@ -381,7 +381,7 @@ _BLANK_JPEG = (
     b'\xff\xd9'
 )
 
-# Legacy 4-byte blank (SOI + EOI) — used for detecting files blanked by
+# Legacy 4-byte blank (SOI + EOI) -- used for detecting files blanked by
 # older PathSafe versions that wrote only these 4 bytes.
 _LEGACY_BLANK_JPEG = b'\xFF\xD8\xFF\xD9'
 
@@ -456,7 +456,7 @@ def unlink_ifd(f: BinaryIO, header: TIFFHeader,
         # Could not read target IFD at all
         return False
 
-    # Case 1: Target is the first IFD — rewrite the file header
+    # Case 1: Target is the first IFD -- rewrite the file header
     if header.first_ifd_offset == target_ifd_offset:
         if header.is_bigtiff:
             f.seek(8)
@@ -479,7 +479,7 @@ def unlink_ifd(f: BinaryIO, header: TIFFHeader,
         pred_entries, pred_next = read_ifd(f, header, pred_offset)
 
         if pred_next == target_ifd_offset:
-            # Found the predecessor — rewrite its next-pointer
+            # Found the predecessor -- rewrite its next-pointer
             num_entries = len(pred_entries)
             if header.is_bigtiff:
                 next_ptr_offset = pred_offset + 8 + (num_entries * 20)
@@ -583,13 +583,13 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader,
 # These are scanned across NDPI, SVS, and generic TIFF handlers
 EXTRA_METADATA_TAGS = {
     270: 'ImageDescription', # May contain patient/case info (scanned by SVS/NDPI handlers too)
-    305: 'Software',         # Scanner software version — device fingerprint
+    305: 'Software',         # Scanner software version -- device fingerprint
     315: 'Artist',           # Operator/photographer name
-    316: 'HostComputer',     # Institution hostname — site identifier
+    316: 'HostComputer',     # Institution hostname -- site identifier
     700: 'XMP',              # XML metadata blob (creator, dates, etc.)
     33432: 'Copyright',      # May contain institutional or personal names
     33723: 'IPTC',           # IPTC/IIM metadata (byline, caption, etc.)
-    34675: 'ICCProfile',     # ICC color profile — may contain device serial numbers
+    34675: 'ICCProfile',     # ICC color profile -- may contain device serial numbers
     37510: 'UserComment',    # EXIF free-text comment
     42016: 'ImageUniqueID',  # Linkable unique identifier
 }
@@ -804,7 +804,7 @@ def scan_exif_sub_ifd_tags(f: BinaryIO, header: TIFFHeader,
 
 def scan_gps_sub_ifd(f: BinaryIO, header: TIFFHeader,
                      entries: List[IFDEntry]) -> List[Tuple[IFDEntry, str]]:
-    """Scan ALL GPS sub-IFD entries — every GPS tag is PHI (location data).
+    """Scan ALL GPS sub-IFD entries -- every GPS tag is PHI (location data).
 
     Returns list of (entry, preview_string) for tags with non-zero content.
     """

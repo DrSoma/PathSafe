@@ -1,4 +1,4 @@
-"""WSI format conversion — OpenSlide reads, tifffile/Pillow writes.
+"""WSI format conversion -- OpenSlide reads, tifffile/Pillow writes.
 
 Converts whole-slide images to pyramidal TIFF (BigTIFF), single-level
 images (PNG/JPEG), or extracts associated images (label, macro, thumbnail).
@@ -83,7 +83,7 @@ def convert_file(
     Args:
         source: Path to the source WSI file.
         output_path: Where to write the converted file.
-        target_format: Output format — "tiff", "png", or "jpeg".
+        target_format: Output format -- "tiff", "png", or "jpeg".
         tile_size: Tile size in pixels for pyramidal TIFF (default 256).
         quality: JPEG compression quality 1-100 (default 90).
         extract: If set, extract an associated image instead of converting.
@@ -172,7 +172,7 @@ def _convert_to_pyramidal_tiff(
     openslide = _require_openslide()
     tifffile = _require_tifffile()
 
-    # Determine compression — JPEG requires imagecodecs, fall back to deflate
+    # Determine compression -- JPEG requires imagecodecs, fall back to deflate
     try:
         import imagecodecs  # noqa: F401
         use_jpeg = True
@@ -230,7 +230,7 @@ def _convert_to_pyramidal_tiff(
                 # Read the entire level tile-by-tile into a numpy array
                 downsample = level_downsamples[level]
 
-                # Write the page — tifffile handles tiling internally
+                # Write the page -- tifffile handles tiling internally
                 page_data = _read_level_as_array(slide, level, lw, lh,
                                                  tile_size, downsample)
 
@@ -314,7 +314,7 @@ def _convert_to_single_image(
                     lw, lh = w, h
                     break
             else:
-                # Even the smallest level is too big — use it anyway
+                # Even the smallest level is too big -- use it anyway
                 level = slide.level_count - 1
                 lw, lh = slide.level_dimensions[level]
 
@@ -380,7 +380,7 @@ def convert_batch(
     Args:
         input_path: File or directory containing WSI files.
         output_dir: Directory for converted output files.
-        target_format: Output format — "tiff", "png", or "jpeg".
+        target_format: Output format -- "tiff", "png", or "jpeg".
         tile_size: Tile size in pixels for pyramidal TIFF.
         quality: JPEG compression quality 1-100.
         anonymize: Run PathSafe anonymization on each converted file.

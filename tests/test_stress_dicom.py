@@ -1,4 +1,4 @@
-"""Stress tests — DICOM deep sequences, UID remapping, idempotency."""
+"""Stress tests -- DICOM deep sequences, UID remapping, idempotency."""
 
 import pytest
 from pathlib import Path
@@ -119,7 +119,7 @@ class TestDeeplyNestedSequences:
         assert len(patient_findings) == 0
 
     def test_depth_guard_stops_anonymization(self, tmp_path):
-        """Anonymize stops at depth > 5 — unreachable PHI remains."""
+        """Anonymize stops at depth > 5 -- unreachable PHI remains."""
         filepath = _make_dicom_file(tmp_path / 'nested7.dcm')
         ds = pydicom.dcmread(str(filepath), force=True)
 
@@ -145,7 +145,7 @@ class TestSequenceEdgeCases:
         assert findings == []
 
     def test_100_items_in_sequence(self):
-        """100 items each with PatientName — all should be found."""
+        """100 items each with PatientName -- all should be found."""
         ds = Dataset()
         items = []
         for i in range(100):
@@ -172,7 +172,7 @@ class TestSequenceEdgeCases:
         assert len(patient_findings) == 1  # Only un-anonymized one found
 
     def test_sequence_with_date_phi(self):
-        """Sequence item with StudyDate — should be found."""
+        """Sequence item with StudyDate -- should be found."""
         ds = Dataset()
         item = Dataset()
         item.add_new(Tag(0x0008, 0x0020), 'DA', '20240615')  # StudyDate
@@ -191,7 +191,7 @@ class TestReAnonymizeDICOM:
     """Test double-anonymization is a no-op."""
 
     def test_double_anonymize_noop(self, handler, tmp_path):
-        """Anonymize twice — second run clears nothing."""
+        """Anonymize twice -- second run clears nothing."""
         filepath = _make_dicom_file(tmp_path / 'double.dcm')
         cleared1 = handler.anonymize(filepath)
         assert len(cleared1) > 0

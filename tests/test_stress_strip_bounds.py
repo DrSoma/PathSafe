@@ -1,4 +1,4 @@
-"""Stress tests — strip size boundaries for blank_ifd_image_data / is_ifd_image_blanked."""
+"""Stress tests -- strip size boundaries for blank_ifd_image_data / is_ifd_image_blanked."""
 
 import io
 import struct
@@ -21,7 +21,7 @@ class TestBoundaryStripSizes:
     """Test blank_ifd_image_data at exact boundary sizes."""
 
     def test_exact_jpeg_size(self):
-        """Strip exactly _BLANK_JPEG size — JPEG fits perfectly."""
+        """Strip exactly _BLANK_JPEG size -- JPEG fits perfectly."""
         strip_data = b'\xAB' * _JPEG_SIZE
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 64)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -37,7 +37,7 @@ class TestBoundaryStripSizes:
         assert is_ifd_image_blanked(f, header, entries) is True
 
     def test_one_byte_under_jpeg(self):
-        """Strip one byte smaller than _BLANK_JPEG — all zeros fallback."""
+        """Strip one byte smaller than _BLANK_JPEG -- all zeros fallback."""
         strip_data = b'\xAB' * (_JPEG_SIZE - 1)
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 64)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -52,7 +52,7 @@ class TestBoundaryStripSizes:
         assert is_ifd_image_blanked(f, header, entries) is True
 
     def test_one_byte_over_jpeg(self):
-        """Strip one byte larger — JPEG + 1 zero byte padding."""
+        """Strip one byte larger -- JPEG + 1 zero byte padding."""
         strip_data = b'\xAB' * (_JPEG_SIZE + 1)
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 64)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -66,7 +66,7 @@ class TestBoundaryStripSizes:
         assert is_ifd_image_blanked(f, header, entries) is True
 
     def test_zero_byte_strip(self):
-        """Zero-byte strip — returns 0 blanked."""
+        """Zero-byte strip -- returns 0 blanked."""
         strip_data = b''
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 64)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -78,7 +78,7 @@ class TestBoundaryStripSizes:
         assert blanked == 0
 
     def test_1_byte_strip(self):
-        """1-byte strip — becomes 1 zero byte."""
+        """1-byte strip -- becomes 1 zero byte."""
         strip_data = b'\xFF'
         tag_entries = [(256, 3, 1, 1), (257, 3, 1, 1)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -90,7 +90,7 @@ class TestBoundaryStripSizes:
         assert blanked == 1
 
     def test_4_byte_strip(self):
-        """4-byte strip — too small for JPEG, all zeros."""
+        """4-byte strip -- too small for JPEG, all zeros."""
         strip_data = b'\xAB\xCD\xEF\x01'
         tag_entries = [(256, 3, 1, 2), (257, 3, 1, 2)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -102,7 +102,7 @@ class TestBoundaryStripSizes:
         assert blanked == 4
 
     def test_8_byte_strip(self):
-        """8-byte strip — still too small for JPEG."""
+        """8-byte strip -- still too small for JPEG."""
         strip_data = b'\xAB' * 8
         tag_entries = [(256, 3, 1, 4), (257, 3, 1, 2)]
         content = build_tiff_with_strips(tag_entries, strip_data)
@@ -114,7 +114,7 @@ class TestBoundaryStripSizes:
         assert blanked == 8
 
     def test_large_strip_1mb(self):
-        """1MB strip — JPEG header + zeros padding."""
+        """1MB strip -- JPEG header + zeros padding."""
         size = 1_000_000
         strip_data = b'\xAB' * size
         tag_entries = [(256, 3, 1, 1000), (257, 3, 1, 1000)]
@@ -131,7 +131,7 @@ class TestMultipleStrips:
     """Test blanking behavior with multiple strips in one IFD."""
 
     def test_two_equal_strips(self):
-        """Two strips of 1000 bytes each — both blanked."""
+        """Two strips of 1000 bytes each -- both blanked."""
         strip_data_list = [b'\xAB' * 1000, b'\xCD' * 1000]
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 128)]
         content = build_tiff_multi_strip(tag_entries, strip_data_list)
@@ -143,7 +143,7 @@ class TestMultipleStrips:
         assert blanked == 2000
 
     def test_mixed_size_strips(self):
-        """Mixed sizes (1000 + 100 bytes) — both blanked correctly."""
+        """Mixed sizes (1000 + 100 bytes) -- both blanked correctly."""
         strip_data_list = [b'\xAB' * 1000, b'\xCD' * 100]
         tag_entries = [(256, 3, 1, 64), (257, 3, 1, 64)]
         content = build_tiff_multi_strip(tag_entries, strip_data_list)

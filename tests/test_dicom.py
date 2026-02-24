@@ -1,6 +1,6 @@
 """Tests for the DICOM format handler.
 
-Requires pydicom — tests are skipped if pydicom is not installed.
+Requires pydicom -- tests are skipped if pydicom is not installed.
 """
 
 import pytest

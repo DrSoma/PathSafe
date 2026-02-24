@@ -1,4 +1,4 @@
-"""CLI interface for PathSafe — scan, anonymize, verify, info subcommands.
+"""CLI interface for PathSafe -- scan, anonymize, verify, info subcommands.
 
 Color-coded terminal output with structured log file support.
 """
@@ -26,7 +26,7 @@ from pathsafe.verify import verify_batch, verify_file
 @click.group()
 @click.version_option(version=pathsafe.__version__, prog_name='pathsafe')
 def main():
-    """PathSafe — Production-tested WSI anonymizer.
+    """PathSafe -- Production-tested WSI anonymizer.
 
     Detect and remove Protected Health Information (PHI) from
     whole-slide image files (NDPI, SVS, TIFF).
@@ -58,7 +58,7 @@ def scan(path, verbose, fmt, json_out, workers, report, institution):
         return
 
     workers_str = f', {workers} workers' if workers > 1 else ''
-    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} — PHI Scan{workers_str}'))
+    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} -- PHI Scan{workers_str}'))
     click.echo(cli_info(f'Scanning {len(files)} file(s)...'))
     click.echo(cli_separator())
 
@@ -145,9 +145,9 @@ def scan(path, verbose, fmt, json_out, workers, report, institution):
         click.echo(f'  Errors:         {cli_error(str(error_count))}')
 
     if phi_count == 0 and error_count == 0:
-        click.echo(cli_success('\nAll files are clean — no PHI detected.'))
+        click.echo(cli_success('\nAll files are clean -- no PHI detected.'))
     elif phi_count > 0:
-        click.echo(cli_warning(f'\n{phi_count} file(s) contain PHI — run "pathsafe anonymize" to clean.'))
+        click.echo(cli_warning(f'\n{phi_count} file(s) contain PHI -- run "pathsafe anonymize" to clean.'))
 
     if report:
         scan_data = {
@@ -231,8 +231,8 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
         mode_str = 'DRY RUN' if dry_run else ('copy' if output_dir else 'in-place')
         workers_str = f', {workers} workers' if workers > 1 else ''
 
-        emit(cli_header(f'PathSafe v{pathsafe.__version__} — {mode_str} anonymization{workers_str}'),
-             log_info(f'PathSafe v{pathsafe.__version__} — {mode_str} anonymization{workers_str}'))
+        emit(cli_header(f'PathSafe v{pathsafe.__version__} -- {mode_str} anonymization{workers_str}'),
+             log_info(f'PathSafe v{pathsafe.__version__} -- {mode_str} anonymization{workers_str}'))
         emit(cli_info(f'Processing {len(files)} file(s)...'),
              log_info(f'Processing {len(files)} file(s)...'))
         emit(cli_separator(), '-' * 60)
@@ -280,8 +280,8 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
 
             # Filename PHI warning
             if result.filename_has_phi:
-                emit(f'         {cli_error("WARNING: Filename contains PHI — rename file manually")}',
-                     log_warn(f'  WARNING: Filename contains PHI — rename file manually'))
+                emit(f'         {cli_error("WARNING: Filename contains PHI -- rename file manually")}',
+                     log_warn(f'  WARNING: Filename contains PHI -- rename file manually'))
 
         batch_result = anonymize_batch(
             input_path, output_dir=output_dir,
@@ -310,8 +310,8 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
         # Filename PHI warnings
         phi_filenames = sum(1 for r in batch_result.results if r.filename_has_phi)
         if phi_filenames:
-            emit(f'\n  {cli_error(f"WARNING: {phi_filenames} file(s) have PHI in their filename — rename manually")}',
-                 log_warn(f'  WARNING: {phi_filenames} file(s) have PHI in their filename — rename manually'))
+            emit(f'\n  {cli_error(f"WARNING: {phi_filenames} file(s) have PHI in their filename -- rename manually")}',
+                 log_warn(f'  WARNING: {phi_filenames} file(s) have PHI in their filename -- rename manually'))
 
         # Generate certificate
         if certificate and not dry_run:
@@ -349,7 +349,7 @@ def verify(path, verbose, fmt):
         click.echo(cli_warning(f'No WSI files found in {input_path}'))
         return
 
-    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} — Verification'))
+    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} -- Verification'))
     click.echo(cli_info(f'Verifying {len(files)} file(s)...'))
     click.echo(cli_separator())
 
@@ -448,7 +448,7 @@ def convert(path, output, target_format, anonymize, tile_size, quality, extract,
     input_path = Path(path)
     output_path = Path(output)
 
-    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} — Format Conversion'))
+    click.echo(cli_header(f'PathSafe v{pathsafe.__version__} -- Format Conversion'))
 
     if extract:
         # Single file extraction

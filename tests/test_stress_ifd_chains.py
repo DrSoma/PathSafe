@@ -1,4 +1,4 @@
-"""Stress tests — large IFD chains (10-20 IFDs), unlink operations, circular detection."""
+"""Stress tests -- large IFD chains (10-20 IFDs), unlink operations, circular detection."""
 
 import io
 import struct
@@ -12,7 +12,7 @@ from tests.conftest import build_tiff_multi_ifd, build_bigtiff_multi_ifd
 def _make_ifd_entries(index):
     """Create minimal IFD entries for chain tests."""
     return [
-        (256, 3, 1, 64 * (index + 1)),  # ImageWidth — unique per IFD
+        (256, 3, 1, 64 * (index + 1)),  # ImageWidth -- unique per IFD
         (257, 3, 1, 64),                 # ImageLength
     ]
 
@@ -185,7 +185,7 @@ class TestCircularChainDetection:
     """Test that iter_ifds() handles circular IFD chains gracefully."""
 
     def test_circular_chain_terminates(self, tmp_path):
-        """IFD #9 points back to IFD #4 — verify iter_ifds terminates."""
+        """IFD #9 points back to IFD #4 -- verify iter_ifds terminates."""
         # Build a normal 10-IFD chain first
         ifd_list = [_make_ifd_entries(i) for i in range(10)]
         data = build_tiff_multi_ifd(ifd_list)
