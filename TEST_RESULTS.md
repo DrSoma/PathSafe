@@ -21,7 +21,9 @@
 | 9 | Deep Audit Fixes | 12 | 12 | 0 | 12 issues fixed (see Phase 9) |
 | **Total** | | **80** | **80** | **0** | **18 issues fixed** |
 
-**All 80 tests PASS after bug fixes.**
+**All 80 manual integration tests PASS after bug fixes.**
+
+> **Note:** In addition to the 80 manual integration tests above, the automated test suite (`pytest tests/`) contains **649+ unit and integration tests** covering all format handlers, PHI patterns, adversarial inputs, EXIF/GPS sub-IFDs, roundtrip integrity, and the refactored tiff/gui packages.
 
 ---
 

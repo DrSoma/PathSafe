@@ -14,7 +14,18 @@ from pathsafe.models import (
 from pathsafe.anonymizer import anonymize_file, anonymize_batch
 from pathsafe.scanner import scan_file
 from pathsafe.verify import verify_file, verify_batch
-from pathsafe.report import generate_certificate, generate_pdf_certificate, generate_scan_report
+# Lazy imports for optional report module (avoids hard fpdf2 dependency)
+def generate_certificate(*args, **kwargs):
+    from pathsafe.report import generate_certificate as _generate_certificate
+    return _generate_certificate(*args, **kwargs)
+
+def generate_pdf_certificate(*args, **kwargs):
+    from pathsafe.report import generate_pdf_certificate as _generate_pdf_certificate
+    return _generate_pdf_certificate(*args, **kwargs)
+
+def generate_scan_report(*args, **kwargs):
+    from pathsafe.report import generate_scan_report as _generate_scan_report
+    return _generate_scan_report(*args, **kwargs)
 
 # Lazy imports for optional conversion module
 def convert_file(*args, **kwargs):
