@@ -136,6 +136,16 @@ def anonymize_file(
     try:
         findings = handler.anonymize(target)
     except Exception as e:
+        # Clean up unanonymized copy to prevent PHI leak in output dir
+        if mode == "copy":
+            try:
+                target.unlink(missing_ok=True)
+                # Also clean up MRXS companion directory copy
+                target_companion = target.parent / target.stem
+                if target_companion.is_dir():
+                    shutil.rmtree(str(target_companion), ignore_errors=True)
+            except OSError:
+                pass
         elapsed = (time.monotonic() - t0) * 1000
         return AnonymizationResult(
             source_path=filepath, output_path=target, mode=mode,
@@ -147,16 +157,38 @@ def anonymize_file(
     if verify_integrity and not dry_run:
         integrity_result = _verify_image_integrity(target, pre_hashes)
 
-    # Verify
+    # Verify — always re-scan when verify is enabled (not just when findings > 0)
     verified = False
-    if verify and findings:
+    if verify:
         from pathsafe.verify import verify_file
         verify_result = verify_file(target)
-        verified = verify_result.is_clean
+        verified = verify_result.is_clean and not verify_result.error
+
+    # Check if output filename still contains PHI patterns
+    from pathsafe.scanner import scan_filename_for_phi
+    filename_has_phi = len(scan_filename_for_phi(target)) > 0
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps:
         os.utime(target, (0, 0))
+        # Also reset MRXS companion directory and files
+        companion_dir = target.parent / target.stem
+        if companion_dir.is_dir():
+            for root, dirs, filenames in os.walk(companion_dir):
+                for fname in filenames:
+                    try:
+                        os.utime(os.path.join(root, fname), (0, 0))
+                    except OSError:
+                        pass
+                for dname in dirs:
+                    try:
+                        os.utime(os.path.join(root, dname), (0, 0))
+                    except OSError:
+                        pass
+            try:
+                os.utime(str(companion_dir), (0, 0))
+            except OSError:
+                pass
 
     elapsed = (time.monotonic() - t0) * 1000
     return AnonymizationResult(
@@ -164,6 +196,7 @@ def anonymize_file(
         findings_cleared=len(findings), verified=verified,
         anonymization_time_ms=elapsed,
         image_integrity_verified=integrity_result,
+        filename_has_phi=filename_has_phi,
     )
 
 

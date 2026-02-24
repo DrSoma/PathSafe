@@ -46,7 +46,6 @@ TAGS_TO_BLANK = {
     (0x0010, 0x0010): ('PatientName', 'PN'),
     (0x0010, 0x0020): ('PatientID', 'LO'),
     (0x0010, 0x0030): ('PatientBirthDate', 'DA'),
-    (0x0010, 0x0032): ('PatientBirthTime', 'TM'),
     (0x0010, 0x0040): ('PatientSex', 'CS'),
     (0x0010, 0x1010): ('PatientAge', 'AS'),
     (0x0010, 0x1020): ('PatientSize', 'DS'),
@@ -75,8 +74,6 @@ TAGS_TO_BLANK = {
     # Specimen Module (pathology-specific, critical for WSI)
     (0x0040, 0x0512): ('ContainerIdentifier', 'LO'),
     (0x0040, 0x0551): ('SpecimenIdentifier', 'LO'),
-    (0x0040, 0x0610): ('SpecimenPreparationSequence', 'SQ'),
-    (0x0008, 0x0050): ('AccessionNumber', 'SH'),  # Also in Study, but in Specimen too
     # Device module
     (0x0018, 0x1000): ('DeviceSerialNumber', 'LO'),
     (0x0018, 0x1020): ('SoftwareVersions', 'LO'),
@@ -148,6 +145,7 @@ TAGS_TO_DELETE = {
     (0x0040, 0x2016): 'PlacerOrderNumberImagingServiceRequest',
     (0x0040, 0x2017): 'FillerOrderNumberImagingServiceRequest',
     # Specimen Module (optional/Type 3 tags)
+    (0x0040, 0x0610): 'SpecimenPreparationSequence',
     (0x0040, 0x0513): 'IssuerOfTheContainerIdentifierSequence',
     (0x0040, 0x0515): 'AlternateContainerIdentifierSequence',
     (0x0040, 0x0518): 'ContainerTypeCodeSequence',
@@ -305,7 +303,7 @@ class DICOMHandler(FormatHandler):
             elapsed = (time.monotonic() - t0) * 1000
             return ScanResult(
                 filepath=filepath, format="dicom", findings=findings,
-                is_clean=len(findings) == 0, scan_time_ms=elapsed,
+                is_clean=False, scan_time_ms=elapsed,
                 file_size=file_size, error=str(e),
             )
 
@@ -319,7 +317,10 @@ class DICOMHandler(FormatHandler):
     def anonymize(self, filepath: Path) -> List[PHIFinding]:
         """Anonymize PHI in a DICOM file in-place."""
         if not HAS_PYDICOM:
-            return []
+            raise RuntimeError(
+                "Cannot anonymize DICOM files: pydicom not installed "
+                "(pip install pathsafe[dicom])"
+            )
 
         cleared: List[PHIFinding] = []
         ds = pydicom.dcmread(str(filepath), force=True)

@@ -131,12 +131,18 @@ class NDPIHandler(FormatHandler):
 
         try:
             cleared += self._anonymize_tags(filepath)
-            cleared += self._blank_label_macro(filepath)
-            cleared += self._anonymize_companion_files(filepath)
         except Exception:
-            # Try fallback for corrupt TIFF structure
+            # Fallback for corrupt TIFF structure — regex-based anonymization
             cleared += self._anonymize_fallback(filepath)
 
+        # Label/macro blanking must always be attempted, even if tag
+        # anonymization failed above — labels contain photographed PHI
+        try:
+            cleared += self._blank_label_macro(filepath)
+        except Exception:
+            pass  # Label blanking failed — file may have corrupt IFD structure
+
+        cleared += self._anonymize_companion_files(filepath)
         cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
         return cleared
 

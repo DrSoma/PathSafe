@@ -208,6 +208,8 @@ PathSafe removes these categories of PHI:
 
 All tags are scanned across **every IFD** (image layer) in the file, not just the first one.
 
+**Note on filenames:** PathSafe detects PHI in filenames but cannot automatically rename files (this would break file associations). If a filename contains patient data, PathSafe displays a warning so you can rename the file manually.
+
 For a detailed breakdown by format, see the main [README](../README.md).
 
 ## File Info

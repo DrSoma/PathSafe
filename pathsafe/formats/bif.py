@@ -88,7 +88,7 @@ class BIFHandler(FormatHandler):
             elapsed = (time.monotonic() - t0) * 1000
             return ScanResult(
                 filepath=filepath, format="bif", findings=findings,
-                is_clean=len(findings) == 0, scan_time_ms=elapsed,
+                is_clean=False, scan_time_ms=elapsed,
                 file_size=file_size, error=str(e),
             )
 

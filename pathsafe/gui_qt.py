@@ -773,6 +773,11 @@ class AnonymizeWorker(QThread):
                     self.signals.log.emit(html_error(
                         '    Image data integrity: FAILED'))
 
+                # Filename PHI warning
+                if result.filename_has_phi:
+                    self.signals.log.emit(html_error(
+                        '    WARNING: Filename contains PHI — rename file manually'))
+
             batch_result = anonymize_batch(
                 self.input_path, output_dir=self.output_dir,
                 verify=self.verify, progress_callback=progress,
@@ -831,6 +836,15 @@ class AnonymizeWorker(QThread):
             integrity_failed = sum(
                 1 for r in batch_result.results
                 if r.image_integrity_verified is False)
+            phi_filenames = sum(
+                1 for r in batch_result.results
+                if r.filename_has_phi)
+
+            # Log filename PHI warning in summary
+            if phi_filenames:
+                self.signals.log.emit(html_error(
+                    f'WARNING: {phi_filenames} file(s) have PHI in their '
+                    f'filename — rename manually'))
 
             self.signals.summary.emit({
                 'type': 'anonymize',
@@ -845,6 +859,7 @@ class AnonymizeWorker(QThread):
                 'dry_run': self.dry_run,
                 'integrity_verified': integrity_verified,
                 'integrity_failed': integrity_failed,
+                'phi_filenames': phi_filenames,
                 'output_paths': [
                     str(r.output_path) for r in batch_result.results
                     if not r.error
@@ -2137,9 +2152,21 @@ class PathSafeWindow(QMainWindow):
                     lines.append(
                         f'<tr><td>Image integrity:</td>'
                         f'<td style="color:#2e8b3e"><b>{integrity_verified} verified</b></td></tr>')
+            # Filename PHI warning
+            phi_filenames = data.get('phi_filenames', 0)
+            if phi_filenames:
+                lines.append(
+                    f'<tr><td>Filename PHI:</td>'
+                    f'<td style="color:#c03030"><b>{phi_filenames} file(s) '
+                    f'need renaming</b></td></tr>')
             lines.append(f'<tr><td>Time:</td><td>{elapsed}</td></tr>')
             lines.append('</table>')
 
+            if phi_filenames:
+                lines.append(
+                    '<p style="color:#c03030"><b>WARNING:</b> Some output files '
+                    'have patient information in their filename. Rename them '
+                    'manually before sharing.</p>')
             if dry_run:
                 lines.append(
                     '<p><b>DRY RUN</b> - No files were modified.</p>')

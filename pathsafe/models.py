@@ -45,6 +45,7 @@ class AnonymizationResult:
     verified: bool = False
     anonymization_time_ms: float = 0.0
     image_integrity_verified: Optional[bool] = None  # None=not checked, True=matched, False=mismatch
+    filename_has_phi: bool = False  # True if output filename still contains PHI patterns
     error: Optional[str] = None
 
 

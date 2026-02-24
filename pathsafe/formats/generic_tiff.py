@@ -68,7 +68,7 @@ class GenericTIFFHandler(FormatHandler):
                 if header is None:
                     elapsed = (time.monotonic() - t0) * 1000
                     return ScanResult(
-                        filepath=filepath, format="tiff", is_clean=True,
+                        filepath=filepath, format="tiff", is_clean=False,
                         scan_time_ms=elapsed, file_size=file_size,
                         error="Not a valid TIFF file",
                     )
@@ -140,7 +140,7 @@ class GenericTIFFHandler(FormatHandler):
             elapsed = (time.monotonic() - t0) * 1000
             return ScanResult(
                 filepath=filepath, format="tiff", findings=findings,
-                is_clean=len(findings) == 0, scan_time_ms=elapsed,
+                is_clean=False, scan_time_ms=elapsed,
                 file_size=file_size, error=str(e),
             )
 

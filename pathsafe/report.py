@@ -63,6 +63,9 @@ def generate_certificate(
         if result.image_integrity_verified is not None:
             record['image_integrity_verified'] = result.image_integrity_verified
 
+        if result.filename_has_phi:
+            record['filename_has_phi'] = True
+
         if result.error:
             record['error'] = result.error
         else:

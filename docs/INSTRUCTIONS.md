@@ -113,6 +113,12 @@ After structured tag processing, PathSafe runs a regex-based scan of the first 1
 #### Post-Anonymization Verification
 After anonymizing each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.
 
+#### Filename PHI Warning
+If a file's name contains patient identifiers (e.g., `AS-24-123456.ndpi`), PathSafe warns you to rename it manually. The file contents are fully anonymized, but the filename itself cannot be changed automatically without breaking file associations.
+
+#### Fail-Closed Error Handling
+If PathSafe encounters an error while scanning a file, it reports the file as **not clean** rather than assuming it's safe. In copy mode, if anonymization fails, the unanonymized copy is automatically deleted to prevent PHI from being left in the output directory.
+
 ### Keyboard Shortcuts
 
 | Shortcut | Action |

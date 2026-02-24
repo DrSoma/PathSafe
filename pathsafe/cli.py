@@ -226,6 +226,11 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
                 emit(f'         {cli_error("Image integrity: FAILED")}',
                      log_error(f'  Image integrity: FAILED'))
 
+            # Filename PHI warning
+            if result.filename_has_phi:
+                emit(f'         {cli_error("WARNING: Filename contains PHI — rename file manually")}',
+                     log_warn(f'  WARNING: Filename contains PHI — rename file manually'))
+
         batch_result = anonymize_batch(
             input_path, output_dir=output_dir,
             verify=not no_verify, dry_run=dry_run,
@@ -249,6 +254,12 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
         if batch_result.files_errored:
             emit(f'  Errors:        {cli_error(str(batch_result.files_errored))}',
                  log_error(f'  Errors:        {batch_result.files_errored}'))
+
+        # Filename PHI warnings
+        phi_filenames = sum(1 for r in batch_result.results if r.filename_has_phi)
+        if phi_filenames:
+            emit(f'\n  {cli_error(f"WARNING: {phi_filenames} file(s) have PHI in their filename — rename manually")}',
+                 log_warn(f'  WARNING: {phi_filenames} file(s) have PHI in their filename — rename manually'))
 
         # Generate certificate
         if certificate and not dry_run:
