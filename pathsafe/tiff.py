@@ -271,3 +271,110 @@ def get_all_string_tags(f: BinaryIO, header: TIFFHeader,
             value = read_tag_string(f, entry)
             results.append((entry, value))
     return results
+
+
+def read_tag_long_array(f: BinaryIO, header: TIFFHeader,
+                        entry: IFDEntry) -> List[int]:
+    """Read a tag value as a list of integers.
+
+    Used for StripOffsets, StripByteCounts, TileOffsets, TileByteCounts.
+    """
+    if entry.dtype not in TIFF_TYPES:
+        return []
+    elem_size, fmt_char = TIFF_TYPES[entry.dtype]
+    if fmt_char in ('s',):
+        return []
+    f.seek(entry.value_offset)
+    fmt = header.endian + fmt_char * entry.count
+    size = struct.calcsize(fmt)
+    data = f.read(size)
+    if len(data) < size:
+        return []
+    return list(struct.unpack(fmt, data))
+
+
+# Minimal valid JPEG: SOI + EOI markers (4 bytes). Decoders treat this
+# as a valid empty image. We pad the rest with zeros.
+_BLANK_JPEG = b'\xFF\xD8\xFF\xD9'
+
+
+def blank_ifd_image_data(f: BinaryIO, header: TIFFHeader,
+                         entries: List[IFDEntry]) -> int:
+    """Overwrite all image strip/tile data in an IFD with blank bytes.
+
+    Writes a minimal valid JPEG header followed by zeros to each
+    strip/tile, preserving TIFF structure while destroying pixel content.
+    Returns total bytes blanked.
+    """
+    offset_entry = None
+    count_entry = None
+
+    for entry in entries:
+        if entry.tag_id == 273:    # StripOffsets
+            offset_entry = entry
+        elif entry.tag_id == 279:  # StripByteCounts
+            count_entry = entry
+        elif entry.tag_id == 324:  # TileOffsets
+            if offset_entry is None:
+                offset_entry = entry
+        elif entry.tag_id == 325:  # TileByteCounts
+            if count_entry is None:
+                count_entry = entry
+
+    if offset_entry is None or count_entry is None:
+        return 0
+
+    offsets = read_tag_long_array(f, header, offset_entry)
+    counts = read_tag_long_array(f, header, count_entry)
+
+    if len(offsets) != len(counts):
+        return 0
+
+    total_blanked = 0
+    for off, cnt in zip(offsets, counts):
+        if cnt > 0:
+            f.seek(off)
+            if cnt >= len(_BLANK_JPEG):
+                f.write(_BLANK_JPEG)
+                f.write(b'\x00' * (cnt - len(_BLANK_JPEG)))
+            else:
+                f.write(b'\x00' * cnt)
+            total_blanked += cnt
+
+    return total_blanked
+
+
+def get_ifd_image_size(header: TIFFHeader,
+                       entries: List[IFDEntry], f: BinaryIO) -> Tuple[int, int]:
+    """Get image width and height from an IFD's tags. Returns (width, height)."""
+    width = 0
+    height = 0
+    for entry in entries:
+        if entry.tag_id == 256:  # ImageWidth
+            val = read_tag_numeric(f, header, entry)
+            if val is not None:
+                width = val
+        elif entry.tag_id == 257:  # ImageLength
+            val = read_tag_numeric(f, header, entry)
+            if val is not None:
+                height = val
+    return width, height
+
+
+def get_ifd_image_data_size(header: TIFFHeader,
+                            entries: List[IFDEntry],
+                            f: BinaryIO) -> int:
+    """Get total size of image data (strips or tiles) in an IFD."""
+    count_entry = None
+    for entry in entries:
+        if entry.tag_id == 279:    # StripByteCounts
+            count_entry = entry
+            break
+        elif entry.tag_id == 325:  # TileByteCounts
+            count_entry = entry
+
+    if count_entry is None:
+        return 0
+
+    counts = read_tag_long_array(f, header, count_entry)
+    return sum(counts)

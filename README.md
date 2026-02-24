@@ -10,22 +10,25 @@ PathSafe detects and removes Protected Health Information (PHI) from whole-slide
 |---|---|
 | wsianon fails on NDPI files without macro images (CaloPix) | Handles all NDPI variants |
 | wsianon misses NDPI tag 65468 (NDPI_BARCODE) with accession numbers | Targets tag 65468 as primary PHI source |
+| No label/macro image handling in metadata-only tools | Blanks label and macro images that may contain photographed patient info |
 | No copy mode — only in-place modification | Copy-then-anonymize by default |
 | No verification | Re-scans after anonymization to confirm |
 | No compliance reporting | JSON compliance certificates |
-| CLI only | CLI + Tkinter GUI |
+| CLI only | CLI + Qt GUI with dark theme, drag-and-drop |
 
 ## Installation
 
 ```bash
 pip install -e /path/to/pathsafe
-```
 
-Or install directly:
+# With GUI support (PySide6):
+pip install -e "/path/to/pathsafe[gui]"
 
-```bash
-cd pathsafe
-pip install -e .
+# With DICOM support:
+pip install -e "/path/to/pathsafe[dicom]"
+
+# Everything:
+pip install -e "/path/to/pathsafe[all]"
 ```
 
 ## Quick Start
@@ -74,6 +77,8 @@ pathsafe info /path/to/slide.ndpi
 | 65427 | NDPI_REFERENCE | Overwrite with X's |
 | 306 | DateTime | Zero out |
 | 36867/36868 | DateTimeOriginal/Digitized | Zero out |
+| — | Macro image (SOURCELENS=-1) | Blank image data |
+| — | Barcode image (SOURCELENS=-2) | Blank image data |
 | — | Regex safety scan (first 100KB) | Overwrite matches |
 
 ### SVS (Aperio)
@@ -83,7 +88,31 @@ pathsafe info /path/to/slide.ndpi
 | 270 | ImageDescription | Parse key=value pairs, redact ScanScope ID, Filename, Date, Time, User |
 | 306 | DateTime | Zero out |
 | 36867/36868 | DateTimeOriginal/Digitized | Zero out |
+| — | Label image | Blank image data |
+| — | Macro image | Blank image data |
 | — | Regex safety scan (first 100KB) | Overwrite matches |
+
+### MRXS (3DHISTECH/MIRAX)
+
+| Field | Location | Action |
+|-------|----------|--------|
+| SLIDE_ID | Slidedat.ini [GENERAL] | Overwrite with X's |
+| SLIDE_NAME | Slidedat.ini [GENERAL] | Overwrite with X's |
+| SLIDE_BARCODE | Slidedat.ini [GENERAL] | Overwrite with X's |
+| SLIDE_CREATIONDATETIME | Slidedat.ini [GENERAL] | Replace with sentinel |
+| — | Regex scan of .mrxs and Slidedat.ini | Overwrite matches |
+
+### DICOM WSI
+
+| Tag | Name | Action |
+|-----|------|--------|
+| (0010,0010) | PatientName | Blank |
+| (0010,0020) | PatientID | Blank |
+| (0010,0030) | PatientBirthDate | Replace with 19000101 |
+| (0008,0050) | AccessionNumber | Blank |
+| (0008,0020) | StudyDate | Replace with 19000101 |
+| + 20 more | Institution, Physician, etc. | Blank or delete |
+| — | All private tags | Remove entirely |
 
 ### Generic TIFF
 
@@ -92,11 +121,11 @@ All ASCII string tags in the first IFD are scanned for accession number patterns
 ## CLI Options
 
 ```
-pathsafe scan PATH [--verbose] [--format ndpi|svs|tiff] [--json-out FILE]
+pathsafe scan PATH [--verbose] [--format ndpi|svs|mrxs|dicom|tiff] [--json-out FILE]
 pathsafe anonymize PATH [--output DIR] [--in-place] [--dry-run] [--no-verify]
-                        [--format ndpi|svs|tiff] [--certificate FILE]
+                        [--format ndpi|svs|mrxs|dicom|tiff] [--certificate FILE]
                         [--verbose] [--workers N] [--log FILE]
-pathsafe verify PATH [--verbose] [--format ndpi|svs|tiff]
+pathsafe verify PATH [--verbose] [--format ndpi|svs|mrxs|dicom|tiff]
 pathsafe info FILE
 pathsafe gui
 ```
@@ -119,7 +148,16 @@ Launch the graphical interface for non-technical users:
 pathsafe gui
 ```
 
-The GUI provides file/folder browsing, scan/anonymize/verify buttons, a progress bar, and a log output panel.
+Features:
+- Dark theme with modern Catppuccin-inspired styling
+- Drag-and-drop file/folder support
+- Workflow step indicator (Select Files > Scan > Anonymize > Verify)
+- Menu bar with keyboard shortcuts (Ctrl+S scan, Ctrl+R anonymize)
+- Tooltips on all controls
+- Status bar with live progress
+- Copy/in-place mode selection with verification
+
+Falls back to Tkinter GUI if PySide6 is not installed.
 
 ## Parallel Processing
 
@@ -131,9 +169,20 @@ pathsafe anonymize /slides/ --output /clean/ --workers 4
 
 ## Supported Formats
 
-- **NDPI** (Hamamatsu) — full support
-- **SVS** (Aperio) — full support
+- **NDPI** (Hamamatsu) — full support including label/macro blanking
+- **SVS** (Aperio) — full support including label/macro blanking
+- **MRXS** (3DHISTECH/MIRAX) — Slidedat.ini metadata anonymization
+- **DICOM WSI** — full DICOM tag anonymization (requires `pydicom`)
 - **Generic TIFF** — fallback scanning for any TIFF-based format
+
+## Optional OpenSlide Integration
+
+When `openslide-python` is installed, PathSafe can use OpenSlide for enhanced format detection and slide property reading:
+
+```python
+from pathsafe.openslide_utils import get_slide_info, detect_vendor
+info = get_slide_info(Path("slide.ndpi"))
+```
 
 ## Building a Standalone Executable
 
@@ -146,10 +195,10 @@ This produces `dist/pathsafe` (CLI) and `dist/pathsafe-gui` (GUI).
 
 ## Dependencies
 
-- Python 3.9+
-- `click` (CLI framework)
-- `tkinter` (GUI, included with Python)
-- All file parsing uses Python stdlib only (`struct`, `re`, `pathlib`)
+- **Core**: Python 3.9+, `click` (CLI framework). All file parsing uses Python stdlib only (`struct`, `re`, `pathlib`)
+- **GUI**: `PySide6` (optional, `pip install pathsafe[gui]`)
+- **DICOM**: `pydicom` (optional, `pip install pathsafe[dicom]`)
+- **OpenSlide**: `openslide-python` (optional, `pip install pathsafe[openslide]`)
 
 ## License
 

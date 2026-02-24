@@ -33,6 +33,10 @@ from pathsafe.tiff import (
     read_ifd,
     read_tag_string,
     read_tag_value_bytes,
+    iter_ifds,
+    blank_ifd_image_data,
+    get_ifd_image_size,
+    get_ifd_image_data_size,
     TAG_NAMES,
 )
 
@@ -67,6 +71,7 @@ class SVSHandler(FormatHandler):
         try:
             findings = self._scan_tag270(filepath)
             findings += self._scan_date_tags(filepath)
+            findings += self._scan_label_macro(filepath)
             tag270_offsets = {f.offset for f in findings}
             findings += self._scan_regex(filepath, skip_offsets=tag270_offsets)
         except Exception as e:
@@ -89,6 +94,7 @@ class SVSHandler(FormatHandler):
         cleared: List[PHIFinding] = []
         cleared += self._anonymize_tag270(filepath)
         cleared += self._anonymize_date_tags(filepath)
+        cleared += self._blank_label_macro(filepath)
         cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
         return cleared
 
@@ -213,6 +219,78 @@ class SVSHandler(FormatHandler):
                 source='regex_scan',
             ))
         return findings
+
+    def _scan_label_macro(self, filepath: Path) -> List[PHIFinding]:
+        """Detect label and macro images that may contain photographed PHI."""
+        findings = []
+        with open(filepath, 'rb') as f:
+            header = read_header(f)
+            if header is None:
+                return findings
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 270:
+                        desc = read_tag_string(f, entry).lower()
+                        img_type = None
+                        if 'label' in desc:
+                            img_type = 'LabelImage'
+                        elif 'macro' in desc:
+                            img_type = 'MacroImage'
+
+                        if img_type:
+                            w, h = get_ifd_image_size(header, entries, f)
+                            data_size = get_ifd_image_data_size(
+                                header, entries, f)
+                            if data_size > 0:
+                                findings.append(PHIFinding(
+                                    offset=ifd_offset,
+                                    length=data_size,
+                                    tag_id=None,
+                                    tag_name=img_type,
+                                    value_preview=(
+                                        f'{img_type} {w}x{h} '
+                                        f'({data_size/1024:.0f}KB)'),
+                                    source='image_content',
+                                ))
+                        break  # Only check tag 270 per IFD
+        return findings
+
+    def _blank_label_macro(self, filepath: Path) -> List[PHIFinding]:
+        """Blank label and macro image data."""
+        cleared = []
+        with open(filepath, 'r+b') as f:
+            header = read_header(f)
+            if header is None:
+                return cleared
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == 270:
+                        desc = read_tag_string(f, entry).lower()
+                        img_type = None
+                        if 'label' in desc:
+                            img_type = 'LabelImage'
+                        elif 'macro' in desc:
+                            img_type = 'MacroImage'
+
+                        if img_type:
+                            w, h = get_ifd_image_size(header, entries, f)
+                            blanked = blank_ifd_image_data(
+                                f, header, entries)
+                            if blanked > 0:
+                                cleared.append(PHIFinding(
+                                    offset=ifd_offset,
+                                    length=blanked,
+                                    tag_id=None,
+                                    tag_name=img_type,
+                                    value_preview=(
+                                        f'blanked {img_type} {w}x{h} '
+                                        f'({blanked/1024:.0f}KB)'),
+                                    source='image_content',
+                                ))
+                        break
+        return cleared
 
     def _anonymize_tag270(self, filepath: Path) -> List[PHIFinding]:
         """Anonymize PHI fields in tag 270 ImageDescription."""

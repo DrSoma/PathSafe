@@ -4,7 +4,13 @@ Step-by-step instructions for hospital staff to anonymize pathology slide files.
 
 ## Overview
 
-PathSafe removes patient-identifying information from whole-slide image (WSI) files before they are shared for research. It works with NDPI files (Hamamatsu scanners), SVS files (Aperio scanners), and other TIFF-based formats.
+PathSafe removes patient-identifying information from whole-slide image (WSI) files before they are shared for research. It works with:
+
+- **NDPI** files (Hamamatsu scanners)
+- **SVS** files (Aperio scanners)
+- **MRXS** files (3DHISTECH/MIRAX scanners)
+- **DICOM WSI** files
+- Other TIFF-based formats
 
 PathSafe can be used via the command line or the graphical interface (GUI).
 
@@ -13,7 +19,17 @@ PathSafe can be used via the command line or the graphical interface (GUI).
 Ask your IT department to install PathSafe, or run:
 
 ```bash
+# Core (CLI only):
 pip install -e /path/to/pathsafe
+
+# With GUI support (recommended for non-technical users):
+pip install -e "/path/to/pathsafe[gui]"
+
+# With DICOM support:
+pip install -e "/path/to/pathsafe[dicom]"
+
+# Everything:
+pip install -e "/path/to/pathsafe[all]"
 ```
 
 Verify installation:
@@ -21,6 +37,8 @@ Verify installation:
 ```bash
 pathsafe --version
 ```
+
+You should see `pathsafe, version 1.0.0`.
 
 ## Step 1: Check Your Files First (Scan)
 
@@ -85,6 +103,14 @@ Preview what would be anonymized without making changes:
 pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/ --dry-run
 ```
 
+### Parallel Processing
+
+Speed up large batches with multiple workers:
+
+```bash
+pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/ --workers 4
+```
+
 ## Step 3: Verify
 
 After anonymization, verify that all PHI has been removed:
@@ -117,20 +143,35 @@ Keep this certificate with the anonymized files for audit purposes.
 
 ## Using the GUI
 
-If you prefer a graphical interface, launch:
+Launch the graphical interface:
 
 ```bash
 pathsafe gui
 ```
 
-The GUI provides:
-- **File/Folder browser** — select input files and output directory
-- **Mode selection** — copy (safe) or in-place
-- **Scan** button — read-only PHI detection
-- **Anonymize** button — one-click anonymize with progress bar
-- **Verify** button — confirm all PHI has been removed
-- **Log panel** — real-time output of what's happening
-- **Workers** setting — speed up large batches with parallel processing
+### Qt GUI (Recommended)
+
+If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a modern Qt GUI with:
+
+- **Dark theme** — Catppuccin-inspired dark color scheme, easy on the eyes
+- **Drag-and-drop** — Drop files or folders directly onto the window
+- **Workflow step indicator** — Visual progress through Select Files > Scan > Anonymize > Verify
+- **Menu bar with keyboard shortcuts**:
+  - `Ctrl+O` — Open file
+  - `Ctrl+Shift+O` — Open folder
+  - `Ctrl+S` — Scan
+  - `Ctrl+R` — Anonymize
+  - `Ctrl+E` — Verify
+  - `Esc` — Stop current operation
+- **Tooltips** — Hover over any control for guidance
+- **Status bar** — Live file count and elapsed time
+- **Log panel** — Real-time output of what's happening
+- **Copy/in-place mode** — Select via radio buttons
+- **Workers** — Adjust parallel processing from the GUI
+
+### Tkinter GUI (Fallback)
+
+If PySide6 is not installed, PathSafe falls back to a simpler Tkinter GUI with the same core functionality.
 
 ## Common Options
 
@@ -139,16 +180,41 @@ The GUI provides:
 | `--verbose` / `-v` | Show detailed output |
 | `--format ndpi` | Only process NDPI files |
 | `--format svs` | Only process SVS files |
+| `--format mrxs` | Only process MRXS files |
+| `--format dicom` | Only process DICOM files |
+| `--format tiff` | Only process generic TIFF files |
 | `--dry-run` | Preview without changes |
 | `--workers N` | Use N parallel workers for faster batch processing |
 | `--log FILE` | Save output to a log file |
 | `--certificate FILE` | Generate compliance certificate |
 
+## What Gets Anonymized
+
+PathSafe removes these categories of PHI:
+
+- **Accession numbers** — Found in TIFF metadata tags and binary data
+- **Patient names and IDs** — Found in DICOM tags
+- **Dates** — Scan dates, EXIF dates, study dates
+- **Operator/physician names** — Found in SVS and DICOM metadata
+- **Institution information** — Found in DICOM tags
+- **Label/macro images** — Photographed slide labels that may show patient information (NDPI and SVS)
+- **Slide identifiers** — MRXS slide names, barcodes, IDs
+
+For a detailed breakdown by format, see the main [README](../README.md).
+
+## File Info
+
+To inspect a single file's metadata:
+
+```bash
+pathsafe info /path/to/slide.ndpi
+```
+
 ## Troubleshooting
 
 ### "No WSI files found"
 
-Make sure the directory contains `.ndpi`, `.svs`, `.tif`, or `.tiff` files. Use `--format` to filter if needed.
+Make sure the directory contains `.ndpi`, `.svs`, `.tif`, `.tiff`, `.mrxs`, `.dcm`, or `.dicom` files. Use `--format` to filter if needed.
 
 ### "Error: Must specify --output for copy mode, or --in-place"
 
@@ -159,6 +225,16 @@ PathSafe requires explicit confirmation for in-place modification. Either:
 ### "Some files still contain PHI!"
 
 If verification finds remaining PHI, run anonymize again on the flagged files. This can happen with unusual file structures. Report persistent issues to your IT team.
+
+### GUI won't launch
+
+If you see `qt.qpa.plugin: Could not load the Qt platform plugin 'xcb'`, install the required system library:
+
+```bash
+sudo apt install -y libxcb-cursor0
+```
+
+If PySide6 is not installed at all, PathSafe will fall back to the Tkinter GUI automatically.
 
 ## Getting Help
 

@@ -28,7 +28,7 @@ def main():
 @main.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed findings.')
-@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'tiff']),
+@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'dicom', 'tiff']),
               help='Only scan files of this format.')
 @click.option('--json-out', type=click.Path(), help='Write results as JSON to file.')
 def scan(path, verbose, fmt, json_out):
@@ -98,7 +98,7 @@ def scan(path, verbose, fmt, json_out):
               help='Explicitly confirm in-place anonymization (required if no --output).')
 @click.option('--dry-run', is_flag=True, help='Scan only, don\'t modify files.')
 @click.option('--no-verify', is_flag=True, help='Skip post-anonymization verification.')
-@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'tiff']),
+@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'dicom', 'tiff']),
               help='Only process files of this format.')
 @click.option('--certificate', '-c', type=click.Path(),
               help='Write compliance certificate JSON to this path.')
@@ -191,7 +191,7 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
 @main.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed findings.')
-@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'tiff']),
+@click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'dicom', 'tiff']),
               help='Only verify files of this format.')
 def verify(path, verbose, fmt):
     """Verify that files have been fully anonymized.

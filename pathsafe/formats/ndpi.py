@@ -34,6 +34,11 @@ from pathsafe.tiff import (
     read_ifd,
     read_tag_string,
     read_tag_value_bytes,
+    read_tag_numeric,
+    iter_ifds,
+    blank_ifd_image_data,
+    get_ifd_image_size,
+    get_ifd_image_data_size,
     TAG_NAMES,
 )
 
@@ -50,6 +55,11 @@ DATE_TAGS = {
 }
 
 ALL_PHI_TAGS = {**PHI_TAGS, **DATE_TAGS}
+
+# NDPI_SOURCELENS values for special (non-slide) images
+NDPI_SOURCELENS_TAG = 65421
+NDPI_MACRO_LENS = -1.0   # Map/overview image
+NDPI_BARCODE_LENS = -2.0  # Barcode area image
 
 
 class NDPIHandler(FormatHandler):
@@ -68,9 +78,10 @@ class NDPIHandler(FormatHandler):
 
         try:
             tag_findings = self._scan_tags(filepath)
+            label_findings = self._scan_label_macro(filepath)
             tag_offsets = {f.offset for f in tag_findings}
             regex_findings = self._scan_regex(filepath, skip_offsets=tag_offsets)
-            findings = tag_findings + regex_findings
+            findings = tag_findings + label_findings + regex_findings
         except Exception as e:
             # Try fallback on corrupt files
             try:
@@ -98,6 +109,7 @@ class NDPIHandler(FormatHandler):
 
         try:
             cleared += self._anonymize_tags(filepath)
+            cleared += self._blank_label_macro(filepath)
         except Exception:
             # Try fallback for corrupt TIFF structure
             cleared += self._anonymize_fallback(filepath)
@@ -217,6 +229,91 @@ class NDPIHandler(FormatHandler):
                 source='regex_scan',
             ))
         return findings
+
+    def _scan_label_macro(self, filepath: Path) -> List[PHIFinding]:
+        """Detect macro and barcode images that may contain photographed PHI.
+
+        NDPI_SOURCELENS (tag 65421) identifies special pages:
+          -1.0 = macro/overview image
+          -2.0 = barcode area image
+        """
+        findings = []
+        with open(filepath, 'rb') as f:
+            header = read_header(f)
+            if header is None:
+                return findings
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == NDPI_SOURCELENS_TAG:
+                        lens = read_tag_numeric(f, header, entry)
+                        if lens is None:
+                            break
+                        lens_f = float(lens)
+                        img_type = None
+                        if lens_f == NDPI_MACRO_LENS:
+                            img_type = 'MacroImage'
+                        elif lens_f == NDPI_BARCODE_LENS:
+                            img_type = 'LabelImage'
+
+                        if img_type:
+                            w, h = get_ifd_image_size(
+                                header, entries, f)
+                            data_size = get_ifd_image_data_size(
+                                header, entries, f)
+                            if data_size > 0:
+                                findings.append(PHIFinding(
+                                    offset=ifd_offset,
+                                    length=data_size,
+                                    tag_id=NDPI_SOURCELENS_TAG,
+                                    tag_name=img_type,
+                                    value_preview=(
+                                        f'{img_type} {w}x{h} '
+                                        f'({data_size/1024:.0f}KB)'),
+                                    source='image_content',
+                                ))
+                        break
+        return findings
+
+    def _blank_label_macro(self, filepath: Path) -> List[PHIFinding]:
+        """Blank macro and barcode image data."""
+        cleared = []
+        with open(filepath, 'r+b') as f:
+            header = read_header(f)
+            if header is None:
+                return cleared
+
+            for ifd_offset, entries in iter_ifds(f, header):
+                for entry in entries:
+                    if entry.tag_id == NDPI_SOURCELENS_TAG:
+                        lens = read_tag_numeric(f, header, entry)
+                        if lens is None:
+                            break
+                        lens_f = float(lens)
+                        img_type = None
+                        if lens_f == NDPI_MACRO_LENS:
+                            img_type = 'MacroImage'
+                        elif lens_f == NDPI_BARCODE_LENS:
+                            img_type = 'LabelImage'
+
+                        if img_type:
+                            w, h = get_ifd_image_size(
+                                header, entries, f)
+                            blanked = blank_ifd_image_data(
+                                f, header, entries)
+                            if blanked > 0:
+                                cleared.append(PHIFinding(
+                                    offset=ifd_offset,
+                                    length=blanked,
+                                    tag_id=NDPI_SOURCELENS_TAG,
+                                    tag_name=img_type,
+                                    value_preview=(
+                                        f'blanked {img_type} {w}x{h} '
+                                        f'({blanked/1024:.0f}KB)'),
+                                    source='image_content',
+                                ))
+                        break
+        return cleared
 
     def _anonymize_tags(self, filepath: Path) -> List[PHIFinding]:
         """Anonymize TIFF tags containing PHI."""

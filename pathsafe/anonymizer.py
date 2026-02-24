@@ -16,7 +16,8 @@ from pathsafe.formats import detect_format, get_handler
 from pathsafe.models import AnonymizationResult, BatchResult
 
 # File extensions considered for batch processing
-WSI_EXTENSIONS = {'.ndpi', '.svs', '.tif', '.tiff', '.scn', '.bif'}
+WSI_EXTENSIONS = {'.ndpi', '.svs', '.tif', '.tiff', '.scn', '.bif',
+                   '.mrxs', '.dcm', '.dicom'}
 
 # Default number of parallel workers
 DEFAULT_WORKERS = 4
@@ -116,7 +117,10 @@ def collect_wsi_files(path: Path, format_filter: Optional[str] = None) -> List[P
 
     extensions = WSI_EXTENSIONS
     if format_filter:
-        ext_map = {'ndpi': {'.ndpi'}, 'svs': {'.svs'}, 'tiff': {'.tif', '.tiff'}}
+        ext_map = {
+            'ndpi': {'.ndpi'}, 'svs': {'.svs'}, 'tiff': {'.tif', '.tiff'},
+            'mrxs': {'.mrxs'}, 'dicom': {'.dcm', '.dicom'},
+        }
         extensions = ext_map.get(format_filter, WSI_EXTENSIONS)
 
     files = []

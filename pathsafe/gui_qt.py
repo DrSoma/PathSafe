@@ -2,6 +2,14 @@
 
 One-click anonymize workflow: browse files, scan, anonymize, verify.
 Uses PySide6 (Qt6) for native look and crisp text on all platforms.
+
+Features:
+- Dark Catppuccin-inspired theme
+- Drag-and-drop file/folder support
+- Workflow step indicator
+- Menu bar with keyboard shortcuts
+- Tooltips on all controls
+- Status bar with live stats
 """
 
 import os
@@ -9,13 +17,17 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal, QObject
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtCore import Qt, QThread, Signal, QObject, QSize
+from PySide6.QtGui import (
+    QFont, QTextCursor, QAction, QKeySequence, QColor,
+    QPainter, QPen, QBrush, QDragEnterEvent, QDropEvent,
+)
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPushButton, QRadioButton,
     QCheckBox, QSpinBox, QProgressBar, QTextEdit, QFileDialog,
-    QMessageBox, QButtonGroup, QSizePolicy,
+    QMessageBox, QButtonGroup, QSizePolicy, QTabWidget, QFrame,
+    QToolBar,
 )
 
 import pathsafe
@@ -24,6 +36,187 @@ from pathsafe.formats import detect_format, get_handler
 from pathsafe.report import generate_certificate
 from pathsafe.verify import verify_batch
 
+
+# --- Dark Theme Stylesheet (Catppuccin Mocha inspired) ---
+
+DARK_QSS = """
+QMainWindow, QWidget {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    font-size: 13px;
+}
+QGroupBox {
+    border: 1px solid #45475a;
+    border-radius: 6px;
+    margin-top: 8px;
+    padding-top: 14px;
+    font-weight: bold;
+    color: #89b4fa;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+}
+QLineEdit {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 8px;
+    selection-background-color: #585b70;
+}
+QLineEdit:focus {
+    border: 1px solid #89b4fa;
+}
+QPushButton {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 14px;
+    min-height: 24px;
+}
+QPushButton:hover {
+    background-color: #45475a;
+    border-color: #585b70;
+}
+QPushButton:pressed {
+    background-color: #585b70;
+}
+QPushButton:disabled {
+    color: #6c7086;
+    background-color: #1e1e2e;
+    border-color: #313244;
+}
+QPushButton#btn_scan {
+    background-color: #1e3a5f;
+    border-color: #89b4fa;
+    color: #89b4fa;
+    font-weight: bold;
+}
+QPushButton#btn_scan:hover {
+    background-color: #264b73;
+}
+QPushButton#btn_anonymize {
+    background-color: #1e3f2e;
+    border-color: #a6e3a1;
+    color: #a6e3a1;
+    font-weight: bold;
+}
+QPushButton#btn_anonymize:hover {
+    background-color: #2b5a3e;
+}
+QPushButton#btn_verify {
+    background-color: #1e3f3f;
+    border-color: #94e2d5;
+    color: #94e2d5;
+    font-weight: bold;
+}
+QPushButton#btn_verify:hover {
+    background-color: #2b5a5a;
+}
+QPushButton#btn_stop {
+    background-color: #3f1e1e;
+    border-color: #f38ba8;
+    color: #f38ba8;
+    font-weight: bold;
+}
+QPushButton#btn_stop:hover {
+    background-color: #5a2b2b;
+}
+QRadioButton, QCheckBox {
+    color: #cdd6f4;
+    spacing: 6px;
+}
+QRadioButton::indicator, QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+}
+QSpinBox {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px;
+}
+QProgressBar {
+    background-color: #313244;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    text-align: center;
+    color: #cdd6f4;
+    min-height: 20px;
+}
+QProgressBar::chunk {
+    background-color: #89b4fa;
+    border-radius: 3px;
+}
+QTextEdit {
+    background-color: #11111b;
+    color: #a6adc8;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    selection-background-color: #45475a;
+}
+QTabWidget::pane {
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    background-color: #1e1e2e;
+}
+QTabBar::tab {
+    background-color: #313244;
+    color: #6c7086;
+    border: 1px solid #45475a;
+    padding: 6px 16px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border-bottom-color: #1e1e2e;
+}
+QStatusBar {
+    background-color: #181825;
+    border-top: 1px solid #313244;
+    color: #6c7086;
+    padding: 2px;
+}
+QMenuBar {
+    background-color: #181825;
+    color: #cdd6f4;
+    border-bottom: 1px solid #313244;
+}
+QMenuBar::item:selected {
+    background-color: #313244;
+}
+QMenu {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+}
+QMenu::item:selected {
+    background-color: #313244;
+}
+QToolBar {
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+    spacing: 4px;
+    padding: 2px;
+}
+QToolTip {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+"""
+
+
+# --- Worker Threads (unchanged) ---
 
 class WorkerSignals(QObject):
     """Signals for background worker threads."""
@@ -246,6 +439,140 @@ class VerifyWorker(QThread):
             self.signals.finished.emit()
 
 
+# --- Custom Widgets ---
+
+class DropZoneWidget(QWidget):
+    """Drag-and-drop zone for files and folders."""
+
+    pathDropped = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setMinimumHeight(70)
+        self.setMaximumHeight(80)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+
+        self._icon_label = QLabel("Drag files or folders here")
+        self._icon_label.setAlignment(Qt.AlignCenter)
+        self._icon_label.setStyleSheet(
+            "QLabel { color: #6c7086; font-size: 14px; font-weight: bold; }")
+        layout.addWidget(self._icon_label)
+
+        self._hint_label = QLabel("or use the Browse buttons below")
+        self._hint_label.setAlignment(Qt.AlignCenter)
+        self._hint_label.setStyleSheet(
+            "QLabel { color: #585b70; font-size: 11px; }")
+        layout.addWidget(self._hint_label)
+
+        self._default_ss = (
+            "DropZoneWidget { border: 2px dashed #45475a; "
+            "border-radius: 10px; background-color: #181825; }")
+        self._hover_ss = (
+            "DropZoneWidget { border: 2px dashed #89b4fa; "
+            "border-radius: 10px; background-color: #1e1e3e; }")
+        self.setStyleSheet(self._default_ss)
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.setStyleSheet(self._hover_ss)
+            self._icon_label.setText("Drop to select")
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet(self._default_ss)
+        self._icon_label.setText("Drag files or folders here")
+
+    def dropEvent(self, event: QDropEvent):
+        self.setStyleSheet(self._default_ss)
+        self._icon_label.setText("Drag files or folders here")
+        urls = event.mimeData().urls()
+        if urls:
+            self.pathDropped.emit(urls[0].toLocalFile())
+
+
+class StepIndicator(QFrame):
+    """Visual workflow indicator: Select Files -> Scan -> Anonymize -> Verify."""
+
+    STEPS = ['Select Files', 'Scan', 'Anonymize', 'Verify']
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(56)
+        self._current = 0
+        self._completed = set()
+
+    def set_step(self, index):
+        self._current = index
+        self.update()
+
+    def mark_completed(self, index):
+        self._completed.add(index)
+        self.update()
+
+    def reset(self):
+        self._current = 0
+        self._completed.clear()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        n = len(self.STEPS)
+        spacing = w / n
+        r = 13
+
+        for i, label in enumerate(self.STEPS):
+            cx = int(spacing * i + spacing / 2)
+            cy = int(h / 2 - 6)
+
+            # Connecting line
+            if i > 0:
+                prev_cx = int(spacing * (i - 1) + spacing / 2)
+                color = QColor('#a6e3a1') if (i - 1) in self._completed else QColor('#45475a')
+                painter.setPen(QPen(color, 2))
+                painter.drawLine(prev_cx + r, cy, cx - r, cy)
+
+            # Circle
+            if i in self._completed:
+                painter.setBrush(QBrush(QColor('#a6e3a1')))
+                painter.setPen(QPen(QColor('#a6e3a1'), 2))
+            elif i == self._current:
+                painter.setBrush(QBrush(QColor('#89b4fa')))
+                painter.setPen(QPen(QColor('#89b4fa'), 2))
+            else:
+                painter.setBrush(QBrush(QColor('#313244')))
+                painter.setPen(QPen(QColor('#45475a'), 2))
+
+            painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+
+            # Number or check
+            is_active = i in self._completed or i == self._current
+            painter.setPen(QPen(QColor('#1e1e2e' if is_active else '#6c7086')))
+            font = QFont('', 10)
+            font.setBold(True)
+            painter.setFont(font)
+            text = 'OK' if i in self._completed else str(i + 1)
+            tw = painter.fontMetrics().horizontalAdvance(text)
+            painter.drawText(cx - tw // 2, cy + 5, text)
+
+            # Label below
+            painter.setPen(QPen(QColor('#cdd6f4' if i == self._current else '#6c7086')))
+            font = QFont('', 9)
+            painter.setFont(font)
+            tw = painter.fontMetrics().horizontalAdvance(label)
+            painter.drawText(cx - tw // 2, cy + r + 15, label)
+
+        painter.end()
+
+
+# --- Main Window ---
+
 class PathSafeWindow(QMainWindow):
     """Main application window."""
 
@@ -253,30 +580,98 @@ class PathSafeWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(
             f'PathSafe v{pathsafe.__version__} — WSI Anonymizer')
-        self.resize(950, 720)
-        self.setMinimumSize(750, 550)
+        self.resize(1000, 760)
+        self.setMinimumSize(800, 600)
 
         self._worker = None
         self._last_dir = str(Path.home())
 
+        self._build_menu_bar()
         self._build_ui()
+        self._setup_status_bar()
+
+    def _build_menu_bar(self):
+        menu_bar = self.menuBar()
+
+        # File menu
+        file_menu = menu_bar.addMenu("&File")
+
+        open_file = QAction("Open &File...", self)
+        open_file.setShortcut(QKeySequence.Open)
+        open_file.triggered.connect(self._browse_input_file)
+        file_menu.addAction(open_file)
+
+        open_folder = QAction("Open F&older...", self)
+        open_folder.setShortcut("Ctrl+Shift+O")
+        open_folder.triggered.connect(self._browse_input_dir)
+        file_menu.addAction(open_folder)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction("E&xit", self)
+        exit_action.setShortcut(QKeySequence.Quit)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Actions menu
+        actions_menu = menu_bar.addMenu("&Actions")
+
+        self._scan_action = QAction("&Scan for PHI", self)
+        self._scan_action.setShortcut("Ctrl+S")
+        self._scan_action.triggered.connect(self._run_scan)
+        actions_menu.addAction(self._scan_action)
+
+        self._anonymize_action = QAction("&Anonymize", self)
+        self._anonymize_action.setShortcut("Ctrl+R")
+        self._anonymize_action.triggered.connect(self._run_anonymize)
+        actions_menu.addAction(self._anonymize_action)
+
+        self._verify_action = QAction("&Verify", self)
+        self._verify_action.setShortcut("Ctrl+E")
+        self._verify_action.triggered.connect(self._run_verify)
+        actions_menu.addAction(self._verify_action)
+
+        actions_menu.addSeparator()
+
+        self._stop_action = QAction("S&top", self)
+        self._stop_action.setShortcut("Escape")
+        self._stop_action.setEnabled(False)
+        self._stop_action.triggered.connect(self._request_stop)
+        actions_menu.addAction(self._stop_action)
+
+        # Help menu
+        help_menu = menu_bar.addMenu("&Help")
+        about_action = QAction("&About PathSafe", self)
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
 
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(14, 8, 14, 8)
         layout.setSpacing(8)
 
-        # --- File Paths ---
-        paths_group = QGroupBox('File Paths')
+        # --- Step Indicator ---
+        self.step_indicator = StepIndicator()
+        layout.addWidget(self.step_indicator)
+
+        # --- Drop Zone + File Paths ---
+        paths_group = QGroupBox('Input')
         paths_layout = QVBoxLayout(paths_group)
+
+        self.drop_zone = DropZoneWidget()
+        self.drop_zone.pathDropped.connect(self._on_path_dropped)
+        paths_layout.addWidget(self.drop_zone)
 
         # Input row
         input_row = QHBoxLayout()
-        input_row.addWidget(QLabel('Input (file or folder):'))
         self.input_edit = QLineEdit()
-        self.input_edit.setPlaceholderText('Select a WSI file or folder...')
+        self.input_edit.setPlaceholderText('Path to WSI file or folder...')
+        self.input_edit.setToolTip(
+            "Path to a single WSI file (.ndpi, .svs, .mrxs, .dcm, .tiff)\n"
+            "or a folder containing WSI files.\n"
+            "You can also drag and drop files here.")
         input_row.addWidget(self.input_edit, 1)
         btn_file = QPushButton('File')
         btn_file.setFixedWidth(60)
@@ -290,10 +685,12 @@ class PathSafeWindow(QMainWindow):
 
         # Output row
         output_row = QHBoxLayout()
-        output_row.addWidget(QLabel('Output folder:'))
+        output_row.addWidget(QLabel('Output:'))
         self.output_edit = QLineEdit()
-        self.output_edit.setPlaceholderText(
-            'Select output folder for copy mode...')
+        self.output_edit.setPlaceholderText('Output folder for copy mode...')
+        self.output_edit.setToolTip(
+            "Where anonymized copies will be saved.\n"
+            "Only needed in Copy mode.")
         output_row.addWidget(self.output_edit, 1)
         btn_out = QPushButton('Browse')
         btn_out.setFixedWidth(70)
@@ -310,7 +707,13 @@ class PathSafeWindow(QMainWindow):
         opts_layout.addWidget(QLabel('Mode:'))
         self.radio_copy = QRadioButton('Copy (safe)')
         self.radio_copy.setChecked(True)
+        self.radio_copy.setToolTip(
+            "Copy mode: Creates anonymized copies in the output folder.\n"
+            "Your original files are never modified. (Recommended)")
         self.radio_inplace = QRadioButton('In-place')
+        self.radio_inplace.setToolTip(
+            "In-place mode: Modifies the original files directly.\n"
+            "WARNING: Original data cannot be recovered after anonymization.")
         mode_group = QButtonGroup(self)
         mode_group.addButton(self.radio_copy)
         mode_group.addButton(self.radio_inplace)
@@ -320,6 +723,9 @@ class PathSafeWindow(QMainWindow):
         opts_layout.addSpacing(20)
         self.check_verify = QCheckBox('Verify after')
         self.check_verify.setChecked(True)
+        self.check_verify.setToolTip(
+            "After anonymization, re-scan each file to confirm\n"
+            "all patient information has been removed.")
         opts_layout.addWidget(self.check_verify)
 
         opts_layout.addSpacing(20)
@@ -328,6 +734,10 @@ class PathSafeWindow(QMainWindow):
         self.spin_workers.setRange(1, 16)
         self.spin_workers.setValue(4)
         self.spin_workers.setFixedWidth(60)
+        self.spin_workers.setToolTip(
+            "Number of files to process simultaneously.\n"
+            "Higher values are faster but use more memory.\n"
+            "Recommended: 2-4 for most systems.")
         opts_layout.addWidget(self.spin_workers)
 
         opts_layout.addStretch()
@@ -335,20 +745,40 @@ class PathSafeWindow(QMainWindow):
 
         # --- Action Buttons ---
         btn_layout = QHBoxLayout()
-        self.btn_scan = QPushButton('Scan for PHI')
+
+        self.btn_scan = QPushButton('  Scan for PHI')
+        self.btn_scan.setObjectName('btn_scan')
+        self.btn_scan.setMinimumHeight(38)
+        self.btn_scan.setToolTip(
+            "Scan files to detect patient information (PHI)\n"
+            "without modifying anything. [Ctrl+S]")
         self.btn_scan.clicked.connect(self._run_scan)
         btn_layout.addWidget(self.btn_scan)
 
-        self.btn_anonymize = QPushButton('Anonymize')
+        self.btn_anonymize = QPushButton('  Anonymize')
+        self.btn_anonymize.setObjectName('btn_anonymize')
+        self.btn_anonymize.setMinimumHeight(38)
+        self.btn_anonymize.setToolTip(
+            "Remove all detected patient information from files. [Ctrl+R]")
         self.btn_anonymize.clicked.connect(self._run_anonymize)
         btn_layout.addWidget(self.btn_anonymize)
 
-        self.btn_verify = QPushButton('Verify')
+        self.btn_verify = QPushButton('  Verify')
+        self.btn_verify.setObjectName('btn_verify')
+        self.btn_verify.setMinimumHeight(38)
+        self.btn_verify.setToolTip(
+            "Re-scan files to confirm all patient information\n"
+            "has been removed. [Ctrl+E]")
         self.btn_verify.clicked.connect(self._run_verify)
         btn_layout.addWidget(self.btn_verify)
 
-        self.btn_stop = QPushButton('Stop')
+        self.btn_stop = QPushButton('  Stop')
+        self.btn_stop.setObjectName('btn_stop')
+        self.btn_stop.setMinimumHeight(38)
         self.btn_stop.setEnabled(False)
+        self.btn_stop.setToolTip(
+            "Stop the current operation after the\n"
+            "current file finishes. [Escape]")
         self.btn_stop.clicked.connect(self._request_stop)
         btn_layout.addWidget(self.btn_stop)
 
@@ -359,31 +789,34 @@ class PathSafeWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
         layout.addWidget(self.progress_bar)
 
-        self.status_label = QLabel('Ready')
-        layout.addWidget(self.status_label)
-
-        # --- Log ---
-        log_group = QGroupBox('Log')
-        log_layout = QVBoxLayout(log_group)
+        # --- Log (tabbed) ---
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont('monospace', 10))
-        log_layout.addWidget(self.log_text)
-        log_group.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(log_group, 1)
+        layout.addWidget(self.log_text, 1)
+
+    def _setup_status_bar(self):
+        sb = self.statusBar()
+        self._status_files = QLabel("0 files")
+        self._status_elapsed = QLabel("")
+        sb.addPermanentWidget(self._status_files)
+        sb.addPermanentWidget(self._status_elapsed)
+        sb.showMessage("Ready — drag files here or use File > Open")
 
     # --- Browse ---
 
     def _browse_input_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, 'Select WSI file', self._last_dir,
-            'WSI files (*.ndpi *.svs *.tif *.tiff);;All files (*)')
+            'WSI files (*.ndpi *.svs *.mrxs *.dcm *.tif *.tiff);;All files (*)')
         if path:
             self.input_edit.setText(path)
             self._last_dir = str(Path(path).parent)
+            self.step_indicator.set_step(0)
+            self.step_indicator.mark_completed(0)
 
     def _browse_input_dir(self):
         path = QFileDialog.getExistingDirectory(
@@ -391,6 +824,8 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.input_edit.setText(path)
             self._last_dir = path
+            self.step_indicator.set_step(0)
+            self.step_indicator.mark_completed(0)
 
     def _browse_output_dir(self):
         path = QFileDialog.getExistingDirectory(
@@ -398,6 +833,14 @@ class PathSafeWindow(QMainWindow):
         if path:
             self.output_edit.setText(path)
             self._last_dir = path
+
+    def _on_path_dropped(self, path):
+        p = Path(path)
+        if p.exists():
+            self.input_edit.setText(path)
+            self._last_dir = str(p.parent if p.is_file() else p)
+            self.step_indicator.set_step(0)
+            self.step_indicator.mark_completed(0)
 
     # --- Logging ---
 
@@ -409,7 +852,7 @@ class PathSafeWindow(QMainWindow):
         self.progress_bar.setValue(int(pct))
 
     def _set_status(self, msg):
-        self.status_label.setText(msg)
+        self.statusBar().showMessage(msg)
 
     # --- Run state ---
 
@@ -418,6 +861,10 @@ class PathSafeWindow(QMainWindow):
         self.btn_anonymize.setEnabled(not running)
         self.btn_verify.setEnabled(not running)
         self.btn_stop.setEnabled(running)
+        self._scan_action.setEnabled(not running)
+        self._anonymize_action.setEnabled(not running)
+        self._verify_action.setEnabled(not running)
+        self._stop_action.setEnabled(running)
 
     def _on_finished(self):
         self._set_running(False)
@@ -450,12 +897,18 @@ class PathSafeWindow(QMainWindow):
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
+        self.step_indicator.set_step(1)
 
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
         signals.status.connect(self._set_status)
-        signals.finished.connect(self._on_finished)
+
+        def on_done():
+            self._on_finished()
+            self.step_indicator.mark_completed(1)
+
+        signals.finished.connect(on_done)
 
         self._worker = ScanWorker(input_p, signals)
         self._worker.start()
@@ -489,12 +942,18 @@ class PathSafeWindow(QMainWindow):
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
+        self.step_indicator.set_step(2)
 
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
         signals.status.connect(self._set_status)
-        signals.finished.connect(self._on_finished)
+
+        def on_done():
+            self._on_finished()
+            self.step_indicator.mark_completed(2)
+
+        signals.finished.connect(on_done)
 
         self._worker = AnonymizeWorker(
             input_p, output_dir,
@@ -513,21 +972,41 @@ class PathSafeWindow(QMainWindow):
         self.log_text.clear()
         self.progress_bar.setValue(0)
         self._set_running(True)
+        self.step_indicator.set_step(3)
 
         signals = WorkerSignals()
         signals.log.connect(self._log)
         signals.progress.connect(self._set_progress)
         signals.status.connect(self._set_status)
-        signals.finished.connect(self._on_finished)
+
+        def on_done():
+            self._on_finished()
+            self.step_indicator.mark_completed(3)
+
+        signals.finished.connect(on_done)
 
         self._worker = VerifyWorker(input_p, signals)
         self._worker.start()
+
+    # --- About ---
+
+    def _show_about(self):
+        QMessageBox.about(
+            self, "About PathSafe",
+            f"<h3>PathSafe v{pathsafe.__version__}</h3>"
+            "<p>Hospital-grade WSI anonymizer for pathology slide files.</p>"
+            "<p>Removes patient-identifying information (PHI) from "
+            "NDPI, SVS, MRXS, DICOM, and other whole-slide image formats.</p>"
+            "<p>Includes label/macro image blanking, post-anonymization "
+            "verification, and JSON compliance certificates.</p>"
+        )
 
 
 def main():
     """Launch the PathSafe Qt GUI."""
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+    app.setStyleSheet(DARK_QSS)
     window = PathSafeWindow()
     window.show()
     sys.exit(app.exec())
