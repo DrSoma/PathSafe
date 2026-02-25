@@ -2,6 +2,7 @@
 
 import json
 import pytest
+import pathsafe
 from click.testing import CliRunner
 from pathsafe.cli import main
 
@@ -15,7 +16,7 @@ class TestVersion:
     def test_version(self, runner):
         result = runner.invoke(main, ['--version'])
         assert result.exit_code == 0
-        assert '1.0.0' in result.output
+        assert pathsafe.__version__ in result.output
 
 
 class TestScanCommand:
@@ -78,7 +79,7 @@ class TestAnonymizeCommand:
             '--certificate', str(cert_file)])
         assert result.exit_code == 0
         cert = json.loads(cert_file.read_text())
-        assert cert['pathsafe_version'] == '1.0.0'
+        assert cert['pathsafe_version'] == pathsafe.__version__
         assert cert['summary']['total_files'] == 1
 
     def test_workers(self, runner, tmp_ndpi, tmp_path):

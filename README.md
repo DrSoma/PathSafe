@@ -123,6 +123,12 @@ A summary popup tells you exactly what happened after each step.
 
 ## How to Use PathSafe (Command Line)
 
+Install the command-line tool from PyPI:
+
+```bash
+pip install pathsafe
+```
+
 For users comfortable with a terminal. Three commands is all you need:
 
 ```bash
