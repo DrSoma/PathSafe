@@ -39,7 +39,7 @@ Download the installer for your platform. It creates a desktop shortcut and adds
 | **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
 | **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
 
-**General Note**: I'm currently working in acquiring the code-signing certificates for Windows and macOS, thus, for the time being you will receive a friendly warning when attempting to install/use the software for the very first time.
+**General note**: Code-signing certificates for Windows and macOS are being added. Until then, your OS may show a first-run warning.
 
 **Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
@@ -70,6 +70,46 @@ pip install pathsafe[gui]
 ```
 
 Then launch with `pathsafe gui` or use `pathsafe` for the command line.
+
+### Uninstallation (Windows, macOS, Linux)
+
+Use the steps below based on how PathSafe was installed.
+
+#### Windows
+
+- **Installed with `PathSafe-Setup.exe`**: Open **Settings > Apps > Installed apps**, find **PathSafe**, then click **Uninstall**.
+- **Standalone `pathsafe-gui-windows.exe`**: Delete the `.exe` file and any shortcuts you created.
+- **Optional settings cleanup**: Remove `HKEY_CURRENT_USER\Software\PathSafe\PathSafe` from the registry.
+
+#### macOS
+
+- **Installed app (`PathSafe.app`)**: Move `/Applications/PathSafe.app` to Trash, then empty Trash.
+- Delete any downloaded `.dmg` file if no longer needed.
+- **Optional settings cleanup**:
+
+```bash
+rm -f ~/Library/Preferences/com.PathSafe.PathSafe.plist
+```
+
+#### Linux
+
+- **AppImage install**: Delete the `pathsafe-gui-linux.AppImage` file.
+- If you created desktop integration entries manually, delete those launcher/icon files from `~/.local/share/applications` and `~/.local/share/icons` if present.
+- **Optional settings cleanup**:
+
+```bash
+rm -f ~/.config/PathSafe/PathSafe.conf
+```
+
+#### Python install (any platform)
+
+If PathSafe was installed with `pip`:
+
+```bash
+python -m pip uninstall pathsafe
+```
+
+If it was installed inside a virtual environment, activate that environment first, or remove the full environment directory.
 
 ---
 

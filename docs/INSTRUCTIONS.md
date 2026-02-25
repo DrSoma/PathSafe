@@ -25,6 +25,48 @@ PathSafe **never modifies your originals** by default. It always creates copies 
 
 ---
 
+## Uninstalling PathSafe (Windows, macOS, Linux)
+
+Use the instructions that match your install method.
+
+### Windows
+
+- If installed with `PathSafe-Setup.exe`, open **Settings > Apps > Installed apps**, select **PathSafe**, then click **Uninstall**.
+- If using the standalone `pathsafe-gui-windows.exe`, just delete the `.exe` file and any shortcuts.
+- Optional settings cleanup: remove `HKEY_CURRENT_USER\Software\PathSafe\PathSafe` in the registry.
+
+### macOS
+
+- Move `/Applications/PathSafe.app` to Trash, then empty Trash.
+- Delete the downloaded `.dmg` file if you no longer need it.
+- Optional settings cleanup:
+
+```bash
+rm -f ~/Library/Preferences/com.PathSafe.PathSafe.plist
+```
+
+### Linux
+
+- Delete the `pathsafe-gui-linux.AppImage` file.
+- If you created manual desktop entries, remove related launcher/icon files in `~/.local/share/applications` and `~/.local/share/icons` if present.
+- Optional settings cleanup:
+
+```bash
+rm -f ~/.config/PathSafe/PathSafe.conf
+```
+
+### Python install (any platform)
+
+If PathSafe was installed with pip:
+
+```bash
+python -m pip uninstall pathsafe
+```
+
+If installed in a virtual environment, activate that environment first, or remove the full environment folder.
+
+---
+
 ## Using the Graphical Interface (Recommended)
 
 The graphical interface is the easiest way to use PathSafe. No typing required.
