@@ -347,7 +347,7 @@ Optional packages add extra features:
 
 Apache 2.0
 
-Maintained by Dr. Fernando Soto (@DrSoma).
+Maintained by Fernando Soto, MD.
 
 
 
