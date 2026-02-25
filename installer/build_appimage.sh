@@ -10,14 +10,27 @@
 #   chmod +x installer/build_appimage.sh
 #   ./installer/build_appimage.sh
 
-set -e
+set -euo pipefail
 
 APP_NAME="PathSafe"
-VERSION="1.0.0"
-APPIMAGE_NAME="PathSafe-${VERSION}-x86_64.AppImage"
 APPDIR="dist/PathSafe.AppDir"
 
+resolve_version() {
+    local parsed_version
+    parsed_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' pyproject.toml | head -n 1)"
+    if [ -z "${parsed_version}" ]; then
+        echo "Could not parse version from pyproject.toml" >&2
+        exit 1
+    fi
+    echo "${parsed_version}"
+}
+
+VERSION="${PATHSAFE_VERSION:-$(resolve_version)}"
+APPIMAGE_NAME="${PATHSAFE_OUTPUT_NAME:-PathSafe-${VERSION}-x86_64.AppImage}"
+
 echo "Building AppImage..."
+echo "Version: ${VERSION}"
+echo "Output: dist/${APPIMAGE_NAME}"
 
 # Download appimagetool if not available
 if ! command -v appimagetool &> /dev/null; then

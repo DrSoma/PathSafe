@@ -9,14 +9,27 @@
 #   chmod +x installer/build_macos_dmg.sh
 #   ./installer/build_macos_dmg.sh
 
-set -e
+set -euo pipefail
 
 APP_NAME="PathSafe"
-VERSION="1.0.0"
-DMG_NAME="PathSafe-${VERSION}.dmg"
 APP_BUNDLE="dist/${APP_NAME}.app"
 
+resolve_version() {
+    local parsed_version
+    parsed_version="$(sed -nE 's/^version = "([^"]+)"/\1/p' pyproject.toml | head -n 1)"
+    if [ -z "${parsed_version}" ]; then
+        echo "Could not parse version from pyproject.toml" >&2
+        exit 1
+    fi
+    echo "${parsed_version}"
+}
+
+VERSION="${PATHSAFE_VERSION:-$(resolve_version)}"
+DMG_NAME="${PATHSAFE_OUTPUT_NAME:-PathSafe-${VERSION}.dmg}"
+
 echo "Building ${APP_NAME}.app bundle..."
+echo "Version: ${VERSION}"
+echo "Output: dist/${DMG_NAME}"
 
 # Create .app bundle structure
 rm -rf "${APP_BUNDLE}"
@@ -37,7 +50,7 @@ fi
 cp pathsafe/assets/icon.icns "${APP_BUNDLE}/Contents/Resources/icon.icns"
 
 # Create Info.plist
-cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
+cat > "${APP_BUNDLE}/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -49,9 +62,9 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.pathsafe.app</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>${VERSION}</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>${VERSION}</string>
     <key>CFBundleIconFile</key>
     <string>icon</string>
     <key>CFBundleExecutable</key>

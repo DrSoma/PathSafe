@@ -1,6 +1,6 @@
 """PathSafe -- Production-tested WSI anonymizer for pathology slide files."""
 
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 
 from pathsafe.models import (
     AnonymizationResult,

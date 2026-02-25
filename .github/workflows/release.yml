@@ -7,6 +7,11 @@ on:
 permissions:
   contents: write
 
+env:
+  WIN_ASSET: pathsafe-gui-windows.exe
+  MAC_ASSET: pathsafe-gui-macos.dmg
+  LINUX_ASSET: pathsafe-gui-linux.AppImage
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -14,6 +19,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Derive release version from tag
+        shell: pwsh
+        run: |
+          $version = "${env:GITHUB_REF_NAME}" -replace '^v', ''
+          if (-not $version) { throw "Could not derive release version from tag: ${env:GITHUB_REF_NAME}" }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,6 +45,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.4
         with:
           path: installer/pathsafe.iss
+          options: /DMyAppVersion=${{ env.VERSION }}
 
       - name: Rename standalone executable
         run: |
@@ -41,7 +54,7 @@ jobs:
 
       - name: Generate SHA256
         run: |
-          certutil -hashfile dist\pathsafe-gui-windows.exe SHA256 > dist\pathsafe-gui-windows.exe.sha256
+          certutil -hashfile dist\${{ env.WIN_ASSET }} SHA256 > dist\${{ env.WIN_ASSET }}.sha256
           certutil -hashfile dist\PathSafe-Setup.exe SHA256 > dist\PathSafe-Setup.exe.sha256
         shell: cmd
 
@@ -49,8 +62,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/pathsafe-gui-windows.exe
-            dist/pathsafe-gui-windows.exe.sha256
+            dist/${{ env.WIN_ASSET }}
+            dist/${{ env.WIN_ASSET }}.sha256
             dist/PathSafe-Setup.exe
             dist/PathSafe-Setup.exe.sha256
 
@@ -60,6 +73,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Derive release version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "${VERSION}" ]; then
+            echo "Could not derive release version from tag: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -76,22 +98,24 @@ jobs:
         run: pyinstaller pathsafe.spec
 
       - name: Build DMG
+        env:
+          PATHSAFE_VERSION: ${{ env.VERSION }}
         run: |
           chmod +x installer/build_macos_dmg.sh
           ./installer/build_macos_dmg.sh
 
       - name: Rename DMG
-        run: mv dist/PathSafe-1.0.0.dmg dist/pathsafe-gui-macos.dmg
+        run: mv "dist/PathSafe-${{ env.VERSION }}.dmg" "dist/${{ env.MAC_ASSET }}"
 
       - name: Generate SHA256
-        run: shasum -a 256 dist/pathsafe-gui-macos.dmg > dist/pathsafe-gui-macos.dmg.sha256
+        run: shasum -a 256 "dist/${{ env.MAC_ASSET }}" > "dist/${{ env.MAC_ASSET }}.sha256"
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/pathsafe-gui-macos.dmg
-            dist/pathsafe-gui-macos.dmg.sha256
+            dist/${{ env.MAC_ASSET }}
+            dist/${{ env.MAC_ASSET }}.sha256
 
   build-linux:
     runs-on: ubuntu-latest
@@ -99,6 +123,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Derive release version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "${VERSION}" ]; then
+            echo "Could not derive release version from tag: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -120,19 +153,21 @@ jobs:
         run: pyinstaller pathsafe.spec
 
       - name: Build AppImage
+        env:
+          PATHSAFE_VERSION: ${{ env.VERSION }}
         run: |
           chmod +x installer/build_appimage.sh
           ./installer/build_appimage.sh
 
       - name: Rename AppImage
-        run: mv dist/PathSafe-1.0.0-x86_64.AppImage dist/pathsafe-gui-linux.AppImage
+        run: mv "dist/PathSafe-${{ env.VERSION }}-x86_64.AppImage" "dist/${{ env.LINUX_ASSET }}"
 
       - name: Generate SHA256
-        run: sha256sum dist/pathsafe-gui-linux.AppImage > dist/pathsafe-gui-linux.AppImage.sha256
+        run: sha256sum "dist/${{ env.LINUX_ASSET }}" > "dist/${{ env.LINUX_ASSET }}.sha256"
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/pathsafe-gui-linux.AppImage
-            dist/pathsafe-gui-linux.AppImage.sha256
+            dist/${{ env.LINUX_ASSET }}
+            dist/${{ env.LINUX_ASSET }}.sha256
