@@ -1,7 +1,7 @@
 # PathSafe
 
 <p align="center">
-  <img src="pathsafe/assets/icon.png" alt="PathSafe icon" width="120">
+  <img src="pathsafe/assets/icon.png" alt="PathSafe icon" width="180">
 </p>
 
 **Remove patient information from pathology slide files... safely, automatically, and verifiably.**
