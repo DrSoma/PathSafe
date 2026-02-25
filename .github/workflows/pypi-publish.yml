@@ -5,6 +5,12 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish (must match pyproject.toml, e.g. 1.0.2)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,9 +32,6 @@ jobs:
       - name: Verify release tag matches package version
         shell: bash
         run: |
-          tag="${{ github.event.release.tag_name }}"
-          tag="${tag#v}"
-
           pkg_version="$(python - <<'PY'
           import tomllib
           with open("pyproject.toml", "rb") as f:
@@ -37,11 +40,20 @@ jobs:
           PY
           )"
 
-          echo "Release tag version: ${tag}"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            expected_version="${{ github.event.release.tag_name }}"
+            expected_version="${expected_version#v}"
+            source_label="Release tag"
+          else
+            expected_version="${{ github.event.inputs.version }}"
+            source_label="Manual input"
+          fi
+
+          echo "${source_label} version: ${expected_version}"
           echo "Package version: ${pkg_version}"
 
-          if [ "${tag}" != "${pkg_version}" ]; then
-            echo "Release tag and pyproject version must match." >&2
+          if [ "${expected_version}" != "${pkg_version}" ]; then
+            echo "Provided version and pyproject version must match." >&2
             exit 1
           fi
 
