@@ -25,9 +25,13 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 # Copy executables
 cp dist/pathsafe-gui "${APP_BUNDLE}/Contents/MacOS/PathSafe"
-cp dist/pathsafe "${APP_BUNDLE}/Contents/MacOS/pathsafe"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/PathSafe"
-chmod +x "${APP_BUNDLE}/Contents/MacOS/pathsafe"
+
+# Keep the CLI helper under a non-colliding name on case-insensitive filesystems.
+if [ -f "dist/pathsafe" ]; then
+    cp dist/pathsafe "${APP_BUNDLE}/Contents/MacOS/pathsafe-cli"
+    chmod +x "${APP_BUNDLE}/Contents/MacOS/pathsafe-cli"
+fi
 
 # Copy icon
 cp pathsafe/assets/icon.icns "${APP_BUNDLE}/Contents/Resources/icon.icns"
