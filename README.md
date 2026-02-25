@@ -341,10 +341,6 @@ Optional packages add extra features:
 
 ---
 
-## Acknowledgments
-
-Developed and tested at the McGill University Health Center Research Institute, Department of Pathology.
-
 ## License
 
 Apache 2.0
