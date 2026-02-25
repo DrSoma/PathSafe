@@ -39,7 +39,7 @@ Download the installer for your platform. It creates a desktop shortcut and adds
 | **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
 | **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
 
-**General note**: Code-signing certificates for Windows and macOS are being added. Until then, your OS may show a first-run warning.
+**General note**: Code-signing certificates for Windows and macOS are in the process of being added. Until then, your OS may show a first-run warning.
 
 **Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
@@ -402,6 +402,7 @@ Optional packages add extra features:
 Apache 2.0
 
 Maintained by Fernando Soto, MD.
+
 
 
 
