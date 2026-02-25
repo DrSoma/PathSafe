@@ -356,6 +356,18 @@ PathSafe implements **Level IV** anonymization as defined by [Bisson et al. (202
 
 ---
 
+## Independent Verification
+
+A standalone verification script is included in the `tools/` directory. This script uses no PathSafe code and independently verifies that anonymized files contain no remaining patient data. It parses the TIFF binary structure from scratch, checks every IFD for label and macro images, scans all string and binary metadata tags, looks for EXIF and GPS sub-IFDs, and runs regex patterns against the raw file bytes.
+
+```bash
+python tools/independent_scanner.py /path/to/anonymized/file.svs
+```
+
+No dependencies required beyond Python 3.9+.
+
+---
+
 ## Dependencies
 
 If you use the downloadable installers (`.exe`, `.dmg`, `.AppImage`), you do not need to install Python dependencies manually.
