@@ -325,7 +325,12 @@ PathSafe implements **Level IV** anonymization as defined by [Bisson et al. (202
 
 ## Dependencies
 
-PathSafe is lightweight. The only required dependencies are `click` (command-line framework) and `fpdf2` (PDF generation). All file reading uses Python's built-in standard library.
+If you use the downloadable installers (`.exe`, `.dmg`, `.AppImage`), you do not need to install Python dependencies manually.
+
+For PyPI installs, PathSafe is lightweight. The base install (CLI) only requires `click` (command-line framework) and `fpdf2` (PDF generation). All file reading uses Python's built-in standard library.
+
+- CLI only: `pip install pathsafe`
+- GUI: `pip install pathsafe[gui]`
 
 Optional packages add extra features:
 
