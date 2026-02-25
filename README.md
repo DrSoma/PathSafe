@@ -35,6 +35,16 @@ Download the installer for your platform. It creates a desktop shortcut and adds
 | **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
 | **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
 
+**Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
+
+**macOS note**: After downloading, drag into your applications folder and input the following into the terminal:
+
+**sudo xattr -rd com.apple.quarantine "/Applications/PathSafe.app"**
+
+**open "/Applications/PathSafe.app"**
+
+**Linux note**: You may need to right-click > properties, and choose "Open/execute as program" the first time, or run `chmod +x` on the downloaded file.
+
 ### Option 2: Standalone executable (no installation needed)
 
 A single portable file you can run from anywhere, including USB drives.
@@ -44,16 +54,6 @@ A single portable file you can run from anywhere, including USB drives.
 | **Windows** | [pathsafe-gui-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-windows.exe) |
 | **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
 | **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
-
-**Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
-
-**macOS note**: After downloading, drag into your applications folder and input the following into the terminal:
-
-sudo xattr -rd com.apple.quarantine "/Applications/PathSafe.app"
-
-open "/Applications/PathSafe.app"
-
-**Linux note**: You may need to right-click > properties, and choose "Open/execute as program" the first time, or run `chmod +x` on the downloaded file.
 
 ### Alternative: Install with Python
 
@@ -355,5 +355,6 @@ Optional packages add extra features:
 ## License
 
 Apache 2.0
+
 
 
