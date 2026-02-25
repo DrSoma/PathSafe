@@ -25,12 +25,22 @@ PathSafe works with all major scanner brands, can process thousands of files at 
 
 ## Installation
 
-### Recommended: Download and run (no installation needed)
+### Option 1: Installer (recommended)
 
-Download the file for your computer, then double-click to launch:
+Download the installer for your platform. It creates a desktop shortcut and adds PathSafe to your Start Menu (Windows) or Applications folder (macOS).
 
-| Your computer | Download |
-|---------------|----------|
+| Platform | Installer |
+|----------|-----------|
+| **Windows** | [PathSafe-Setup.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/PathSafe-Setup.exe) |
+| **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
+| **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |
+
+### Option 2: Standalone executable (no installation needed)
+
+A single portable file you can run from anywhere, including USB drives.
+
+| Platform | Standalone |
+|----------|------------|
 | **Windows** | [pathsafe-gui-windows.exe](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-windows.exe) |
 | **macOS** | [pathsafe-gui-macos.dmg](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-macos.dmg) |
 | **Linux** | [pathsafe-gui-linux.AppImage](https://github.com/DrSoma/PathSafe/releases/latest/download/pathsafe-gui-linux.AppImage) |

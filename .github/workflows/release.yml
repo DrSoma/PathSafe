@@ -29,7 +29,12 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller pathsafe.spec
 
-      - name: Rename GUI executable
+      - name: Build installer with Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.4
+        with:
+          path: installer/pathsafe.iss
+
+      - name: Rename standalone executable
         run: |
           copy dist\pathsafe-gui.exe dist\pathsafe-gui-windows.exe
         shell: cmd
@@ -37,6 +42,7 @@ jobs:
       - name: Generate SHA256
         run: |
           certutil -hashfile dist\pathsafe-gui-windows.exe SHA256 > dist\pathsafe-gui-windows.exe.sha256
+          certutil -hashfile dist\PathSafe-Setup.exe SHA256 > dist\PathSafe-Setup.exe.sha256
         shell: cmd
 
       - name: Upload to release
@@ -45,6 +51,8 @@ jobs:
           files: |
             dist/pathsafe-gui-windows.exe
             dist/pathsafe-gui-windows.exe.sha256
+            dist/PathSafe-Setup.exe
+            dist/PathSafe-Setup.exe.sha256
 
   build-macos:
     runs-on: macos-latest
