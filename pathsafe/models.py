@@ -42,6 +42,7 @@ class AnonymizationResult:
     output_path: Path
     mode: str  # "copy" | "inplace"
     findings_cleared: int = 0
+    findings: List[PHIFinding] = field(default_factory=list)  # detailed findings
     verified: bool = False
     anonymization_time_ms: float = 0.0
     image_integrity_verified: Optional[bool] = None  # None=not checked, True=matched, False=mismatch

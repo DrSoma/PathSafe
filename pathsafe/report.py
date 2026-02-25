@@ -13,6 +13,16 @@ import pathsafe
 from pathsafe.models import BatchResult
 
 
+def _replacement_description(finding_source: str) -> str:
+    """Return a human-readable description of what the PHI was replaced with."""
+    if finding_source == 'image_content':
+        return 'Blank image (IFD unlinked)'
+    if finding_source == 'regex_scan':
+        return 'Overwritten with padding bytes'
+    # tiff_tag, and anything else
+    return 'Cleared (null bytes)'
+
+
 def _sha256_file(filepath: Path) -> str:
     """Compute SHA-256 hash of a file."""
     h = hashlib.sha256()
@@ -65,6 +75,18 @@ def generate_certificate(
             'verified_clean': result.verified,
             'anonymization_time_ms': round(result.anonymization_time_ms, 1),
         }
+
+        # Include detailed findings with replacement info
+        if result.findings:
+            record['findings'] = []
+            for f in result.findings:
+                finding_rec = {
+                    'tag_name': f.tag_name,
+                    'value_preview': f.value_preview,
+                    'source': f.source,
+                    'replaced_with': _replacement_description(f.source),
+                }
+                record['findings'].append(finding_rec)
 
         if result.image_integrity_verified is not None:
             record['image_integrity_verified'] = result.image_integrity_verified
@@ -421,6 +443,52 @@ def generate_pdf_certificate(certificate: dict, output_path: Path,
         pdf.set_font('Helvetica', 'B', 11)
         pdf.cell(0, 7, 'File Results', new_x='LMARGIN', new_y='NEXT')
         _pdf_file_results_table(pdf, files)
+
+        # Detailed findings per file (what was found, what it was replaced with)
+        files_with_findings = [f for f in files if f.get('findings')]
+        if files_with_findings:
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.cell(0, 7, 'Detailed Findings', new_x='LMARGIN', new_y='NEXT')
+            pdf.ln(1)
+
+            for frec in files_with_findings:
+                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_text_color(200, 130, 0)
+                pdf.cell(0, 6, _trunc(frec.get('filename', ''), 80),
+                         new_x='LMARGIN', new_y='NEXT')
+                pdf.set_text_color(0, 0, 0)
+
+                for finding in frec['findings']:
+                    raw_tag = finding.get('tag_name', '?')
+                    if raw_tag in _PDF_HIDDEN_TAGS:
+                        continue
+
+                    tag = _sanitize_for_pdf(friendly_tag_name(raw_tag))
+                    preview = _sanitize_for_pdf(
+                        _trunc(finding.get('value_preview', ''), 55))
+                    replacement = finding.get('replaced_with', 'Cleared')
+
+                    # Check for page break
+                    if pdf.get_y() > 260:
+                        pdf.add_page()
+
+                    # Tag name (bold) + value preview
+                    pdf.set_font('Helvetica', '', 8)
+                    pdf.cell(5, 5, '', new_x='RIGHT', new_y='TOP')
+                    pdf.set_font('Helvetica', 'B', 8)
+                    pdf.cell(50, 5, tag, new_x='RIGHT', new_y='TOP')
+                    pdf.set_font('Helvetica', '', 8)
+                    pdf.cell(0, 5, preview, new_x='LMARGIN', new_y='NEXT')
+
+                    # Replacement line (indented, gray)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.set_font('Helvetica', 'I', 7)
+                    pdf.cell(55, 4, '', new_x='RIGHT', new_y='TOP')
+                    pdf.cell(0, 4, f'Replaced with: {replacement}',
+                             new_x='LMARGIN', new_y='NEXT')
+                    pdf.set_text_color(0, 0, 0)
+
+                pdf.ln(2)
 
         # Filename PHI warnings
         phi_files = [f for f in files if f.get('filename_has_phi')]

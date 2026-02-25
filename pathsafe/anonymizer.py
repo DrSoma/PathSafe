@@ -188,6 +188,7 @@ def anonymize_file(
             output_path=target,
             mode=mode,
             findings_cleared=len(scan_result.findings),
+            findings=scan_result.findings,
             verified=False,
             anonymization_time_ms=elapsed,
         )
@@ -285,7 +286,8 @@ def anonymize_file(
     elapsed = (time.monotonic() - t0) * 1000
     return AnonymizationResult(
         source_path=filepath, output_path=target, mode=mode,
-        findings_cleared=len(findings), verified=verified,
+        findings_cleared=len(findings), findings=findings,
+        verified=verified,
         anonymization_time_ms=elapsed,
         image_integrity_verified=integrity_result,
         filename_has_phi=filename_has_phi,
