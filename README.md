@@ -1,5 +1,9 @@
 # PathSafe
 
+<p align="center">
+  <img src="pathsafe/assets/icon.png" alt="PathSafe icon" width="120">
+</p>
+
 **Remove patient information from pathology slide files... safely, automatically, and verifiably.**
 
 When pathology scanners create digital slide files, they often embed hidden patient data inside the file: accession numbers, scan dates, operator names, and even photographs of the slide label. This information is invisible when viewing the slide image, but anyone with the right tools can extract it. PathSafe finds and removes all of this hidden data so your slides are safe to share for research or education.
@@ -64,19 +68,6 @@ pip install pathsafe[gui]
 ```
 
 Then launch with `pathsafe gui` or use `pathsafe` for the command line.
-
-<details>
-<summary>Optional add-ons (click to expand)</summary>
-
-| Install command | What it adds |
-|----------------|-------------|
-| `pip install pathsafe[gui]` | Graphical interface (recommended) |
-| `pip install pathsafe[dicom]` | Support for DICOM WSI files |
-| `pip install pathsafe[openslide]` | Enhanced format detection via OpenSlide |
-| `pip install pathsafe[convert]` | Format conversion (change file types) |
-| `pip install pathsafe[all]` | All of the above |
-
-</details>
 
 ---
 
