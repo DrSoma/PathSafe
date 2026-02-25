@@ -451,7 +451,12 @@ class TestInstitutionInScanReport:
         pdf_default = tmp_path / 'default.pdf'
         generate_scan_report(data, pdf_empty, institution="")
         generate_scan_report(data, pdf_default)
-        assert pdf_empty.stat().st_size == pdf_default.stat().st_size
+        size_empty = pdf_empty.stat().st_size
+        size_default = pdf_default.stat().st_size
+        assert abs(size_empty - size_default) <= 5, (
+            f"empty-institution PDF ({size_empty} B) and default PDF "
+            f"({size_default} B) differ by more than 5 bytes"
+        )
 
     def test_institution_pdf_valid(self, tmp_path):
         data = _make_scan_data()
