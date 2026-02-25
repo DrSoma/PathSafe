@@ -47,7 +47,13 @@ A single portable file you can run from anywhere, including USB drives.
 
 **Windows note**: Windows may show a "Windows protected your PC" warning the first time. Click "More info" then "Run anyway".
 
-**macOS/Linux note**: You may need to right-click and choose "Open" the first time, or run `chmod +x` on the downloaded file.
+**macOS note**: After downloading, drag into your applications folder and input the following into the terminal:
+
+sudo xattr -rd com.apple.quarantine "/Applications/PathSafe.app"
+
+open "/Applications/PathSafe.app"
+
+**Linux note**: You may need to right-click > properties, and choose "Open/execute as program" the first time, or run `chmod +x` on the downloaded file.
 
 ### Alternative: Install with Python
 
@@ -342,4 +348,5 @@ Developed and tested at the McGill University Health Center Research Institute, 
 ## License
 
 Apache 2.0
+
 
