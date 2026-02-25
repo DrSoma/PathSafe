@@ -8,7 +8,7 @@
 ; The GitHub Actions workflow runs this automatically on release.
 
 #define MyAppName "PathSafe"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "PathSafe Contributors"
 #define MyAppURL "https://github.com/DrSoma/PathSafe"
 #define MyAppExeName "pathsafe-gui.exe"
