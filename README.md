@@ -8,7 +8,9 @@
 
 When pathology scanners create digital slide files, they often embed hidden patient data inside the file: accession numbers, scan dates, operator names, and even photographs of the slide label. This information is invisible when viewing the slide image, but anyone with the right tools can extract it. PathSafe finds and removes all of this hidden data so your slides are safe to share for research or education.
 
-PathSafe works with all major scanner brands, can process thousands of files at once, and double-checks its own work to make sure nothing was missed.
+PathSafe works with all major scanner brands, can process thousands of files at once, and can double-check its own work to make sure nothing was missed.
+
+> **v1.0.4 released** — Faster default runs (verify and checksum now opt-in), real-time per-phase progress in the GUI, I/O concurrency control for large batches, and a new SHA-256 checksum option.
 
 ---
 
@@ -20,7 +22,7 @@ PathSafe works with all major scanner brands, can process thousands of files at 
 | **Works with all major scanners** | Hamamatsu (NDPI), Aperio (SVS), 3DHISTECH (MRXS), Roche/Ventana (BIF), Leica (SCN), DICOM, and other TIFF-based files |
 | **Erases label photos** | Many scanners take a photo of the physical slide label (which may show patient names) and hide it inside the file. PathSafe erases these photos |
 | **Keeps your originals safe** | PathSafe creates cleaned copies in a separate folder, so your original files are never touched |
-| **Double-checks everything** | After cleaning, PathSafe re-scans every file to confirm all patient data was actually removed |
+| **Double-checks everything** | Optional post-anonymization re-scan confirms all patient data was actually removed (`--verify` flag or GUI option) |
 | **Creates compliance reports** | Generates PDF reports and certificates documenting exactly what was found, what was removed, and proof that each file is clean |
 | **Easy to use** | A visual interface guides you through four simple steps with no typing commands required |
 | **Handles large batches** | Process hundreds or thousands of slides at once, with parallel processing to speed things up |
@@ -133,7 +135,7 @@ Pick the output folder where your cleaned copies will go. A default location is 
 
 ### Step 4: Anonymize
 
-Click **Anonymize**. PathSafe copies your files to the output folder, removes all patient data from the copies, and automatically double-checks that everything was removed. **Your original files are never modified.**
+Click **Anonymize**. PathSafe copies your files to the output folder and removes all patient data from the copies. **Your original files are never modified.**
 
 A summary popup tells you exactly what happened after each step.
 
