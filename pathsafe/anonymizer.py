@@ -139,10 +139,13 @@ def _verify_image_integrity(filepath: Path, pre_hashes: dict) -> Optional[bool]:
 def anonymize_file(
     filepath: Path,
     output_path: Optional[Path] = None,
-    verify: bool = True,
+    verify: bool = False,
     dry_run: bool = False,
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
+    phase_callback: Optional[Callable] = None,
+    io_semaphore: Optional[threading.Semaphore] = None,
+    compute_checksum: bool = False,
 ) -> AnonymizationResult:
     """Anonymize a single WSI file.
 
@@ -181,6 +184,8 @@ def anonymize_file(
 
     if dry_run:
         # Just scan, report what would be done
+        if phase_callback:
+            phase_callback("Scanning", filepath)
         scan_result = handler.scan(filepath)
         elapsed = (time.monotonic() - t0) * 1000
         return AnonymizationResult(
@@ -195,22 +200,56 @@ def anonymize_file(
 
     # Copy mode: copy file to output path first
     if mode == "copy":
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(filepath), str(target))
-        # MRXS: also copy companion data directory (slide/ next to slide.mrxs)
-        companion_dir = filepath.parent / filepath.stem
-        if companion_dir.is_dir():
-            target_companion = target.parent / target.stem
-            if not target_companion.exists():
-                shutil.copytree(str(companion_dir), str(target_companion))
+        if io_semaphore:
+            io_semaphore.acquire()
+        try:
+            if phase_callback:
+                phase_callback("Copying", filepath)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            # Chunked copy with sub-progress reporting
+            src_size = os.path.getsize(str(filepath))
+            copied = 0
+            last_pct = -1
+            with open(str(filepath), 'rb') as fsrc, open(str(target), 'wb') as fdst:
+                while True:
+                    buf = fsrc.read(1_048_576)  # 1 MB chunks
+                    if not buf:
+                        break
+                    fdst.write(buf)
+                    copied += len(buf)
+                    if phase_callback and src_size > 0:
+                        new_pct = int(copied * 100 / src_size)
+                        if new_pct > last_pct:
+                            last_pct = new_pct
+                            phase_callback("Copying", filepath, copied / src_size)
+            shutil.copystat(str(filepath), str(target))
+            # MRXS: also copy companion data directory (slide/ next to slide.mrxs)
+            companion_dir = filepath.parent / filepath.stem
+            if companion_dir.is_dir():
+                target_companion = target.parent / target.stem
+                if not target_companion.exists():
+                    shutil.copytree(str(companion_dir), str(target_companion))
+        finally:
+            if io_semaphore:
+                io_semaphore.release()
 
     # Pre-hash tile data for integrity verification
     pre_hashes = {}
     if verify_integrity and not dry_run:
-        from pathsafe.tiff import compute_image_hashes
-        pre_hashes = compute_image_hashes(target)
+        if io_semaphore:
+            io_semaphore.acquire()
+        try:
+            if phase_callback:
+                phase_callback("Hashing tiles", filepath)
+            from pathsafe.tiff import compute_image_hashes
+            pre_hashes = compute_image_hashes(target)
+        finally:
+            if io_semaphore:
+                io_semaphore.release()
 
     # Anonymize
+    if phase_callback:
+        phase_callback("Anonymizing", filepath)
     try:
         findings = handler.anonymize(target)
     except Exception as e:
@@ -233,11 +272,21 @@ def anonymize_file(
     # Verify image tile data integrity
     integrity_result = None
     if verify_integrity and not dry_run:
-        integrity_result = _verify_image_integrity(target, pre_hashes)
+        if io_semaphore:
+            io_semaphore.acquire()
+        try:
+            if phase_callback:
+                phase_callback("Verifying integrity", filepath)
+            integrity_result = _verify_image_integrity(target, pre_hashes)
+        finally:
+            if io_semaphore:
+                io_semaphore.release()
 
     # Verify -- always re-scan when verify is enabled (not just when findings > 0)
     verified = False
     if verify:
+        if phase_callback:
+            phase_callback("Verifying clean", filepath)
         from pathsafe.verify import verify_file
         verify_result = verify_file(target)
         verified = verify_result.is_clean and not verify_result.error
@@ -246,20 +295,37 @@ def anonymize_file(
     from pathsafe.scanner import scan_filename_for_phi
     filename_has_phi = len(scan_filename_for_phi(target)) > 0
 
-    # Compute SHA-256 of the final output file (before timestamp reset
-    # so that opening the file doesn't update st_atime after reset)
+    # Finalize: compute SHA-256 (only when requested) and reset timestamps
     file_sha256 = None
-    try:
-        h = hashlib.sha256()
-        with open(str(target), 'rb') as fh:
-            while True:
-                chunk = fh.read(65536)
-                if not chunk:
-                    break
-                h.update(chunk)
-        file_sha256 = h.hexdigest()
-    except (OSError, FileNotFoundError):
-        pass
+    if compute_checksum:
+        if io_semaphore:
+            io_semaphore.acquire()
+        try:
+            if phase_callback:
+                phase_callback("Finalizing", filepath)
+            try:
+                target_size = os.path.getsize(str(target))
+                h = hashlib.sha256()
+                hashed = 0
+                last_pct = -1
+                with open(str(target), 'rb') as fh:
+                    while True:
+                        chunk = fh.read(65536)
+                        if not chunk:
+                            break
+                        h.update(chunk)
+                        hashed += len(chunk)
+                        if phase_callback and target_size > 0:
+                            new_pct = int(hashed * 100 / target_size)
+                            if new_pct > last_pct:
+                                last_pct = new_pct
+                                phase_callback("Finalizing", filepath, hashed / target_size)
+                file_sha256 = h.hexdigest()
+            except (OSError, FileNotFoundError):
+                pass
+        finally:
+            if io_semaphore:
+                io_semaphore.release()
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps:
@@ -337,7 +403,7 @@ def collect_wsi_files(path: Path, format_filter: Optional[str] = None) -> List[P
 def anonymize_batch(
     input_path: Path,
     output_dir: Optional[Path] = None,
-    verify: bool = True,
+    verify: bool = False,
     dry_run: bool = False,
     format_filter: Optional[str] = None,
     progress_callback: Optional[Callable] = None,
@@ -346,6 +412,8 @@ def anonymize_batch(
     verify_integrity: bool = False,
     stop_check: Optional[Callable] = None,
     file_list: Optional[List[Path]] = None,
+    phase_callback: Optional[Callable] = None,
+    compute_checksum: bool = False,
 ) -> BatchResult:
     """Anonymize a batch of WSI files.
 
@@ -361,6 +429,7 @@ def anonymize_batch(
         verify_integrity: If True, verify image tile data integrity via SHA-256.
         stop_check: Optional callable returning True to abort immediately.
         file_list: If provided, use these files instead of collecting from input_path.
+        phase_callback: Called with (phase_name, filepath) at each processing phase.
 
     Returns:
         BatchResult with summary statistics.
@@ -392,11 +461,13 @@ def anonymize_batch(
     if workers > 1 and total > 1:
         results = _batch_parallel(file_pairs, verify, dry_run, workers,
                                   progress_callback, batch, reset_timestamps,
-                                  verify_integrity, stop_check)
+                                  verify_integrity, stop_check,
+                                  phase_callback, compute_checksum)
     else:
         results = _batch_sequential(file_pairs, verify, dry_run,
                                     progress_callback, batch, reset_timestamps,
-                                    verify_integrity, stop_check)
+                                    verify_integrity, stop_check,
+                                    phase_callback, compute_checksum)
 
     batch.results = results
     batch.total_time_seconds = time.monotonic() - t0
@@ -412,6 +483,8 @@ def _batch_sequential(
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
     stop_check: Optional[Callable] = None,
+    phase_callback: Optional[Callable] = None,
+    compute_checksum: bool = False,
 ) -> List[AnonymizationResult]:
     """Process files sequentially."""
     results = []
@@ -424,7 +497,9 @@ def _batch_sequential(
             result = anonymize_file(filepath, output_path=out, verify=verify,
                                     dry_run=dry_run,
                                     reset_timestamps=reset_timestamps,
-                                    verify_integrity=verify_integrity)
+                                    verify_integrity=verify_integrity,
+                                    phase_callback=phase_callback,
+                                    compute_checksum=compute_checksum)
         except Exception as e:
             result = AnonymizationResult(
                 source_path=filepath,
@@ -452,6 +527,8 @@ def _batch_parallel(
     reset_timestamps: bool = False,
     verify_integrity: bool = False,
     stop_check: Optional[Callable] = None,
+    phase_callback: Optional[Callable] = None,
+    compute_checksum: bool = False,
 ) -> List[AnonymizationResult]:
     """Process files in parallel using a thread pool.
 
@@ -459,6 +536,9 @@ def _batch_parallel(
     submission order for deterministic output.
     """
     total = len(file_pairs)
+    workers = min(workers, total)  # no point creating more threads than files
+    # Cap concurrent I/O to 1 to prevent disk thrashing (single disk)
+    io_semaphore = threading.Semaphore(1)
     # Pre-allocate results list to maintain order
     results = [None] * total
     lock = threading.Lock()
@@ -469,7 +549,10 @@ def _batch_parallel(
             return index, anonymize_file(filepath, output_path=out,
                                          verify=verify, dry_run=dry_run,
                                          reset_timestamps=reset_timestamps,
-                                         verify_integrity=verify_integrity)
+                                         verify_integrity=verify_integrity,
+                                         phase_callback=phase_callback,
+                                         io_semaphore=io_semaphore,
+                                         compute_checksum=compute_checksum)
         except Exception as e:
             return index, AnonymizationResult(
                 source_path=filepath,

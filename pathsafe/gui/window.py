@@ -367,7 +367,7 @@ class PathSafeWindow(QMainWindow):
         self.slider_workers.setValue(self._saved_workers)
         self.slider_workers.setToolTip(
             "Number of files to process simultaneously.\n"
-            "Applies to anonymization only (scanning is single-threaded).\n"
+            "Applies to scanning and anonymization.\n"
             "Higher values are faster but use more memory.\n"
             "Recommended: 2-4 for most systems.")
         self._workers_label = QLabel(str(self._saved_workers))
@@ -414,6 +414,12 @@ class PathSafeWindow(QMainWindow):
         self.check_dry_run.setToolTip(
             "Scan and report findings without modifying any files.")
         format_row.addWidget(self.check_dry_run)
+        format_row.addSpacing(20)
+        self.check_checksum = QCheckBox('SHA-256 checksum')
+        self.check_checksum.setToolTip(
+            "Compute a SHA-256 hash for each output file.\n"
+            "Useful for audit trails but adds processing time.")
+        format_row.addWidget(self.check_checksum)
         format_row.addStretch()
         opts_vlayout.addLayout(format_row)
 
@@ -990,6 +996,7 @@ class PathSafeWindow(QMainWindow):
         self.institution_edit.setEnabled(not running)
         self.combo_format_filter.setEnabled(not running)
         self.check_dry_run.setEnabled(not running)
+        self.check_checksum.setEnabled(not running)
         # Convert tab controls
         self.convert_output_edit.setEnabled(not running)
         self.combo_target_format.setEnabled(not running)
@@ -1122,15 +1129,16 @@ class PathSafeWindow(QMainWindow):
         file_list = self._selected_files if self._selected_files else None
         self._worker = AnonymizeWorker(
             input_p, output_dir,
-            True,
+            False,
             self.slider_workers.value(),
             signals,
             reset_timestamps=True,
             format_filter=self._get_format_filter(),
             dry_run=dry_run,
-            verify_integrity=True,
+            verify_integrity=False,
             institution=self._institution_name,
             file_list=file_list,
+            compute_checksum=self.check_checksum.isChecked(),
         )
         self._worker.start()
 
@@ -1316,6 +1324,8 @@ class PathSafeWindow(QMainWindow):
                     event.ignore()
                     return
                 self._worker.stop()
+                self._worker.terminate()
+                self._worker.wait(3000)
         event.accept()
 
     # --- About ---

@@ -227,7 +227,8 @@ class TestCertificatePipeline:
         outdir = tmp_path / 'output'
         batch_result = anonymize_batch(
             tmp_ndpi, output_dir=outdir, verify=True,
-            reset_timestamps=True, verify_integrity=True)
+            reset_timestamps=True, verify_integrity=True,
+            compute_checksum=True)
 
         cert_path = tmp_path / 'cert.json'
         cert = generate_certificate(batch_result, output_path=cert_path,

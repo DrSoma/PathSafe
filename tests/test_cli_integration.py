@@ -125,10 +125,11 @@ class TestAnonymizeCLI:
         assert 'pathsafe_version' in data
 
     def test_no_verify(self, runner, tmp_ndpi, tmp_path):
+        """Verify is off by default -- just run without --verify flag."""
         outdir = tmp_path / 'output'
         result = runner.invoke(main, [
             'anonymize', '--output', str(outdir),
-            '--no-verify', str(tmp_ndpi)])
+            str(tmp_ndpi)])
         assert result.exit_code == 0
 
     def test_format_filter(self, runner, tmp_ndpi, tmp_svs, tmp_path):

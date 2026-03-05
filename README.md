@@ -147,6 +147,7 @@ A summary popup tells you exactly what happened after each step.
 | **Use keyboard shortcuts** | Ctrl+O (open files), Ctrl+Shift+O (open folder), Ctrl+S (scan), Ctrl+R (anonymize), Ctrl+E (verify), Ctrl+I (file info), Ctrl+T (convert), Ctrl+L (save log), Esc (stop) |
 | **Speed up large batches** | Increase the Workers slider (try 2-4) |
 | **Preview without changing anything** | Check the "Dry run" box |
+| **Generate SHA-256 checksums** | Check the "SHA-256 checksum" box for audit-trail hashes |
 | **Add your institution name** | Fill in the Institution field (it appears on PDF reports and is remembered) |
 | **Save your results** | Use Save Log or Export JSON in the Actions menu |
 | **Convert file formats** | Use the Convert tab to change between NDPI, SVS, TIFF, PNG, and JPEG |
@@ -249,8 +250,9 @@ pathsafe gui             Launch the graphical interface
 | `--certificate FILE` / `-c` | Generate a compliance certificate (JSON + PDF) |
 | `--institution NAME` / `-i` | Institution name for PDF certificate headers |
 | `--format FORMAT` | Only process files of a specific format |
-| `--no-verify` | Skip the automatic re-scan after anonymization |
-| `--no-verify-integrity` | Skip image integrity checking (enabled by default) |
+| `--verify` | Re-scan after anonymization to confirm all PHI removed (off by default) |
+| `--verify-integrity` | Verify image tile data integrity via SHA-256 checksums (off by default) |
+| `--checksum` | Compute SHA-256 checksum of each output file (off by default) |
 | `--no-reset-timestamps` | Keep original file timestamps (reset by default) |
 | `--log FILE` | Save all output to a log file |
 

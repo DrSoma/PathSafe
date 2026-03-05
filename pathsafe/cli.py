@@ -191,7 +191,7 @@ def scan(path, verbose, fmt, json_out, workers, report, institution, patterns):
 @click.option('--in-place', is_flag=True,
               help='Explicitly confirm in-place anonymization (required if no --output).')
 @click.option('--dry-run', is_flag=True, help='Scan only, don\'t modify files.')
-@click.option('--no-verify', is_flag=True, help='Skip post-anonymization verification.')
+@click.option('--verify', is_flag=True, help='Re-scan after anonymization to confirm all PHI removed.')
 @click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'bif', 'scn', 'dicom', 'tiff']),
               help='Only process files of this format.')
 @click.option('--certificate', '-c', type=click.Path(),
@@ -202,14 +202,16 @@ def scan(path, verbose, fmt, json_out, workers, report, institution, patterns):
 @click.option('--log', type=click.Path(), help='Write log to file.')
 @click.option('--reset-timestamps/--no-reset-timestamps', default=True,
               help='Reset file timestamps to epoch (default: on). Use --no-reset-timestamps to keep original timestamps.')
-@click.option('--verify-integrity/--no-verify-integrity', default=True,
-              help='Verify image tile data integrity via SHA-256 checksums (default: on).')
+@click.option('--verify-integrity', is_flag=True, default=False,
+              help='Verify image tile data integrity via SHA-256 checksums (default: off).')
+@click.option('--checksum', is_flag=True, default=False,
+              help='Compute SHA-256 checksum of each output file (default: off).')
 @click.option('--institution', '-i', type=str, default='',
               help='Institution name to display on the PDF certificate header.')
 @click.option('--patterns', type=click.Path(exists=True),
               help='JSON file with custom PHI patterns (merged with built-in defaults).')
-def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verbose, workers, log,
-              reset_timestamps, verify_integrity, institution, patterns):
+def anonymize(path, output, in_place, dry_run, verify, fmt, certificate, verbose, workers, log,
+              reset_timestamps, verify_integrity, checksum, institution, patterns):
     """Anonymize PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
@@ -316,10 +318,11 @@ def anonymize(path, output, in_place, dry_run, no_verify, fmt, certificate, verb
 
         batch_result = anonymize_batch(
             input_path, output_dir=output_dir,
-            verify=not no_verify, dry_run=dry_run,
+            verify=verify, dry_run=dry_run,
             format_filter=fmt, progress_callback=progress,
             workers=workers, reset_timestamps=reset_timestamps,
             verify_integrity=verify_integrity,
+            compute_checksum=checksum,
         )
 
         # Summary

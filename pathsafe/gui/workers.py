@@ -1,5 +1,6 @@
 """Background worker threads for PathSafe GUI operations."""
 
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -77,27 +78,12 @@ class ScanWorker(QThread):
                 self.signals.status.emit(
                     f'Scanning {i}/{total_files}: {filepath.name}')
 
-                # Compute SHA-256 of the scanned file (pre-anonymization)
-                sha256 = ''
-                try:
-                    import hashlib
-                    h = hashlib.sha256()
-                    with open(filepath, 'rb') as fh:
-                        while True:
-                            chunk = fh.read(65536)
-                            if not chunk:
-                                break
-                            h.update(chunk)
-                    sha256 = h.hexdigest()
-                except OSError:
-                    pass
-
-                # Collect JSON-serializable result
+                # Collect JSON-serializable result (SHA-256 computed after scan)
                 entry = {
                     'filepath': str(filepath),
                     'is_clean': result.is_clean,
                     'error': result.error,
-                    'sha256': sha256,
+                    'sha256': '',
                     'findings': [
                         {'tag_name': f.tag_name, 'value_preview': f.value_preview}
                         for f in result.findings
@@ -202,8 +188,9 @@ class AnonymizeWorker(QThread):
     def __init__(self, input_path, output_dir, verify, workers, signals,
                  reset_timestamps=True,
                  format_filter=None,
-                 dry_run=False, verify_integrity=True,
-                 institution="", file_list=None):
+                 dry_run=False, verify_integrity=False,
+                 institution="", file_list=None,
+                 compute_checksum=False):
         super().__init__()
         self.input_path = input_path
         self.output_dir = output_dir
@@ -216,6 +203,7 @@ class AnonymizeWorker(QThread):
         self.dry_run = dry_run
         self.verify_integrity = verify_integrity
         self.file_list = file_list
+        self.compute_checksum = compute_checksum
         self._stop = False
 
     def stop(self):
@@ -249,15 +237,44 @@ class AnonymizeWorker(QThread):
 
             t0 = time.time()
 
+            # Phase-level progress tracking for responsive UI
+            phases_per_file = 1  # anonymize (always present)
+            if not self.dry_run:
+                if self.output_dir is not None:
+                    phases_per_file += 1  # copy
+                if self.verify_integrity:
+                    phases_per_file += 2  # hash + verify integrity
+                if self.verify:
+                    phases_per_file += 1  # verify clean
+                if self.compute_checksum:
+                    phases_per_file += 1  # finalize (SHA-256)
+            else:
+                phases_per_file = 1  # scanning only
+            total_phases = total * phases_per_file
+            _phase_lock = threading.Lock()
+            _phase_count = [0]
+
+            def on_phase(phase_name, filepath, phase_progress=None):
+                if phase_progress is None:
+                    # New phase started
+                    with _phase_lock:
+                        _phase_count[0] += 1
+                        count = _phase_count[0]
+                    self.signals.log.emit(html_info(
+                        f'    {phase_name}: {filepath.name}'))
+                    pct = count / total_phases * 100
+                    self.signals.progress.emit(min(pct, 99))
+                    self.signals.status.emit(
+                        f'{phase_name}: {filepath.name}')
+                else:
+                    # Sub-progress within current phase
+                    pct_str = f'{phase_progress * 100:.0f}%'
+                    self.signals.status.emit(
+                        f'{phase_name}: {filepath.name} ({pct_str})')
+
             def progress(i, total_files, filepath, result):
                 if self._stop:
                     return
-                elapsed = time.time() - t0
-                rate = i / elapsed if elapsed > 0 else 0
-                pct = i / total_files * 100
-                self.signals.progress.emit(pct)
-                self.signals.status.emit(
-                    f'{i}/{total_files} ({rate:.1f}/s) - {filepath.name}')
 
                 if result.error:
                     self.signals.log.emit(html_error(
@@ -302,7 +319,11 @@ class AnonymizeWorker(QThread):
                 verify_integrity=self.verify_integrity,
                 stop_check=lambda: self._stop,
                 file_list=self.file_list,
+                phase_callback=on_phase,
+                compute_checksum=self.compute_checksum,
             )
+
+            self.signals.progress.emit(100)
 
             cert_path = None
 

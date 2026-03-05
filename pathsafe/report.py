@@ -98,11 +98,6 @@ def generate_certificate(
             record['error'] = result.error
         elif result.sha256_after:
             record['sha256_after'] = result.sha256_after
-        else:
-            try:
-                record['sha256_after'] = _sha256_file(result.output_path)
-            except (OSError, FileNotFoundError):
-                pass
 
         if result.verified:
             verified_count += 1
