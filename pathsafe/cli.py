@@ -191,7 +191,6 @@ def scan(path, verbose, fmt, json_out, workers, report, institution, patterns):
 @click.option('--in-place', is_flag=True,
               help='Explicitly confirm in-place anonymization (required if no --output).')
 @click.option('--dry-run', is_flag=True, help='Scan only, don\'t modify files.')
-@click.option('--verify', is_flag=True, help='Re-scan after anonymization to confirm all PHI removed.')
 @click.option('--format', 'fmt', type=click.Choice(['ndpi', 'svs', 'mrxs', 'bif', 'scn', 'dicom', 'tiff']),
               help='Only process files of this format.')
 @click.option('--certificate', '-c', type=click.Path(),
@@ -210,7 +209,7 @@ def scan(path, verbose, fmt, json_out, workers, report, institution, patterns):
               help='Institution name to display on the PDF certificate header.')
 @click.option('--patterns', type=click.Path(exists=True),
               help='JSON file with custom PHI patterns (merged with built-in defaults).')
-def anonymize(path, output, in_place, dry_run, verify, fmt, certificate, verbose, workers, log,
+def anonymize(path, output, in_place, dry_run, fmt, certificate, verbose, workers, log,
               reset_timestamps, verify_integrity, checksum, institution, patterns):
     """Anonymize PHI in WSI files.
 
@@ -285,10 +284,8 @@ def anonymize(path, output, in_place, dry_run, verify, fmt, certificate, verbose
                 status_log = f'ERROR: {result.error}'
                 log_fn = log_error
             elif result.findings_cleared > 0:
-                verified = ' [verified]' if result.verified else ''
-                status_cli = cli_warning(f'cleared {result.findings_cleared} finding(s)') + \
-                             (cli_success(verified) if result.verified else cli_dim(verified))
-                status_log = f'cleared {result.findings_cleared} finding(s){verified}'
+                status_cli = cli_warning(f'cleared {result.findings_cleared} finding(s)')
+                status_log = f'cleared {result.findings_cleared} finding(s)'
                 log_fn = log_warn
             else:
                 status_cli = cli_success('already clean')
@@ -318,7 +315,7 @@ def anonymize(path, output, in_place, dry_run, verify, fmt, certificate, verbose
 
         batch_result = anonymize_batch(
             input_path, output_dir=output_dir,
-            verify=verify, dry_run=dry_run,
+            dry_run=dry_run,
             format_filter=fmt, progress_callback=progress,
             workers=workers, reset_timestamps=reset_timestamps,
             verify_integrity=verify_integrity,
