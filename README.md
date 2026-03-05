@@ -22,7 +22,7 @@ PathSafe works with all major scanner brands, can process thousands of files at 
 | **Works with all major scanners** | Hamamatsu (NDPI), Aperio (SVS), 3DHISTECH (MRXS), Roche/Ventana (BIF), Leica (SCN), DICOM, and other TIFF-based files |
 | **Erases label photos** | Many scanners take a photo of the physical slide label (which may show patient names) and hide it inside the file. PathSafe erases these photos |
 | **Keeps your originals safe** | PathSafe creates cleaned copies in a separate folder, so your original files are never touched |
-| **Double-checks everything** | Optional post-anonymization re-scan confirms all patient data was actually removed (`--verify` flag or GUI option) |
+| **Double-checks everything** | Optional post-anonymization re-scan confirms all patient data was actually removed (CLI: `--verify` flag) |
 | **Creates compliance reports** | Generates PDF reports and certificates documenting exactly what was found, what was removed, and proof that each file is clean |
 | **Easy to use** | A visual interface guides you through four simple steps with no typing commands required |
 | **Handles large batches** | Process hundreds or thousands of slides at once, with parallel processing to speed things up |
