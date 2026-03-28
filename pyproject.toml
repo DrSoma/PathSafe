@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pathsafe"
+description = "Production-tested WSI anonymizer for pathology slide files"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dynamic = ["version"]
+authors = [
+    {name = "PathSafe Contributors"},
+]
+keywords = ["pathology", "anonymization", "NDPI", "SVS", "TIFF", "WSI", "PHI", "HIPAA"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+    "click>=8.0",
+    "fpdf2>=2.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/DrSoma/PathSafe"
+Repository = "https://github.com/DrSoma/PathSafe"
+Documentation = "https://github.com/DrSoma/PathSafe/tree/main/docs"
+Issues = "https://github.com/DrSoma/PathSafe/issues"
+Changelog = "https://github.com/DrSoma/PathSafe/blob/main/CHANGELOG.md"
+
+[project.scripts]
+pathsafe = "pathsafe.cli:main"
+
+[project.gui-scripts]
+pathsafe-gui = "pathsafe.gui:main"
+
+[project.optional-dependencies]
+gui = [
+    "PySide6>=6.5",
+]
+dicom = [
+    "pydicom>=2.3",
+]
+openslide = [
+    "openslide-python>=1.2",
+]
+convert = [
+    "openslide-python>=1.2",
+    "tifffile>=2023.1",
+    "imagecodecs>=2023.1",
+    "numpy>=1.24",
+]
+pipeline = [
+    "paddleocr>=2.7",
+    "openslide-python>=1.2",
+    "openpyxl>=3.1",
+]
+all = [
+    "PySide6>=6.5",
+    "pydicom>=2.3",
+    "openslide-python>=1.2",
+    "tifffile>=2023.1",
+    "imagecodecs>=2023.1",
+    "numpy>=1.24",
+    "paddleocr>=2.7",
+    "openpyxl>=3.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+include = ["pathsafe*"]
+
+[tool.setuptools.package-data]
+pathsafe = ["assets/*.png", "assets/*.ico", "assets/*.icns", "data/*.json"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pathsafe.__version__"}
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long, handled by the formatter
+    "SIM108", # ternary operator suggestion, not always clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",   # allow assert statements in tests
+    "B011",   # allow assert False in tests
+    "SIM300", # allow Yoda conditions in tests (assert 0 == len(...))
+]
+"tools/**/*.py" = [
+    "E402",   # allow module-level imports not at top of file in scripts
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pathsafe"]
+force-single-line = false
+lines-after-imports = 2
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = 80
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

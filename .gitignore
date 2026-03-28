@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+# Keep pathsafe.spec but ignore other spec files
+!pathsafe.spec
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+.env
+.venv/
+env/
+venv/

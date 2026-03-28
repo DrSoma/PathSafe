@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=PathSafe
+Comment=Hospital-grade WSI anonymizer
+Exec=pathsafe-gui %f
+Icon=pathsafe
+Terminal=false
+Type=Application
+Categories=Science;Medical;
+MimeType=image/tiff;

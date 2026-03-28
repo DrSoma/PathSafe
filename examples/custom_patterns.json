@@ -1,0 +1,110 @@
+{
+    "_comment": [
+        "Custom PHI patterns configuration for PathSafe.",
+        "",
+        "This file demonstrates how to add institution-specific patterns",
+        "for detecting Protected Health Information in WSI file metadata.",
+        "",
+        "Usage:",
+        "  pathsafe scan --patterns custom_patterns.json /data/slides/",
+        "",
+        "Or via the Python API:",
+        "  from pathsafe.scanner import PatternConfig",
+        "  config = PatternConfig.from_json('custom_patterns.json')",
+        "",
+        "JSON structure:",
+        "  - 'byte_patterns':      [[regex, label], ...]  applied to raw file bytes",
+        "  - 'string_patterns':     [[regex, label], ...]  applied to decoded tag values",
+        "  - 'date_byte_patterns':  [[regex, label], ...]  applied to raw bytes for dates",
+        "",
+        "All three keys are optional. Omitted keys inherit the built-in defaults.",
+        "Patterns defined here are APPENDED to the defaults, not replacing them.",
+        "",
+        "Regex notes:",
+        "  - byte_patterns and date_byte_patterns are compiled as bytes (the loader",
+        "    calls .encode() on each pattern string before compiling).",
+        "  - string_patterns are compiled as normal str-mode regex.",
+        "  - Use standard Python regex syntax.",
+        "  - Backslashes must be double-escaped in JSON: \\\\d not \\d."
+    ],
+
+    "byte_patterns": [
+        ["_comment", "--- European accession formats ---"],
+
+        ["PAT-(?:19|20)\\d{2}-\\d{5,}", "Accession_PAT_EU"],
+        ["_comment", "European patient accession: PAT-YYYY-NNNNN (e.g., PAT-2024-00142)"],
+
+        ["LAB-\\d{5,}", "Accession_LAB_EU"],
+        ["_comment", "European lab accession: LAB-NNNNN (e.g., LAB-08472)"],
+
+        ["HISTO-(?:19|20)\\d{2}-\\d{4,}", "Accession_HISTO_EU"],
+        ["_comment", "European histology: HISTO-YYYY-NNNN (e.g., HISTO-2023-5891)"],
+
+        ["CYTO-(?:19|20)\\d{2}-\\d{4,}", "Accession_CYTO_EU"],
+        ["_comment", "European cytology: CYTO-YYYY-NNNN (e.g., CYTO-2024-1034)"],
+
+        ["_comment", "--- UK NHS number pattern ---"],
+
+        ["(?<!\\d)\\d{3}[ -]?\\d{3}[ -]?\\d{4}(?!\\d)", "NHS_Number"],
+        ["_comment", "UK NHS number: 10-digit number often displayed as 3-3-4 groups."],
+        ["_comment", "Matches: 943 476 5919, 943-476-5919, 9434765919."],
+        ["_comment", "WARNING: this pattern is broad and may produce false positives."],
+        ["_comment", "Consider enabling it only when scanning UK-origin slides."],
+
+        ["_comment", "--- Generic institutional ID formats ---"],
+
+        ["CASE[-/](?:19|20)\\d{2}[-/]\\d{4,}", "Accession_CASE"],
+        ["_comment", "Generic case ID: CASE-YYYY-NNNN or CASE/YYYY/NNNN"],
+
+        ["BX-\\d{2}-\\d{4,}", "Accession_BX"],
+        ["_comment", "Biopsy accession: BX-YY-NNNN (e.g., BX-24-3847)"],
+
+        ["(?<![A-Z])FNA-\\d{2}-\\d{3,}", "Accession_FNA"],
+        ["_comment", "Fine needle aspiration: FNA-YY-NNN (e.g., FNA-24-501)"],
+
+        ["PID[-:# ]?\\d{6,}", "Patient_ID_Generic"],
+        ["_comment", "Generic patient identifier: PID followed by 6+ digits"],
+
+        ["HN[-:# ]?\\d{6,}", "Hospital_Number"],
+        ["_comment", "Hospital number: HN followed by 6+ digits (common in Asia-Pacific)"]
+    ],
+
+    "string_patterns": [
+        ["_comment", "--- European accession formats (string-level) ---"],
+
+        ["PAT-(?:19|20)\\d{2}-\\d{5,}", "Accession_PAT_EU"],
+        ["LAB-\\d{5,}", "Accession_LAB_EU"],
+        ["HISTO-(?:19|20)\\d{2}-\\d{4,}", "Accession_HISTO_EU"],
+        ["CYTO-(?:19|20)\\d{2}-\\d{4,}", "Accession_CYTO_EU"],
+
+        ["_comment", "--- UK NHS number (string-level) ---"],
+
+        ["(?<!\\d)\\d{3}[ -]?\\d{3}[ -]?\\d{4}(?!\\d)", "NHS_Number"],
+
+        ["_comment", "--- Generic institutional IDs (string-level) ---"],
+
+        ["CASE[-/](?:19|20)\\d{2}[-/]\\d{4,}", "Accession_CASE"],
+        ["BX-\\d{2}-\\d{4,}", "Accession_BX"],
+        ["(?<![A-Z])FNA-\\d{2}-\\d{3,}", "Accession_FNA"],
+        ["PID[-:# ]?\\d{6,}", "Patient_ID_Generic"],
+        ["HN[-:# ]?\\d{6,}", "Hospital_Number"]
+    ],
+
+    "date_byte_patterns": [
+        ["_comment", "--- Non-standard date formats found in some scanner software ---"],
+
+        ["\\d{2}\\.\\d{2}\\.(?:19|20)\\d{2}", "DateTime_DotDMY"],
+        ["_comment", "European dot-separated DD.MM.YYYY (e.g., 15.03.2024)"],
+
+        ["\\d{2}/\\d{2}/(?:19|20)\\d{2}", "DateTime_SlashDMY"],
+        ["_comment", "UK/European day-first DD/MM/YYYY (e.g., 15/03/2024)."],
+        ["_comment", "Also matches US MM/DD/YYYY -- both are PHI-relevant."],
+
+        ["(?:19|20)\\d{2}\\.\\d{2}\\.\\d{2}", "DateTime_DotISO"],
+        ["_comment", "Dot-separated ISO-like YYYY.MM.DD (e.g., 2024.03.15)"],
+
+        ["\\d{2}-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(?:19|20)\\d{2}", "DateTime_MonthAbbr"],
+        ["_comment", "Day-Month-Year with abbreviated month: DD-Mon-YYYY (e.g., 15-Mar-2024)."],
+        ["_comment", "Common in some European LIS exports."]
+    ]
+}

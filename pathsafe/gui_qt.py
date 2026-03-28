@@ -1,0 +1,9 @@
+"""Backward-compatibility shim -- the real code now lives in pathsafe.gui."""
+
+from __future__ import annotations
+
+from pathsafe.gui import main  # noqa: F401
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+title: "PathSafe: Automated PHI Removal from Whole-Slide Pathology Images"
+message: "If you use PathSafe in your research, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: Soto
+    given-names: Fernando
+    affiliation: "McGill University Health Centre Research Institute, Department of Pathology"
+repository-code: "https://github.com/DrSoma/PathSafe"
+url: "https://github.com/DrSoma/PathSafe"
+license: Apache-2.0
+version: "1.1.0"
+date-released: "2026-03-17"
+keywords:
+  - pathology
+  - anonymization
+  - de-identification
+  - whole-slide-image
+  - PHI
+  - HIPAA
+  - digital-pathology
+  - NDPI
+  - SVS
+  - DICOM
+abstract: >-
+  PathSafe is an open-source tool for removing Protected Health Information
+  (PHI) from whole-slide image (WSI) files used in digital pathology. It
+  supports all major scanner formats (NDPI, SVS, MRXS, BIF, SCN, DICOM,
+  generic TIFF), implements Level IV anonymization as defined by Bisson et al.
+  (2023), and generates verifiable compliance documentation. PathSafe provides
+  both a graphical interface and a command-line tool for batch processing.
+references:
+  - type: article
+    title: "Anonymization of whole slide images in histopathology for research and education"
+    authors:
+      - family-names: Bisson
+        given-names: "Rémi"
+      - family-names: Schmitt
+        given-names: "Agathe"
+      - family-names: Metzger
+        given-names: "Jochen"
+      - family-names: Lahrmann
+        given-names: "Berit"
+    journal: "Digital Health"
+    year: 2023
+    doi: "10.1177/20552076231171475"
