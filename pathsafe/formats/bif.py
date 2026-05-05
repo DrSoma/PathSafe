@@ -31,8 +31,15 @@ from pathsafe.tiff import (
 from pathsafe.utils import _sanitize_error
 
 
-# XMP attributes in <iScan> that contain PHI
+# XMP attributes in <iScan> that contain PHI.
+# Two attribute schemas exist across Ventana scanner generations:
+# 1. Modern iScan (BarCode1/BarCode2, ScanDate, OperatorID, etc.)
+# 2. Older iScan (Barcode1D/Barcode2D, BuildDate, UserName, etc.) -- this
+#    second list is what Bisson et al. (2023) Appendix A enumerates for
+#    Roche/Ventana. We accept both so PathSafe is conformant against the
+#    paper regardless of which scanner generation produced the file.
 XMP_PHI_ATTRIBUTES = {
+    # Modern iScan attribute names
     "BarCode1",
     "BarCode2",
     "BarCodeType1",
@@ -43,13 +50,20 @@ XMP_PHI_ATTRIBUTES = {
     "UniqueID",
     "DeviceSerialNumber",
     "OperatorID",
-    # Additional Ventana iScan attributes that may contain PHI
     "PatientName",
     "CaseID",
     "SampleID",
     "LabelText",
     "Comment",
     "Description",
+    # Older iScan attribute names (Bisson Appendix A row "Roche/Ventana")
+    "Barcode1D",
+    "Barcode2D",
+    "JP2FileName",
+    "UnitNumber",
+    "UserName",
+    "BaseName",
+    "BuildDate",
 }
 
 DATE_TAGS = {

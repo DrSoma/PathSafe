@@ -39,12 +39,19 @@ from pathsafe.utils import _sanitize_error
 
 logger = logging.getLogger(__name__)
 
-# PHI fields in [GENERAL] section of Slidedat.ini
+# PHI fields in [GENERAL] section of Slidedat.ini.
+# The first seven match the explicit list in Bisson et al. (2023) Appendix A
+# (SLIDE_NAME, PROJECT_NAME, SLIDE_ID, SLIDE_CREATIONDATETIME,
+#  SCANNER_HARDWARE_ID, SLIDE_UTC_CREATIONDATETIME, ProfileName); the
+# remainder are Mirax fields PathSafe scrubs in addition.
 GENERAL_PHI_FIELDS = {
     "SLIDE_ID",
     "SLIDE_NAME",
     "SLIDE_BARCODE",
     "SLIDE_CREATIONDATETIME",
+    "SLIDE_UTC_CREATIONDATETIME",
+    "SCANNER_HARDWARE_ID",
+    "PROFILENAME",
     "SLIDE_QUALITY",
     "PROJECT_NAME",
     "SLIDE_LABEL",

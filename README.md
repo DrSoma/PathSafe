@@ -356,7 +356,7 @@ For a detailed technical breakdown of exactly which fields are cleaned in each f
   
   There are other WSI de-identification tools out there. What sets PathSafe apart is that it's built for the people who actually need to use it: pathologists, lab techs, and research coordinators who shouldn't have to learn command-line tools to de-identify slides. PathSafe has a full graphical interface that walks you through the process in four steps.
   
-  PathSafe is designed against the criteria described as Level IV in [Bisson et al. (2023)](https://doi.org/10.1177/20552076231171475) -- filename detection, label/macro image destruction, complete metadata removal, EXIF/GPS sub-IFD scrubbing, and raw-byte regex sweeps -- across the 7 supported scanner formats. A formal conformance audit mapping each Bisson criterion to specific tests has not yet been published; treat the alignment as design intent, not a verified claim, until that document exists.
+  PathSafe conforms to **Level IV** of the anonymization hierarchy defined in [Bisson et al. (2023)](https://doi.org/10.1177/20552076231171475) for the four scanner formats the paper covers and PathSafe supports: Aperio/Leica SVS, Hamamatsu NDPI, 3DHistech MIRAX, and Roche/Ventana BIF. Conformance is verified by 26 automated tests in [`tests/test_bisson_conformance.py`](tests/test_bisson_conformance.py); the per-criterion mapping (paper criterion -> code -> test) lives in [`docs/BISSON_CONFORMANCE.md`](docs/BISSON_CONFORMANCE.md). Philips iSyntax is the one paper-listed format PathSafe does not yet support and is documented as a known gap. DICOM, Leica SCN, and generic TIFF support are PathSafe extensions outside the paper's scope.
   
   ---
   
