@@ -9,8 +9,8 @@ authors:
 repository-code: "https://github.com/DrSoma/PathSafe"
 url: "https://github.com/DrSoma/PathSafe"
 license: Apache-2.0
-version: "1.1.0"
-date-released: "2026-03-17"
+version: "2.0.1"
+date-released: "2026-05-05"
 keywords:
   - pathology
   - deidentification
