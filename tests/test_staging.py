@@ -1,13 +1,13 @@
-"""Tests for the copy-mode staging workflow in anonymize_file().
+"""Tests for the copy-mode staging workflow in deidentify_file().
 
 Validates that the staging file (.pathsafe_pending) is used during
-copy-mode anonymization and is properly renamed to the final output
+copy-mode deidentification and is properly renamed to the final output
 path, with no intermediate files left behind.
 """
 
 import pytest
 
-from pathsafe.anonymizer import anonymize_file
+from pathsafe.deidentifier import deidentify_file
 from tests.conftest import build_tiff
 
 
@@ -53,7 +53,7 @@ def source_svs(tmp_path):
 
 
 class TestStagingFileCleanup:
-    """After successful copy-mode anonymize, no staging files should remain."""
+    """After successful copy-mode deidentify, no staging files should remain."""
 
     def test_no_pending_file_after_copy_mode(self, tmp_path, source_ndpi):
         """The .pathsafe_pending staging file is removed after success."""
@@ -61,7 +61,7 @@ class TestStagingFileCleanup:
         output_dir.mkdir()
         output_path = output_dir / "anon_slide.ndpi"
 
-        result = anonymize_file(source_ndpi, output_path=output_path)
+        result = deidentify_file(source_ndpi, output_path=output_path)
         assert result.error is None
 
         # Check no .pathsafe_pending files remain
@@ -74,7 +74,7 @@ class TestStagingFileCleanup:
         output_dir.mkdir()
         output_path = output_dir / "anon_slide.ndpi"
 
-        result = anonymize_file(source_ndpi, output_path=output_path)
+        result = deidentify_file(source_ndpi, output_path=output_path)
         assert result.error is None
         assert output_path.exists()
         assert output_path.stat().st_size > 0
@@ -85,7 +85,7 @@ class TestStagingFileCleanup:
         output_dir.mkdir()
         output_path = output_dir / "anon_slide.svs"
 
-        result = anonymize_file(source_svs, output_path=output_path)
+        result = deidentify_file(source_svs, output_path=output_path)
         assert result.error is None
 
         pending_files = list(output_dir.glob("*.pathsafe_pending*"))
@@ -106,13 +106,13 @@ class TestStagingExtensionPreservation:
         #   stem + '.pathsafe_pending' + suffix
         expected_staging = output_dir / "slide.pathsafe_pending.ndpi"
 
-        # Run the anonymization -- afterwards, staging should be gone
-        result = anonymize_file(source_ndpi, output_path=output_path)
+        # Run the deidentification -- afterwards, staging should be gone
+        result = deidentify_file(source_ndpi, output_path=output_path)
         assert result.error is None
 
         # The staging file should have been renamed to the final path
         assert not expected_staging.exists(), (
-            "Staging file still exists after successful anonymization"
+            "Staging file still exists after successful deidentification"
         )
         assert output_path.exists()
         # Verify the extension is .ndpi, not .pathsafe_pending
@@ -124,7 +124,7 @@ class TestStagingExtensionPreservation:
         output_dir.mkdir()
         output_path = output_dir / "slide.svs"
 
-        result = anonymize_file(source_svs, output_path=output_path)
+        result = deidentify_file(source_svs, output_path=output_path)
         assert result.error is None
         assert output_path.exists()
         assert output_path.suffix == ".svs"
@@ -159,12 +159,12 @@ class TestMRXSStagingWorkflow:
         return mrxs_file
 
     def test_mrxs_companion_dir_renamed_with_staging(self, tmp_path, source_mrxs):
-        """After copy-mode anonymize, the companion dir uses the final stem."""
+        """After copy-mode deidentify, the companion dir uses the final stem."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         output_path = output_dir / "anon_slide.mrxs"
 
-        result = anonymize_file(source_mrxs, output_path=output_path)
+        result = deidentify_file(source_mrxs, output_path=output_path)
         assert result.error is None
 
         # Final output file should exist
@@ -179,12 +179,12 @@ class TestMRXSStagingWorkflow:
         )
 
     def test_mrxs_no_pending_files_remain(self, tmp_path, source_mrxs):
-        """No .pathsafe_pending files or dirs remain after MRXS anonymization."""
+        """No .pathsafe_pending files or dirs remain after MRXS deidentification."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         output_path = output_dir / "anon_slide.mrxs"
 
-        result = anonymize_file(source_mrxs, output_path=output_path)
+        result = deidentify_file(source_mrxs, output_path=output_path)
         assert result.error is None
 
         # Check for any lingering staging artifacts

@@ -1,6 +1,6 @@
 """DICOM WSI format handler.
 
-Handles PHI detection and anonymization for DICOM whole-slide image files.
+Handles PHI detection and deidentification for DICOM whole-slide image files.
 Requires pydicom (optional dependency: pip install pathsafe[dicom]).
 
 DICOM WSI structure:
@@ -12,7 +12,7 @@ This handler processes individual .dcm files. For multi-file WSI slides,
 each file in the series should be processed separately -- they all contain
 the same PHI tags.
 
-Anonymization follows DICOM PS3.15 Basic Application Level Confidentiality
+Deidentification follows DICOM PS3.15 Basic Application Level Confidentiality
 Profile for de-identification (Table E.1-1).
 """
 
@@ -250,7 +250,7 @@ class DICOMHandler(FormatHandler):
                     if raw_val is None:
                         continue
                     value = str(raw_val).strip()
-                    if value and value != "None" and not _is_dicom_anonymized(value, vr):
+                    if value and value != "None" and not _is_dicom_deidentified(value, vr):
                         findings.append(
                             PHIFinding(
                                 offset=0,
@@ -321,7 +321,7 @@ class DICOMHandler(FormatHandler):
             pir = getattr(ds, "PatientIdentityRemoved", None)
             if pir != "YES" and findings:
                 # Not marking this as a separate finding, just noting
-                # it for the anonymize step
+                # it for the deidentify step
                 pass
 
         except Exception as e:
@@ -346,11 +346,11 @@ class DICOMHandler(FormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in a DICOM file in-place."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in a DICOM file in-place."""
         if not HAS_PYDICOM:
             raise RuntimeError(
-                "Cannot anonymize DICOM files: pydicom not installed (pip install pathsafe[dicom])"
+                "Cannot deidentify DICOM files: pydicom not installed (pip install pathsafe[dicom])"
             )
 
         cleared: list[PHIFinding] = []
@@ -365,7 +365,7 @@ class DICOMHandler(FormatHandler):
             if raw_val is None:
                 continue
             value = str(raw_val).strip()
-            if not value or value == "None" or _is_dicom_anonymized(value, vr):
+            if not value or value == "None" or _is_dicom_deidentified(value, vr):
                 continue
 
             if vr in ("DA",):
@@ -418,7 +418,7 @@ class DICOMHandler(FormatHandler):
         cleared += _remap_uids(ds)
 
         # Clean PHI from sequences
-        cleared += _anonymize_sequences(ds)
+        cleared += _deidentify_sequences(ds)
 
         # Remove private tags
         private_count = sum(1 for elem in ds if elem.tag.is_private)
@@ -493,8 +493,8 @@ def _has_dicom_magic(filepath: Path) -> bool:
         return False
 
 
-def _is_dicom_anonymized(value: str, vr: str) -> bool:
-    """Check if a DICOM tag value has already been anonymized."""
+def _is_dicom_deidentified(value: str, vr: str) -> bool:
+    """Check if a DICOM tag value has already been deidentified."""
     if not value:
         return True
     if vr == "DA" and value == "19000101":
@@ -528,7 +528,7 @@ def _remap_uid(original_uid: str) -> str:
 
 
 def _remap_uids(ds: Any) -> list[PHIFinding]:
-    """Remap DICOM UIDs to anonymized values."""
+    """Remap DICOM UIDs to deidentified values."""
     cleared = []
 
     for tag_tuple, name in UID_TAGS.items():
@@ -603,7 +603,7 @@ def _scan_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
                     if phi_tag in item:
                         val = str(item[phi_tag].value).strip()
                         vr = item[phi_tag].VR
-                        if val and not _is_dicom_anonymized(val, vr):
+                        if val and not _is_dicom_deidentified(val, vr):
                             findings.append(
                                 PHIFinding(
                                     offset=0,
@@ -619,8 +619,8 @@ def _scan_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
     return findings
 
 
-def _anonymize_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
-    """Recursively anonymize PHI in DICOM sequences."""
+def _deidentify_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
+    """Recursively deidentify PHI in DICOM sequences."""
     if depth > 5:
         return []
     cleared = []
@@ -632,7 +632,7 @@ def _anonymize_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
                     if phi_tag in item:
                         val = str(item[phi_tag].value).strip()
                         vr = item[phi_tag].VR
-                        if val and not _is_dicom_anonymized(val, vr):
+                        if val and not _is_dicom_deidentified(val, vr):
                             if vr == "DA":
                                 item[phi_tag].value = "19000101"
                             elif vr == "TM":
@@ -656,5 +656,5 @@ def _anonymize_sequences(ds: Any, depth: int = 0) -> list[PHIFinding]:
                 for priv in private_in_sq:
                     del item[priv.tag]
                 # Recurse
-                cleared += _anonymize_sequences(item, depth + 1)
+                cleared += _deidentify_sequences(item, depth + 1)
     return cleared

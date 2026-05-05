@@ -10,7 +10,7 @@ Typical usage::
     grouping_map, rename_map = load_lookup_table(
         Path("study.xlsx"),
         sheet_name="Sheet1",
-        source_column="anonymized_identifier",
+        source_column="deidentified_identifier",
         group_column="patient_id",
         rename_column="output_name",
     )

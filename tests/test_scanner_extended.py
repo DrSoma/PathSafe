@@ -1,7 +1,7 @@
 """Extended tests for the PHI detection scanner -- all pattern types."""
 
 from pathsafe.scanner import (
-    is_date_anonymized,
+    is_date_deidentified,
     scan_bytes_for_dates,
     scan_bytes_for_phi,
     scan_filename_for_phi,
@@ -170,12 +170,12 @@ class TestScanBytesForDatesExtended:
         assert len(findings) == 1
         assert findings[0][3] == "DateTime_ISO"
 
-    def test_skip_anonymized_slash_date(self):
+    def test_skip_deidentified_slash_date(self):
         data = b"date 1900/01/01"
         findings = scan_bytes_for_dates(data)
         assert len(findings) == 0
 
-    def test_skip_anonymized_iso_date(self):
+    def test_skip_deidentified_iso_date(self):
         data = b"date 1900-01-01"
         findings = scan_bytes_for_dates(data)
         assert len(findings) == 0
@@ -206,14 +206,14 @@ class TestScanFilenameForPHI:
         assert len(findings) >= 2
 
 
-class TestIsDateAnonymizedExtended:
-    """Extended date anonymization checks."""
+class TestIsDateDeidentifiedExtended:
+    """Extended date deidentification checks."""
 
     def test_all_nulls(self):
-        assert is_date_anonymized("\x00\x00\x00")
+        assert is_date_deidentified("\x00\x00\x00")
 
     def test_spaces_only(self):
-        assert is_date_anonymized("   ")
+        assert is_date_deidentified("   ")
 
     def test_mixed_nulls_spaces(self):
-        assert is_date_anonymized(" \x00 ")
+        assert is_date_deidentified(" \x00 ")

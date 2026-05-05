@@ -1,6 +1,6 @@
 """CLI integration tests -- end-to-end via click.testing.CliRunner.
 
-Tests the actual CLI commands (scan, anonymize, verify, info) including
+Tests the actual CLI commands (scan, deidentify, verify, info) including
 argument parsing, output formatting, exit codes, and error handling.
 
 All tests use synthetic temporary files -- no original WSI images are touched.
@@ -79,14 +79,14 @@ class TestScanCLI:
 
 
 # ──────────────────────────────────────────────────────────────────
-# anonymize command
+# deidentify command
 # ──────────────────────────────────────────────────────────────────
 
 
-class TestAnonymizeCLI:
+class TestDeidentifyCLI:
     def test_copy_mode(self, runner, tmp_ndpi, tmp_path):
         outdir = tmp_path / "output"
-        result = runner.invoke(main, ["anonymize", "--output", str(outdir), str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", "--output", str(outdir), str(tmp_ndpi)])
         assert result.exit_code == 0
         assert "cleared" in result.output.lower() or "clean" in result.output.lower()
         # Output file should exist
@@ -94,12 +94,12 @@ class TestAnonymizeCLI:
         assert len(output_files) == 1
 
     def test_inplace_mode(self, runner, tmp_ndpi):
-        result = runner.invoke(main, ["anonymize", "--in-place", "--yes", str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", "--in-place", "--yes", str(tmp_ndpi)])
         assert result.exit_code == 0
 
     def test_dry_run(self, runner, tmp_ndpi):
         original = tmp_ndpi.read_bytes()
-        result = runner.invoke(main, ["anonymize", "--dry-run", str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", "--dry-run", str(tmp_ndpi)])
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
         # File should not be modified
@@ -107,7 +107,7 @@ class TestAnonymizeCLI:
 
     def test_no_output_no_inplace_errors(self, runner, tmp_ndpi):
         """Must specify --output or --in-place."""
-        result = runner.invoke(main, ["anonymize", str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", str(tmp_ndpi)])
         assert result.exit_code == 1
         assert "error" in result.output.lower()
 
@@ -116,7 +116,7 @@ class TestAnonymizeCLI:
         cert_path = tmp_path / "cert.json"
         result = runner.invoke(
             main,
-            ["anonymize", "--output", str(outdir), "--certificate", str(cert_path), str(tmp_ndpi)],
+            ["deidentify", "--output", str(outdir), "--certificate", str(cert_path), str(tmp_ndpi)],
         )
         assert result.exit_code == 0
         assert cert_path.exists()
@@ -126,7 +126,7 @@ class TestAnonymizeCLI:
     def test_no_verify(self, runner, tmp_ndpi, tmp_path):
         """Verify is off by default -- just run without --verify flag."""
         outdir = tmp_path / "output"
-        result = runner.invoke(main, ["anonymize", "--output", str(outdir), str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", "--output", str(outdir), str(tmp_ndpi)])
         assert result.exit_code == 0
 
     def test_format_filter(self, runner, tmp_ndpi, tmp_svs, tmp_path):
@@ -137,7 +137,7 @@ class TestAnonymizeCLI:
 
         outdir = tmp_path / "output"
         result = runner.invoke(
-            main, ["anonymize", "--output", str(outdir), "--format", "ndpi", str(indir)]
+            main, ["deidentify", "--output", str(outdir), "--format", "ndpi", str(indir)]
         )
         assert result.exit_code == 0
         assert "1 file(s)" in result.output
@@ -146,28 +146,28 @@ class TestAnonymizeCLI:
         outdir = tmp_path / "output"
         log_path = tmp_path / "anon.log"
         result = runner.invoke(
-            main, ["anonymize", "--output", str(outdir), "--log", str(log_path), str(tmp_ndpi)]
+            main, ["deidentify", "--output", str(outdir), "--log", str(log_path), str(tmp_ndpi)]
         )
         assert result.exit_code == 0
         assert log_path.exists()
         log_content = log_path.read_text()
         assert len(log_content) > 0
 
-    def test_anonymize_directory(self, runner, tmp_ndpi, tmp_svs, tmp_path):
+    def test_deidentify_directory(self, runner, tmp_ndpi, tmp_svs, tmp_path):
         indir = tmp_path / "input"
         indir.mkdir()
         shutil.copy2(str(tmp_ndpi), str(indir / "slide.ndpi"))
         shutil.copy2(str(tmp_svs), str(indir / "slide.svs"))
 
         outdir = tmp_path / "output"
-        result = runner.invoke(main, ["anonymize", "--output", str(outdir), str(indir)])
+        result = runner.invoke(main, ["deidentify", "--output", str(outdir), str(indir)])
         assert result.exit_code == 0
         assert "total" in result.output.lower()
 
     def test_no_reset_timestamps(self, runner, tmp_ndpi, tmp_path):
         outdir = tmp_path / "output"
         result = runner.invoke(
-            main, ["anonymize", "--output", str(outdir), "--no-reset-timestamps", str(tmp_ndpi)]
+            main, ["deidentify", "--output", str(outdir), "--no-reset-timestamps", str(tmp_ndpi)]
         )
         assert result.exit_code == 0
 
@@ -208,9 +208,9 @@ class TestVerifyCLI:
         result = runner.invoke(main, ["verify", str(empty)])
         assert "no wsi files" in result.output.lower()
 
-    def test_verify_after_anonymize(self, runner, tmp_ndpi, tmp_path):
+    def test_verify_after_deidentify(self, runner, tmp_ndpi, tmp_path):
         outdir = tmp_path / "output"
-        runner.invoke(main, ["anonymize", "--output", str(outdir), str(tmp_ndpi)])
+        runner.invoke(main, ["deidentify", "--output", str(outdir), str(tmp_ndpi)])
         output_file = list(outdir.glob("*.ndpi"))[0]
         result = runner.invoke(main, ["verify", str(output_file)])
         assert result.exit_code == 0

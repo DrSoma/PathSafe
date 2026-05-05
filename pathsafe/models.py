@@ -1,4 +1,4 @@
-"""Data models for PathSafe scan and anonymization results."""
+"""Data models for PathSafe scan and deidentification results."""
 
 from __future__ import annotations
 
@@ -39,8 +39,8 @@ class ScanResult:
 
 
 @dataclass
-class AnonymizationResult:
-    """Result of anonymizing a single file."""
+class DeidentificationResult:
+    """Result of deidentifying a single file."""
 
     source_path: Path
     output_path: Path
@@ -48,20 +48,20 @@ class AnonymizationResult:
     findings_cleared: int = 0
     findings: list[PHIFinding] = field(default_factory=list)  # detailed findings
     verified: bool = False
-    anonymization_time_ms: float = 0.0
+    deidentification_time_ms: float = 0.0
     image_integrity_verified: bool | None = None  # None=not checked, True=matched, False=mismatch
     filename_has_phi: bool = False  # True if output filename still contains PHI patterns
-    sha256_after: str | None = None  # SHA-256 hex digest of output file after anonymization
+    sha256_after: str | None = None  # SHA-256 hex digest of output file after deidentification
     error: str | None = None
 
 
 @dataclass
 class BatchResult:
-    """Result of a batch anonymization run."""
+    """Result of a batch deidentification run."""
 
-    results: list[AnonymizationResult] = field(default_factory=list)
+    results: list[DeidentificationResult] = field(default_factory=list)
     total_files: int = 0
-    files_anonymized: int = 0
+    files_deidentified: int = 0
     files_already_clean: int = 0
     files_skipped: int = 0  # Reserved for future use (e.g. format-filter skips)
     files_errored: int = 0
@@ -71,7 +71,7 @@ class BatchResult:
 
 @dataclass
 class PreflightResult:
-    """Result of pre-flight validation before batch anonymization."""
+    """Result of pre-flight validation before batch deidentification."""
 
     ok: bool = True
     warnings: list[str] = field(default_factory=list)
@@ -90,7 +90,7 @@ class ConversionResult:
     target_format: str
     levels_written: int = 0
     conversion_time_ms: float = 0.0
-    anonymized: bool = False
+    deidentified: bool = False
     error: str | None = None
 
 

@@ -1,15 +1,15 @@
-"""File transfer via rsync over SSH -- batch transfer of anonymized WSI files.
+"""File transfer via rsync over SSH -- batch transfer of deidentified WSI files.
 
 Wraps rsync as a subprocess for maximum throughput, resume support (--partial),
 and bandwidth limiting.  Parses rsync's --progress output line-by-line so that
 callers (GUI or CLI) can display a live progress bar.
 
 Post-transfer SHA256 verification ensures bitwise integrity between the local
-anonymized output and the remote copy.
+deidentified output and the remote copy.
 
 PHI safety
 ----------
-Transfer logs never record original filenames.  Only anonymized output
+Transfer logs never record original filenames.  Only deidentified output
 filenames appear in logs and error messages.  All exception strings pass
 through ``_sanitize_error()`` before being stored in ``TransferResult.errors``.
 """
@@ -272,7 +272,7 @@ def transfer_batch(
     file) and streams stdout line-by-line to parse progress information.
 
     Args:
-        source_dir: Directory containing anonymized output files to transfer.
+        source_dir: Directory containing deidentified output files to transfer.
         config: Transfer configuration (remote, SSH key, bandwidth limit, etc.).
         progress_callback: Called with ``(files_done, total_files, pct)`` as
                            rsync reports progress.  Percentage is 0.0--100.0.

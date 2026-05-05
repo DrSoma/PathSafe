@@ -1,18 +1,18 @@
-"""PathSafe -- Production-tested WSI anonymizer for pathology slide files."""
+"""PathSafe -- WSI de-identifier for pathology slide files."""
 
 from __future__ import annotations
 
 from typing import Any
 
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
-from pathsafe.anonymizer import anonymize_batch, anonymize_file
+from pathsafe.deidentifier import deidentify_batch, deidentify_file
 from pathsafe.models import (
-    AnonymizationResult,
     BatchResult,
     ConversionBatchResult,
     ConversionResult,
+    DeidentificationResult,
     PHIFinding,
     PreflightResult,
     ScanResult,
@@ -84,13 +84,13 @@ __all__ = [
     "__version__",
     "PHIFinding",
     "ScanResult",
-    "AnonymizationResult",
+    "DeidentificationResult",
     "BatchResult",
     "PreflightResult",
     "ConversionResult",
     "ConversionBatchResult",
-    "anonymize_file",
-    "anonymize_batch",
+    "deidentify_file",
+    "deidentify_batch",
     "scan_file",
     "verify_file",
     "verify_batch",

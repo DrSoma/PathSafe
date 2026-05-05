@@ -1,6 +1,6 @@
 """Shared utility functions for PathSafe.
 
-Security-focused helpers used across the anonymizer, format handlers,
+Security-focused helpers used across the deidentifier, format handlers,
 and converter modules.
 """
 

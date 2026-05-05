@@ -7,7 +7,7 @@ does not check for PathSafe markers, and has no knowledge of PathSafe's
 blanking strategy.
 
 Purpose: Verify that a TIFF-based WSI file (SVS, NDPI, etc.) has been
-truly stripped of patient information by ANY anonymization tool.
+truly stripped of patient information by ANY deidentification tool.
 
 What it checks:
   1. Every IFD in the TIFF chain: dimensions, tag 270 description, image type
@@ -81,7 +81,7 @@ KNOWN_TAG_NAMES = {
     65480: "NDPI_BarcodeType",
 }
 
-# Tags that should be empty/zeroed after anonymization
+# Tags that should be empty/zeroed after deidentification
 PHI_SENSITIVE_TAGS = {
     270,
     305,
@@ -349,7 +349,7 @@ def scan_file(filepath):
 
                 # Flag known PHI tags
                 if e["tag"] in PHI_SENSITIVE_TAGS:
-                    # Check if content looks like real data vs anonymized
+                    # Check if content looks like real data vs deidentified
                     if e["tag"] in (306, 36867, 36868):  # DateTime tags
                         if stripped and stripped != "0000:00:00 00:00:00":
                             findings.append(

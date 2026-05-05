@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from pathsafe.formats.tiff_base import TiffFormatHandler  # noqa: E402
 from pathsafe.models import PHIFinding, ScanResult  # noqa: E402
 from pathsafe.scanner import (  # noqa: E402
-    is_date_anonymized,
+    is_date_deidentified,
     scan_string_for_phi,
 )
 from pathsafe.tiff import (  # noqa: E402
@@ -106,7 +106,9 @@ class GenericTIFFHandler(TiffFormatHandler):
                                     )
                                 )
                             # Check date tags
-                            if entry.tag_id in GENERIC_DATE_TAGS and not is_date_anonymized(value):
+                            if entry.tag_id in GENERIC_DATE_TAGS and not is_date_deidentified(
+                                value
+                            ):
                                 findings.append(
                                     PHIFinding(
                                         offset=entry.value_offset,
@@ -152,8 +154,8 @@ class GenericTIFFHandler(TiffFormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in a generic TIFF file."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in a generic TIFF file."""
         cleared: list[PHIFinding] = []
 
         # Label/macro blanking FIRST (from base class) -- must read tag 270
@@ -161,13 +163,13 @@ class GenericTIFFHandler(TiffFormatHandler):
         cleared += self._blank_label_macro(filepath)
 
         # String tags (GenericTIFF-specific)
-        cleared += self._anonymize_string_tags(filepath)
+        cleared += self._deidentify_string_tags(filepath)
 
         # Extra metadata + EXIF/GPS (from base class)
-        cleared += self._anonymize_extra_metadata(filepath)
+        cleared += self._deidentify_extra_metadata(filepath)
 
         # Regex safety pass (from base class)
-        cleared += self._anonymize_regex(filepath, {c.offset for c in cleared})
+        cleared += self._deidentify_regex(filepath, {c.offset for c in cleared})
 
         return cleared
 
@@ -195,8 +197,8 @@ class GenericTIFFHandler(TiffFormatHandler):
 
     # --- Internal methods (GenericTIFF-specific) ---
 
-    def _anonymize_string_tags(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI found in ASCII string tags across all IFDs."""
+    def _deidentify_string_tags(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI found in ASCII string tags across all IFDs."""
         cleared: list[PHIFinding] = []
         seen = set()
         with open(filepath, "r+b") as f:
@@ -232,7 +234,7 @@ class GenericTIFFHandler(TiffFormatHandler):
                         if (
                             entry.tag_id in GENERIC_DATE_TAGS
                             and value
-                            and not is_date_anonymized(value)
+                            and not is_date_deidentified(value)
                         ):
                             f.seek(entry.value_offset)
                             f.write(b"\x00" * entry.total_size)

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pathsafe.models import AnonymizationResult, BatchResult
+from pathsafe.models import BatchResult, DeidentificationResult
 from pathsafe.report import (
     _detect_format_from_ext,
     friendly_tag_name,
@@ -27,13 +27,13 @@ def _make_batch_result(
     """Create a synthetic BatchResult for testing."""
     results = []
     for i in range(n_files):
-        r = AnonymizationResult(
+        r = DeidentificationResult(
             source_path=Path(f"/input/slide{i}.ndpi"),
             output_path=Path(f"/output/slide{i}.ndpi"),
             mode=mode,
             findings_cleared=findings,
             verified=verified,
-            anonymization_time_ms=100.0,
+            deidentification_time_ms=100.0,
             image_integrity_verified=integrity,
             filename_has_phi=filename_phi,
             error=error,
@@ -43,7 +43,7 @@ def _make_batch_result(
     batch = BatchResult(
         results=results,
         total_files=n_files,
-        files_anonymized=n_files if not error else 0,
+        files_deidentified=n_files if not error else 0,
         files_already_clean=0,
         files_errored=n_files if error else 0,
         total_time_seconds=1.5,
@@ -67,7 +67,7 @@ class TestGenerateCertificate:
         batch = _make_batch_result(n_files=3)
         cert = generate_certificate(batch)
         assert cert["summary"]["total_files"] == 3
-        assert cert["summary"]["anonymized"] == 3
+        assert cert["summary"]["deidentified"] == 3
         assert cert["summary"]["errors"] == 0
         assert cert["summary"]["verified"] is True
 
@@ -110,7 +110,7 @@ class TestGenerateCertificate:
         cert = generate_certificate(batch)
         measure_names = [m["measure"] for m in cert["measures"]]
         assert "Metadata tags cleared" in measure_names
-        assert "Post-anonymization verification" in measure_names
+        assert "Post-deidentification verification" in measure_names
 
     def test_timestamp_measure(self):
         batch = _make_batch_result()

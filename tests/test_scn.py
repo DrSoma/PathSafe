@@ -65,24 +65,24 @@ class TestSCNScan:
         assert result.error is not None
 
 
-class TestSCNAnonymize:
-    def test_anonymize_clears_phi(self, handler, tmp_scn):
+class TestSCNDeidentify:
+    def test_deidentify_clears_phi(self, handler, tmp_scn):
         result = handler.scan(tmp_scn)
         assert not result.is_clean
 
-        cleared = handler.anonymize(tmp_scn)
+        cleared = handler.deidentify(tmp_scn)
         assert len(cleared) > 0
 
         result = handler.scan(tmp_scn)
         assert result.is_clean
 
-    def test_anonymize_already_clean(self, handler, tmp_scn_clean):
-        cleared = handler.anonymize(tmp_scn_clean)
+    def test_deidentify_already_clean(self, handler, tmp_scn_clean):
+        cleared = handler.deidentify(tmp_scn_clean)
         assert len(cleared) == 0
 
     def test_idempotent(self, handler, tmp_scn):
-        cleared1 = handler.anonymize(tmp_scn)
-        cleared2 = handler.anonymize(tmp_scn)
+        cleared1 = handler.deidentify(tmp_scn)
+        cleared2 = handler.deidentify(tmp_scn)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 

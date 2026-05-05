@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.3] - 2026-02-28
 
 ### Added
-- Detailed findings in anonymization certificates (specific PHI found per file and replacement values, matching scan report detail level)
+- Detailed findings in de-identification certificates (specific PHI found per file and replacement values, matching scan report detail level)
 - Independent verification script (`tools/independent_scanner.py`) for third-party validation
 - Cross-platform uninstallation instructions
 
@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Label and macro image blanking
 - Accession number pattern detection via regex
 - Qt GUI with 5-step workflow panel
-- CLI with `scan`, `anonymize`, `verify`, `convert`, `info`, and `gui` commands
+- CLI with `scan`, `deidentify`, `verify`, `convert`, `info`, and `gui` commands
 - Compliance certificate generation (JSON + PDF)
 - Copy mode (default) and in-place mode
 - Light/dark theme toggle

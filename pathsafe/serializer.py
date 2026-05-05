@@ -1,4 +1,4 @@
-"""File serialization and renaming for anonymized WSI files.
+"""File serialization and renaming for deidentified WSI files.
 
 Provides three rename modes:
 - AUTO: Sequential numbering (ANON_0001.ndpi, ANON_0002.svs, ...)
@@ -14,7 +14,7 @@ File filtering:
   so sequential counters have no gaps.
 
 Design decisions:
-- Final names are computed UPFRONT before anonymization, not post-rename
+- Final names are computed UPFRONT before deidentification, not post-rename
 - Template uses str.replace() on allowlisted tokens, NOT str.format()
 - Mapping files are validated entirely before any processing begins
 - Manifest is embedded in the certificate JSON and also written as standalone CSV
@@ -430,7 +430,7 @@ def compute_rename_plan(
     """Compute the full rename plan: list of (source_path, final_output_path).
 
     Source paths are sorted alphabetically for deterministic index assignment.
-    This is called BEFORE anonymization to determine final output paths upfront.
+    This is called BEFORE deidentification to determine final output paths upfront.
 
     Returns:
         List of (source_path, final_output_path) tuples.

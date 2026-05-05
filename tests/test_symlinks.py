@@ -1,4 +1,4 @@
-"""Tests for symlink rejection in anonymize_file() and collect_wsi_files().
+"""Tests for symlink rejection in deidentify_file() and collect_wsi_files().
 
 Validates that PathSafe refuses to process symlinked source files and
 refuses to write to symlinked output paths, preventing path traversal
@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from pathsafe.anonymizer import anonymize_file, collect_wsi_files
+from pathsafe.deidentifier import collect_wsi_files, deidentify_file
 from tests.conftest import build_tiff
 
 
@@ -29,14 +29,14 @@ def real_ndpi(tmp_path):
 
 
 class TestSymlinkSourceRejection:
-    """anonymize_file() must reject symlinked source files."""
+    """deidentify_file() must reject symlinked source files."""
 
     def test_rejects_symlinked_source_file(self, tmp_path, real_ndpi):
         """A symlink pointing at a valid NDPI file is rejected."""
         symlink_path = tmp_path / "link_to_slide.ndpi"
         os.symlink(str(real_ndpi), str(symlink_path))
 
-        result = anonymize_file(symlink_path)
+        result = deidentify_file(symlink_path)
         assert result.error is not None
         assert "symlink" in result.error.lower()
 
@@ -45,13 +45,13 @@ class TestSymlinkSourceRejection:
         symlink_path = tmp_path / "link_inplace.ndpi"
         os.symlink(str(real_ndpi), str(symlink_path))
 
-        result = anonymize_file(symlink_path, output_path=None)
+        result = deidentify_file(symlink_path, output_path=None)
         assert result.error is not None
         assert "symlink" in result.error.lower()
 
 
 class TestSymlinkOutputRejection:
-    """anonymize_file() must reject symlinked output paths."""
+    """deidentify_file() must reject symlinked output paths."""
 
     def test_rejects_symlinked_output_path(self, tmp_path, real_ndpi):
         """A symlink as the output_path is rejected before any copy."""
@@ -61,7 +61,7 @@ class TestSymlinkOutputRejection:
         symlink_output = tmp_path / "output_link.ndpi"
         os.symlink(str(target_dir / "escaped.ndpi"), str(symlink_output))
 
-        result = anonymize_file(real_ndpi, output_path=symlink_output)
+        result = deidentify_file(real_ndpi, output_path=symlink_output)
         assert result.error is not None
         assert "symlink" in result.error.lower()
 
@@ -73,7 +73,7 @@ class TestSymlinkOutputRejection:
         symlink_output = tmp_path / "sym_output.ndpi"
         os.symlink(str(other_file), str(symlink_output))
 
-        result = anonymize_file(real_ndpi, output_path=symlink_output)
+        result = deidentify_file(real_ndpi, output_path=symlink_output)
         assert result.error is not None
         assert "symlink" in result.error.lower()
 

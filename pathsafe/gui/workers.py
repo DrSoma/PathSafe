@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal
 
 import pathsafe
-from pathsafe.anonymizer import anonymize_batch, collect_wsi_files, scan_batch
+from pathsafe.deidentifier import collect_wsi_files, deidentify_batch, scan_batch
 from pathsafe.formats import detect_format, get_handler
 from pathsafe.log import (
     html_dim,
@@ -207,8 +207,8 @@ class ScanWorker(QThread):
             self.signals.finished.emit()
 
 
-class AnonymizeWorker(QThread):
-    """Background thread for anonymizing files."""
+class DeidentifyWorker(QThread):
+    """Background thread for deidentifying files."""
 
     def __init__(
         self,
@@ -266,7 +266,7 @@ class AnonymizeWorker(QThread):
             self.signals.log.emit(
                 html_header(
                     f"PathSafe v{pathsafe.__version__} - {mode_str} "
-                    f"anonymization{fmt_str}{workers_str}"
+                    f"deidentification{fmt_str}{workers_str}"
                 )
             )
             self.signals.log.emit(html_info(f"Processing {total} file(s)..."))
@@ -277,7 +277,7 @@ class AnonymizeWorker(QThread):
             time.time()
 
             # Phase-level progress tracking for responsive UI
-            phases_per_file = 1  # anonymize (always present)
+            phases_per_file = 1  # deidentify (always present)
             if not self.dry_run:
                 if self.output_dir is not None:
                     phases_per_file += 1  # copy
@@ -367,7 +367,7 @@ class AnonymizeWorker(QThread):
             )
             if self.precomputed_pairs is not None:
                 batch_kwargs["precomputed_pairs"] = self.precomputed_pairs
-            batch_result = anonymize_batch(**batch_kwargs)
+            batch_result = deidentify_batch(**batch_kwargs)
 
             self.signals.progress.emit(100)
 
@@ -393,9 +393,9 @@ class AnonymizeWorker(QThread):
             self.signals.log.emit(html_separator())
             self.signals.log.emit(html_header(f"Done in {batch_result.total_time_seconds:.1f}s"))
             self.signals.log.emit(html_summary_line("Total:", batch_result.total_files, "white"))
-            if batch_result.files_anonymized:
+            if batch_result.files_deidentified:
                 self.signals.log.emit(
-                    html_summary_line("Anonymized:", batch_result.files_anonymized, "orange")
+                    html_summary_line("Deidentified:", batch_result.files_deidentified, "orange")
                 )
             if batch_result.files_already_clean:
                 self.signals.log.emit(
@@ -460,9 +460,9 @@ class AnonymizeWorker(QThread):
 
             self.signals.summary.emit(
                 {
-                    "type": "anonymize",
+                    "type": "deidentify",
                     "total": batch_result.total_files,
-                    "anonymized": batch_result.files_anonymized,
+                    "deidentified": batch_result.files_deidentified,
                     "already_clean": batch_result.files_already_clean,
                     "errors": batch_result.files_errored,
                     "time": f"{batch_result.total_time_seconds:.1f}s",
@@ -480,7 +480,7 @@ class AnonymizeWorker(QThread):
                 }
             )
             if batch_result.files_errored == 0:
-                self.signals.status.emit("Anonymization complete")
+                self.signals.status.emit("Deidentification complete")
             else:
                 self.signals.status.emit(f"Done with {batch_result.files_errored} error(s)")
         except Exception as e:
@@ -504,7 +504,7 @@ class VerifyWorker(QThread):
         self.input_path = input_path
         self.signals = signals
         self.format_filter = format_filter
-        self.file_list = file_list  # specific files to verify (from last anonymize)
+        self.file_list = file_list  # specific files to verify (from last deidentify)
         self._stop = False
 
     def stop(self) -> None:
@@ -513,7 +513,7 @@ class VerifyWorker(QThread):
     def run(self) -> None:
         try:
             if self.file_list:
-                # Verify only the specific files from the last anonymize run
+                # Verify only the specific files from the last deidentify run
                 files = [Path(p) for p in self.file_list if Path(p).exists()]
             else:
                 files = collect_wsi_files(self.input_path, format_filter=self.format_filter)
@@ -693,7 +693,7 @@ class ConvertWorker(QThread):
         extract: str | None,
         tile_size: int,
         quality: int,
-        anonymize_after: bool,
+        deidentify_after: bool,
         reset_timestamps: bool,
         workers: int,
         format_filter: str | None,
@@ -706,7 +706,7 @@ class ConvertWorker(QThread):
         self.extract = extract
         self.tile_size = tile_size
         self.quality = quality
-        self.anonymize_after = anonymize_after
+        self.deidentify_after = deidentify_after
         self.reset_timestamps = reset_timestamps
         self.workers = workers
         self.format_filter = format_filter
@@ -754,7 +754,7 @@ class ConvertWorker(QThread):
                     tile_size=self.tile_size,
                     quality=self.quality,
                     extract=self.extract,
-                    anonymize=self.anonymize_after,
+                    deidentify=self.deidentify_after,
                     reset_timestamps=self.reset_timestamps,
                 )
 
@@ -837,7 +837,7 @@ class ConvertWorker(QThread):
                     target_format=self.target_format,
                     tile_size=self.tile_size,
                     quality=self.quality,
-                    anonymize=self.anonymize_after,
+                    deidentify=self.deidentify_after,
                     format_filter=self.format_filter,
                     progress_callback=on_progress,
                     workers=self.workers,

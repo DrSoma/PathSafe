@@ -1,20 +1,20 @@
-"""Pipeline runner -- chains classify, filter, anonymize, transfer into one workflow.
+"""Pipeline runner -- chains classify, filter, deidentify, transfer into one workflow.
 
 The pipeline is the PRIMARY user-facing command.  It orchestrates the full
 de-identification workflow in a single invocation:
 
-    collect files -> filter -> classify (optional) -> rename -> anonymize -> transfer (optional)
+    collect files -> filter -> classify (optional) -> rename -> deidentify -> transfer (optional)
 
 State tracking uses a write-ahead JSON manifest so the pipeline can resume
 after interruption.  Each file's intent is recorded BEFORE processing begins,
 and its status is updated AFTER each stage completes.  Re-running the same
-pipeline command skips files already at terminal states (anonymized/transferred).
+pipeline command skips files already at terminal states (deidentified/transferred).
 
 Design decisions (from multi-AI debate):
-- Producer-consumer model: classify results feed into filter, which feeds into anonymize
+- Producer-consumer model: classify results feed into filter, which feeds into deidentify
 - Write-ahead manifest: write intent BEFORE processing each file, mark complete AFTER
 - Pipeline is the PRIMARY user-facing command (others are advanced)
-- No --classify flag on anonymize -- classify lives only here
+- No --classify flag on deidentify -- classify lives only here
 - Resume support: re-running the pipeline skips already-completed files
 - Classifier and transfer are imported lazily (optional dependencies)
 """
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pathsafe.anonymizer import anonymize_batch, collect_wsi_files, preflight_check
+from pathsafe.deidentifier import collect_wsi_files, deidentify_batch, preflight_check
 from pathsafe.serializer import (
     RenameMode,
     SerializerConfig,
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 MANIFEST_FILENAME = ".pathsafe_manifest.json"
 
 # Terminal states: files at these statuses are skipped on resume
-_TERMINAL_STATES = frozenset({"anonymized", "transferred"})
+_TERMINAL_STATES = frozenset({"deidentified", "transferred"})
 
 # Valid status transitions (defensive check against manifest corruption)
 _VALID_STATUSES = frozenset(
@@ -57,8 +57,8 @@ _VALID_STATUSES = frozenset(
         "classified",
         "filtering",
         "filtered",
-        "anonymizing",
-        "anonymized",
+        "deidentifying",
+        "deidentified",
         "transferring",
         "transferred",
         "skipped",
@@ -93,7 +93,7 @@ class PipelineConfig:
     exclude: list[str] | None = None
     filter_file: Path | None = None
 
-    # Anonymize stage
+    # Deidentify stage
     workers: int = 1
     verify: bool = True
     certificate: Path | None = None
@@ -312,8 +312,8 @@ def _classify_files(
         # Resume: skip files already classified or beyond
         if current_status in (
             "classified",
-            "anonymizing",
-            "anonymized",
+            "deidentifying",
+            "deidentified",
             "transferring",
             "transferred",
         ):
@@ -368,14 +368,14 @@ def _transfer_files(
     stop_check: Callable[[], bool] | None = None,
     dry_run: bool = False,
 ) -> int:
-    """Transfer anonymized files to a remote destination.
+    """Transfer deidentified files to a remote destination.
 
     Transfer module is imported lazily because it depends on optional
     libraries (e.g. paramiko for SFTP, boto3 for S3).
 
     Args:
         manifest: Pipeline manifest for status tracking.
-        output_dir: Local output directory containing anonymized files.
+        output_dir: Local output directory containing deidentified files.
         remote: Remote destination string (e.g. "sftp://host/path", "s3://bucket/prefix").
         progress_callback: Called with (stage, current, total, filename, info).
         stop_check: Returns True to abort.
@@ -392,15 +392,15 @@ def _transfer_files(
             "Install with: pip install pathsafe[transfer]"
         ) from None
 
-    # Collect files at "anonymized" status that need transfer
+    # Collect files at "deidentified" status that need transfer
     to_transfer = [
         (fname, entry)
         for fname, entry in manifest.files.items()
-        if entry.get("status") == "anonymized"
+        if entry.get("status") == "deidentified"
     ]
 
     if not to_transfer:
-        logger.info("No anonymized files to transfer.")
+        logger.info("No deidentified files to transfer.")
         return 0
 
     transferred = 0
@@ -427,7 +427,7 @@ def _transfer_files(
         manifest.set_file_status(filename, "transferring")
 
         if dry_run:
-            manifest.set_file_status(filename, "anonymized")  # revert for dry-run
+            manifest.set_file_status(filename, "deidentified")  # revert for dry-run
             logger.info("[dry-run] Would transfer %s -> %s", output_name, remote)
             if progress_callback:
                 progress_callback("transfer", i + 1, total, filename, {"dry_run": True})
@@ -458,7 +458,7 @@ def run_pipeline(
     progress_callback: Callable | None = None,
     stop_check: Callable[[], bool] | None = None,
 ) -> PipelineManifest:
-    """Run the full pipeline: collect -> filter -> classify -> rename -> anonymize -> transfer.
+    """Run the full pipeline: collect -> filter -> classify -> rename -> deidentify -> transfer.
 
     This is the PRIMARY user-facing entry point.  It chains all stages and
     uses a write-ahead manifest for resumability.
@@ -467,7 +467,7 @@ def run_pipeline(
         config: Full pipeline configuration.
         progress_callback: Optional callback for progress updates.
             Signature: (stage: str, current: int, total: int, filename: str, info: dict)
-            Stages: "collect", "filter", "classify", "anonymize", "transfer", "complete"
+            Stages: "collect", "filter", "classify", "deidentify", "transfer", "complete"
         stop_check: Optional callable returning True to abort.  Checked between
             files and between stages.
 
@@ -622,16 +622,16 @@ def run_pipeline(
 
     # On resume, filter out files already at terminal states so the rename
     # counter does not include gaps from completed files.
-    files_to_anonymize = []
+    files_to_deidentify = []
     for f in files:
         status = manifest.get_file_status(f.name)
         if status in _TERMINAL_STATES:
             continue  # Already done -- skip
         if status == "skipped":
             continue  # Excluded by classifier -- skip
-        files_to_anonymize.append(f)
+        files_to_deidentify.append(f)
 
-    if not files_to_anonymize:
+    if not files_to_deidentify:
         logger.info("All files already processed -- nothing to do.")
         if progress_callback:
             progress_callback("complete", 0, 0, "", {"already_complete": True})
@@ -663,7 +663,7 @@ def run_pipeline(
 
         rename_plan = compute_rename_plan(
             serializer_config,
-            files_to_anonymize,
+            files_to_deidentify,
             output_dir,
         )
         logger.info("Rename plan: %d file(s)", len(rename_plan))
@@ -677,27 +677,27 @@ def run_pipeline(
             )
 
     # ===================================================================
-    # Stage 6: Anonymize
+    # Stage 6: Deidentify
     # ===================================================================
 
     if _should_stop():
         return manifest
 
     logger.info(
-        "Anonymizing %d file(s) with %d worker(s)...", len(files_to_anonymize), config.workers
+        "Deidentifying %d file(s) with %d worker(s)...", len(files_to_deidentify), config.workers
     )
 
-    # Mark all files as anonymizing (write-ahead) BEFORE batch starts
-    for f in files_to_anonymize:
-        manifest.set_file_status(f.name, "anonymizing")
+    # Mark all files as deidentifying (write-ahead) BEFORE batch starts
+    for f in files_to_deidentify:
+        manifest.set_file_status(f.name, "deidentifying")
 
-    def _anonymize_progress(
+    def _deidentify_progress(
         index: int,
         total: int,
         filepath: Path,
         result: Any,
     ) -> None:
-        """Callback from anonymize_batch -- update manifest per file."""
+        """Callback from deidentify_batch -- update manifest per file."""
         filename = filepath.name
 
         if result.error:
@@ -710,7 +710,7 @@ def run_pipeline(
         else:
             manifest.set_file_status(
                 filename,
-                "anonymized",
+                "deidentified",
                 output_path=(result.output_path.name if result.output_path else filename),
                 findings_cleared=result.findings_cleared,
                 sha256=result.sha256_after,
@@ -718,7 +718,7 @@ def run_pipeline(
 
         if progress_callback:
             progress_callback(
-                "anonymize",
+                "deidentify",
                 index,
                 total,
                 filename,
@@ -735,7 +735,7 @@ def run_pipeline(
         "verify": config.verify,
         "dry_run": config.dry_run,
         "format_filter": config.format_filter,
-        "progress_callback": _anonymize_progress,
+        "progress_callback": _deidentify_progress,
         "workers": config.workers,
         "reset_timestamps": config.reset_timestamps,
         "verify_integrity": config.verify_integrity,
@@ -747,13 +747,13 @@ def run_pipeline(
     if rename_plan is not None:
         batch_kwargs["precomputed_pairs"] = rename_plan
     else:
-        batch_kwargs["file_list"] = files_to_anonymize
+        batch_kwargs["file_list"] = files_to_deidentify
 
-    batch_result = anonymize_batch(**batch_kwargs)
+    batch_result = deidentify_batch(**batch_kwargs)
 
     logger.info(
-        "Anonymization complete: %d anonymized, %d clean, %d errors (%.1fs)",
-        batch_result.files_anonymized,
+        "Deidentification complete: %d deidentified, %d clean, %d errors (%.1fs)",
+        batch_result.files_deidentified,
         batch_result.files_already_clean,
         batch_result.files_errored,
         batch_result.total_time_seconds,
@@ -761,7 +761,7 @@ def run_pipeline(
 
     # For dry-run, revert statuses back to pending (we didn't actually change anything)
     if config.dry_run:
-        for f in files_to_anonymize:
+        for f in files_to_deidentify:
             manifest.set_file_status(f.name, "pending")
 
     # ===================================================================
@@ -789,7 +789,7 @@ def run_pipeline(
         return manifest
 
     if config.transfer and config.remote:
-        logger.info("Transferring anonymized files to %s...", config.remote)
+        logger.info("Transferring deidentified files to %s...", config.remote)
         transferred = _transfer_files(
             manifest=manifest,
             output_dir=output_dir,
@@ -819,8 +819,8 @@ def run_pipeline(
             "",
             {
                 "elapsed_seconds": round(elapsed, 2),
-                "anonymized": sum(
-                    1 for e in manifest.files.values() if e["status"] == "anonymized"
+                "deidentified": sum(
+                    1 for e in manifest.files.values() if e["status"] == "deidentified"
                 ),
                 "transferred": sum(
                     1 for e in manifest.files.values() if e["status"] == "transferred"

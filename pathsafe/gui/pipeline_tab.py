@@ -1,7 +1,7 @@
 """Pipeline tab for the PathSafe GUI -- single-action slide workflow.
 
 This tab provides a streamlined "just do it" interface that chains
-classify -> anonymize -> transfer in one click.  It only appears when
+classify -> deidentify -> transfer in one click.  It only appears when
 the pipeline module is available (i.e. the pipeline extras are installed).
 """
 
@@ -93,14 +93,14 @@ class PipelineWorker(QThread):
             self.signals.log.emit(html_header("Pipeline Complete"))
 
             total = len(manifest.entries)
-            anon = sum(1 for e in manifest.entries.values() if e.status == "anonymized")
+            anon = sum(1 for e in manifest.entries.values() if e.status == "deidentified")
             transferred = sum(1 for e in manifest.entries.values() if e.status == "transferred")
             errors = sum(1 for e in manifest.entries.values() if e.status == "error")
             filtered_out = sum(1 for e in manifest.entries.values() if e.status == "filtered")
 
             self.signals.log.emit(html_summary_line("Total files:", total, "white"))
             if anon:
-                self.signals.log.emit(html_summary_line("Anonymized:", anon, "green"))
+                self.signals.log.emit(html_summary_line("Deidentified:", anon, "green"))
             if transferred:
                 self.signals.log.emit(html_summary_line("Transferred:", transferred, "green"))
             if filtered_out:
@@ -126,7 +126,7 @@ class PipelineWorker(QThread):
 
 
 class PipelineTab(QWidget):
-    """Streamlined pipeline tab -- classify, anonymize, transfer in one click."""
+    """Streamlined pipeline tab -- classify, deidentify, transfer in one click."""
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -144,7 +144,7 @@ class PipelineTab(QWidget):
         self.output_edit = QLineEdit()
         self.output_edit.setPlaceholderText("Output folder for pipeline results...")
         self.output_edit.setToolTip(
-            "Where anonymized files will be saved.\n"
+            "Where deidentified files will be saved.\n"
             "A date-stamped subfolder is created automatically."
         )
         output_row.addWidget(self.output_edit, 1)
@@ -164,7 +164,7 @@ class PipelineTab(QWidget):
         row1 = QHBoxLayout()
         self.check_classify = QCheckBox("Classify stains")
         self.check_classify.setToolTip(
-            "Run stain classification on each slide before anonymizing.\n"
+            "Run stain classification on each slide before deidentifying.\n"
             "Requires the pathsafe-classify extra.\n"
             "Use the filter dropdown to keep only specific stain types."
         )
@@ -190,7 +190,7 @@ class PipelineTab(QWidget):
         row2 = QHBoxLayout()
         self.check_transfer = QCheckBox("Transfer to remote")
         self.check_transfer.setToolTip(
-            "Transfer anonymized files to a remote destination\n"
+            "Transfer deidentified files to a remote destination\n"
             "after processing. Requires the pathsafe-transfer extra.\n"
             "Supports SFTP and S3 destinations."
         )
@@ -205,7 +205,7 @@ class PipelineTab(QWidget):
             "Remote destination for file transfer.\n\n"
             "Examples:\n"
             "  sftp://server.hospital.org/slides/\n"
-            "  s3://my-bucket/anonymized/"
+            "  s3://my-bucket/deidentified/"
         )
         row2.addWidget(self.remote_edit, 1)
         opts_layout.addLayout(row2)
@@ -215,11 +215,11 @@ class PipelineTab(QWidget):
         # --- Action button ---
         btn_layout = QHBoxLayout()
         self.btn_run = QPushButton("  Run Pipeline")
-        self.btn_run.setObjectName("btn_anonymize")
+        self.btn_run.setObjectName("btn_deidentify")
         self.btn_run.setMinimumHeight(38)
         self.btn_run.setToolTip(
             "Run the full pipeline: collect files, classify (optional),\n"
-            "anonymize, and transfer (optional) in one step."
+            "deidentify, and transfer (optional) in one step."
         )
         self.btn_run.clicked.connect(self._run_pipeline)
         btn_layout.addWidget(self.btn_run)

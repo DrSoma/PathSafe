@@ -10,7 +10,7 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 #### NDPI (Hamamatsu)
 
-| Data Element | Where Found | Anonymization Method |
+| Data Element | Where Found | De-identification Method |
 |---|---|---|
 | Accession numbers | TIFF tag 65468 (NDPI_BARCODE) | Overwritten with 'X' characters + null terminator |
 | Reference strings | TIFF tag 65427 (NDPI_REFERENCE) | Overwritten with 'X' characters + null terminator |
@@ -30,7 +30,7 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 #### SVS (Aperio)
 
-| Data Element | Where Found | Anonymization Method |
+| Data Element | Where Found | De-identification Method |
 |---|---|---|
 | Scanner ID | Tag 270 ImageDescription (ScanScope ID) | Overwritten with 'X' characters |
 | Filename | Tag 270 ImageDescription (Filename) | Overwritten with 'X' characters |
@@ -52,7 +52,7 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 #### MRXS (3DHISTECH/MIRAX)
 
-| Data Element | Where Found | Anonymization Method |
+| Data Element | Where Found | De-identification Method |
 |---|---|---|
 | Slide ID | Slidedat.ini [GENERAL] SLIDE_ID | Overwritten with 'X' characters |
 | Slide name | Slidedat.ini [GENERAL] SLIDE_NAME | Overwritten with 'X' characters |
@@ -65,7 +65,7 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 #### DICOM WSI
 
-| Data Element | DICOM Tag | Anonymization Method |
+| Data Element | DICOM Tag | De-identification Method |
 |---|---|---|
 | Patient name | (0010,0010) | Blanked (empty string) |
 | Patient ID | (0010,0020) | Blanked (empty string) |
@@ -98,7 +98,7 @@ PathSafe removes Protected Health Information (PHI) from whole-slide image (WSI)
 
 #### Generic TIFF
 
-| Data Element | Where Found | Anonymization Method |
+| Data Element | Where Found | De-identification Method |
 |---|---|---|
 | All ASCII string tags | All IFDs | Scanned for accession number patterns, matches overwritten |
 | Dates | TIFF tag 306 (DateTime) - all IFDs | Zeroed with null bytes |
@@ -128,7 +128,7 @@ PathSafe blanks label and macro images by overwriting their pixel data with a mi
 | NDPI | NDPI_SOURCELENS tag = -2.0 | NDPI_SOURCELENS tag = -1.0 |
 | SVS | "label" in ImageDescription | "macro" in ImageDescription |
 
-## Anonymization Process
+## De-identification Process
 
 ### Copy Mode (Default)
 
@@ -152,39 +152,39 @@ In-place mode requires explicit `--in-place` flag to prevent accidental modifica
 
 ## Verification
 
-After anonymization, PathSafe re-scans every processed file using the same detection engine. A file is considered "verified clean" only if the re-scan finds zero PHI findings.
+After de-identification, PathSafe re-scans every processed file using the same detection engine. A file is considered "verified clean" only if the re-scan finds zero PHI findings.
 
 Verification can also be run independently at any time:
 
 ```bash
-pathsafe verify /path/to/anonymized/files/
+pathsafe verify /path/to/deidentified/files/
 ```
 
 ## Compliance Certificate
 
-Each batch anonymization produces a JSON certificate containing:
+Each batch de-identification produces a JSON certificate containing:
 
 - **PathSafe version**: Software version used
-- **Certificate ID**: Unique UUID for this anonymization run
+- **Certificate ID**: Unique UUID for this de-identification run
 - **Timestamp**: ISO 8601 UTC timestamp
 - **Mode**: "copy" or "inplace"
-- **Summary**: Total files, anonymized count, error count, verification status
-- **Per-file records**: Filename, format, SHA-256 hash after anonymization, findings cleared, verification status
+- **Summary**: Total files, de-identified count, error count, verification status
+- **Per-file records**: Filename, format, SHA-256 hash after de-identification, findings cleared, verification status
 
 ### Certificate Storage
 
-Certificates should be stored alongside the anonymized files and retained according to your institution's data governance policy.
+Certificates should be stored alongside the de-identified files and retained according to your institution's data governance policy.
 
 ## Audit Trail
 
-For each anonymized file, the certificate records:
+For each de-identified file, the certificate records:
 
 1. Source file path
 2. Output file path
 3. File format detected
 4. Number of PHI findings cleared
-5. Whether post-anonymization verification passed
-6. SHA-256 hash of the anonymized file
+5. Whether post-de-identification verification passed
+6. SHA-256 hash of the de-identified file
 7. Processing time
 
 ## Audit Trail Limitations
@@ -192,25 +192,25 @@ For each anonymized file, the certificate records:
 PathSafe certificates are **documentation-grade**, not forensic-grade. They record what was done and when, but have the following limitations:
 
 - **No digital signatures**: Certificates are not cryptographically signed. Their integrity depends on the storage medium and access controls.
-- **No tamper evidence**: There is no mechanism to detect whether a certificate or anonymized file has been modified after generation.
-- **No operator identity**: Certificates do not record who ran the anonymization. The tool has no authentication or user-login system.
+- **No tamper evidence**: There is no mechanism to detect whether a certificate or de-identified file has been modified after generation.
+- **No operator identity**: Certificates do not record who ran the de-identification. The tool has no authentication or user-login system.
 
 For regulatory audits requiring chain-of-custody guarantees, institutions should wrap PathSafe in a workflow that adds digital signatures, operator authentication, and tamper-evident storage (e.g., write-once media or a signed audit log system).
 
 ## Limitations
 
-- **Image content**: PathSafe anonymizes metadata, embedded text fields, and label/macro images. It does not analyze or modify the diagnostic slide image content itself.
+- **Image content**: PathSafe de-identifies metadata, embedded text fields, and label/macro images. It does not analyze or modify the diagnostic slide image content itself.
 - **MRXS images**: MRXS label/macro images are stored as separate files in the data directory. PathSafe blanks these associated images (label, macro, thumbnail) by overwriting their pixel data with zeros in the corresponding Data*.dat files.
 - **Pattern coverage**: PHI detection relies on known accession number patterns. Custom patterns for your institution should be added to the scanner configuration.
-- **DICOM completeness**: DICOM anonymization covers standard tags and private tags. Application-specific sequences may need additional handling depending on the imaging vendor.
-- **File integrity**: PathSafe modifies files at the byte level, preserving TIFF structure. However, always maintain backups of original files before in-place anonymization.
-- **ICC profile blanking tradeoff**: ICC profiles (TIFF tag 34675) are blanked because they may contain device serial numbers. This prioritizes privacy over color accuracy. If color-critical workflows require ICC profiles, post-anonymization ICC embedding should be performed.
+- **DICOM completeness**: DICOM de-identification covers standard tags and private tags. Application-specific sequences may need additional handling depending on the imaging vendor.
+- **File integrity**: PathSafe modifies files at the byte level, preserving TIFF structure. However, always maintain backups of original files before in-place de-identification.
+- **ICC profile blanking tradeoff**: ICC profiles (TIFF tag 34675) are blanked because they may contain device serial numbers. This prioritizes privacy over color accuracy. If color-critical workflows require ICC profiles, post-de-identification ICC embedding should be performed.
 - **Regex scan offset limit**: The regex safety scan reads the first 1 MB of each file. PHI stored beyond this offset in non-standard locations would not be caught by the regex layer, though structured TIFF tag scanning covers all IFDs regardless of file position.
 - **Philips iSyntax not supported**: Philips iSyntax (`.isyntax`) files are not currently supported.
 
-## Anonymization Depth (Bisson et al. 2023)
+## De-identification Depth (Bisson et al. 2023)
 
-PathSafe implements **Level IV** anonymization as defined by Bisson et al. in ["Anonymization of whole slide images in histopathology for research and education"](https://doi.org/10.1177/20552076231171475) (Digital Health, 2023). This covers:
+PathSafe implements **Level IV** de-identification as defined by Bisson et al. in ["De-identification of whole slide images in histopathology for research and education"](https://doi.org/10.1177/20552076231171475) (Digital Health, 2023). This covers:
 
 - **Level I**: Filename PHI detection (accession number patterns in filenames)
 - **Level II**: Associated image dereferencing

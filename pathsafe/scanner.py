@@ -64,7 +64,7 @@ PHI_BYTE_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 # Date patterns (byte-level) -- these match common date formats in metadata.
-# Excluded: dates containing 1900:01:01 or 0000:00:00 (already anonymized).
+# Excluded: dates containing 1900:01:01 or 0000:00:00 (already deidentified).
 DATE_BYTE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(rb"(?:19|20)\d{2}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}"), "DateTime_TIFF"),
     (re.compile(rb"(?:19|20)\d{2}/\d{2}/\d{2}"), "DateTime_Slash"),
@@ -97,8 +97,8 @@ PHI_STRING_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"DOB[-_:# ]?(?:19|20)\d{2}[-/]?\d{2}[-/]?\d{2}"), "DOB_Pattern"),
 ]
 
-# Anonymized date sentinel -- dates that have already been zeroed
-ANONYMIZED_DATE_SENTINEL = b"1900:01:01 00:00:00"
+# Deidentified date sentinel -- dates that have already been zeroed
+DEIDENTIFIED_DATE_SENTINEL = b"1900:01:01 00:00:00"
 
 # Default header scan size for regex safety scan (1MB)
 DEFAULT_SCAN_SIZE = 1_000_000
@@ -251,7 +251,7 @@ def scan_bytes_for_phi(
             except ValueError:
                 end = m.end()
             matched = data[m.start() : end]
-            # Skip if already anonymized (all X's)
+            # Skip if already deidentified (all X's)
             if matched == b"X" * len(matched):
                 continue
             findings.append((m.start(), len(matched), matched, label))
@@ -284,7 +284,7 @@ def scan_bytes_for_dates(
 ) -> list[tuple[int, int, bytes, str]]:
     """Scan raw bytes for date patterns that may constitute PHI.
 
-    Skips already-anonymized dates (1900:01:01, 1900/01/01, 1900-01-01).
+    Skips already-deidentified dates (1900:01:01, 1900/01/01, 1900-01-01).
 
     Args:
         data: Raw bytes to scan.
@@ -309,8 +309,8 @@ def scan_bytes_for_dates(
     return findings
 
 
-def is_date_anonymized(value: str) -> bool:
-    """Check if a date string has already been anonymized."""
+def is_date_deidentified(value: str) -> bool:
+    """Check if a date string has already been deidentified."""
     return "1900:01:01" in value or "0000:00:00" in value or value.strip("\x00 ") == ""
 
 
@@ -318,7 +318,7 @@ def scan_filename_for_phi(filepath: Path) -> list[tuple[int, int, str, str]]:
     """Scan a filename (stem only, no extension) for PHI patterns.
 
     Filenames like 'AS-24-123456_slide1.ndpi' contain accession numbers.
-    This is a Level I anonymization concern (Bisson et al., 2023).
+    This is a Level I deidentification concern (Bisson et al., 2023).
 
     Returns:
         List of (char_offset, length, matched_text, pattern_label) tuples.

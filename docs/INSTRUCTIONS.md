@@ -1,6 +1,6 @@
 # How to Use PathSafe
 
-A friendly, step-by-step guide to anonymizing your pathology slide files.
+A friendly, step-by-step guide to de-identifying your pathology slide files.
 
 ---
 
@@ -83,7 +83,7 @@ The graphical interface is the easiest way to use PathSafe. No typing required.
 PathSafe walks you through four steps, shown at the top of the window:
 
 ```
-  Select Files  -->  Scan  -->  Select Output  -->  Anonymize
+  Select Files  -->  Scan  -->  Select Output  -->  Deidentify
 ```
 
 Each step button shows its status: blank when not started, **[Done]** when completed, or **[Default]** when using the default setting (like the output folder).
@@ -115,11 +115,11 @@ A popup will appear summarizing the results. PathSafe also saves a **PDF scan re
 
 #### Step 3: Select Output
 
-Click **Step 3** and choose where anonymized copies will be saved. By default, PathSafe suggests a folder inside your Documents directory. The step button shows **[Default]** if you haven't changed it, or **[Done]** if you've picked a custom folder.
+Click **Step 3** and choose where de-identified copies will be saved. By default, PathSafe suggests a folder inside your Documents directory. The step button shows **[Default]** if you haven't changed it, or **[Done]** if you've picked a custom folder.
 
-#### Step 4: Anonymize
+#### Step 4: De-identify
 
-Click **Step 4: Anonymize**. PathSafe will:
+Click **Step 4: De-identify**. PathSafe will:
 
 1. Copy each file to your output folder
 2. Remove all patient information from the copy
@@ -132,11 +132,11 @@ The log will show progress as each file is processed. When it's done, a popup wi
 ### Options (What All the Buttons Mean)
 
 #### Mode
-- **Copy (safe)**: Creates anonymized copies in the output folder. Your originals are untouched. This is the default and recommended mode.
+- **Copy (safe)**: Creates de-identified copies in the output folder. Your originals are untouched. This is the default and recommended mode.
 - **In-place**: Modifies the original files directly. Only use this if you have backups. PathSafe will ask you to confirm before proceeding.
 
-#### Workers (anonymize only)
-Controls how many files are processed at the same time during anonymization. Higher numbers are faster but use more memory. The default of 4 is good for most computers. Note: scanning always processes one file at a time to ensure accurate reporting.
+#### Workers (de-identify only)
+Controls how many files are processed at the same time during de-identification. Higher numbers are faster but use more memory. The default of 4 is good for most computers. Note: scanning always processes one file at a time to ensure accurate reporting.
 
 #### Institution for report (optional)
 Type your institution's name here and it will appear in the header of PDF reports and certificates. This setting is remembered between sessions.
@@ -149,13 +149,13 @@ When checked, PathSafe scans your files and reports what it *would* do, but does
 
 ### Automatic Safety Features
 
-PathSafe applies these automatically during every anonymization:
+PathSafe applies these automatically during every de-identification:
 
 #### Timestamp Reset
 File "last modified" and "last accessed" dates are reset to January 1, 1970. This removes temporal metadata that could help someone figure out when the slide was scanned.
 
 #### Image Integrity Verification
-PathSafe takes a SHA-256 fingerprint of all diagnostic image data before and after anonymization and compares them. If they match, the tissue images are mathematically proven identical. Label and macro images are expected to change (intentionally blanked) and are excluded from this comparison. Only available for TIFF-based formats (NDPI, SVS, BIF, SCN, generic TIFF).
+PathSafe takes a SHA-256 fingerprint of all diagnostic image data before and after de-identification and compares them. If they match, the tissue images are mathematically proven identical. Label and macro images are expected to change (intentionally blanked) and are excluded from this comparison. Only available for TIFF-based formats (NDPI, SVS, BIF, SCN, generic TIFF).
 
 #### Multi-IFD Scanning
 WSI files contain multiple image layers (IFDs). PathSafe scans **every** IFD in the file for PHI tags, not just the first one. Duplicate tag offsets shared across IFDs are automatically deduplicated to avoid redundant processing.
@@ -166,14 +166,14 @@ TIFF files can contain hidden sub-directories (EXIF and GPS sub-IFDs) with addit
 #### Regex Safety Scan
 After structured tag processing, PathSafe runs a regex-based scan of the first 1 MB of each file to catch any accession numbers, medical record numbers (MRN), Social Security numbers (SSN), date of birth (DOB), or date patterns that may have been missed by the format-specific parser. This covers 18+ pattern types across common hospital naming conventions (AS-, AC-, SP-, AP-, CY-, H-, S-, CH, MRN, DOB, and more).
 
-#### Post-Anonymization Verification
-After anonymizing each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.
+#### Post-De-identification Verification
+After de-identifying each file, PathSafe re-scans it with the same detection engine to confirm all PHI was removed.
 
 #### Filename PHI Warning
-If a file's name contains patient identifiers (e.g., `AS-24-123456.ndpi`), PathSafe warns you to rename it manually. The file contents are fully anonymized, but the filename itself cannot be changed automatically without breaking file associations.
+If a file's name contains patient identifiers (e.g., `AS-24-123456.ndpi`), PathSafe warns you to rename it manually. The file contents are fully de-identified, but the filename itself cannot be changed automatically without breaking file associations.
 
 #### Fail-Closed Error Handling
-If PathSafe encounters an error while scanning a file, it reports the file as **not clean** rather than assuming it's safe. In copy mode, if anonymization fails, the unanonymized copy is automatically deleted to prevent PHI from being left in the output directory.
+If PathSafe encounters an error while scanning a file, it reports the file as **not clean** rather than assuming it's safe. In copy mode, if de-identification fails, the unde-identified copy is automatically deleted to prevent PHI from being left in the output directory.
 
 ### Keyboard Shortcuts
 
@@ -182,7 +182,7 @@ If PathSafe encounters an error while scanning a file, it reports the file as **
 | Ctrl+O | Open a file |
 | Ctrl+Shift+O | Open a folder |
 | Ctrl+S | Scan for PHI |
-| Ctrl+R | Anonymize |
+| Ctrl+R | De-identify |
 | Ctrl+E | Verify |
 | Ctrl+I | File info |
 | Ctrl+T | Convert |
@@ -211,8 +211,8 @@ The command line gives you more flexibility and is better for automation and scr
 # 1. Scan your files (nothing is changed)
 pathsafe scan /path/to/slides/ --verbose
 
-# 2. Anonymize (copies to a new folder)
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/
+# 2. Deidentify (copies to a new folder)
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/
 
 # 3. Verify (double-check the results)
 pathsafe verify /path/to/clean/
@@ -238,26 +238,26 @@ To generate a PDF scan report:
 pathsafe scan /path/to/slides/ --report scan_report.pdf --institution "My Hospital"
 ```
 
-### Anonymizing
+### De-identifying
 
 **Copy mode** (recommended; your originals are safe):
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/
 ```
 
 **In-place mode** (modifies originals, so make sure you have backups):
 ```bash
-pathsafe anonymize /path/to/slides/ --in-place
+pathsafe deidentify /path/to/slides/ --in-place
 ```
 
 **Dry run** (preview what would happen without changing anything):
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --dry-run
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --dry-run
 ```
 
 **With compliance certificate**:
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ \
     --certificate /path/to/clean/certificate.json
 ```
 
@@ -265,12 +265,12 @@ Image integrity verification and timestamp reset are enabled by default. Use `--
 
 **Faster processing with parallel workers**:
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --workers 4
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --workers 4
 ```
 
 **Only process one format**:
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --format ndpi
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --format ndpi
 ```
 
 ### Verifying
@@ -298,8 +298,8 @@ PathSafe can convert slides between formats (requires `pip install pathsafe[conv
 # Convert to pyramidal TIFF
 pathsafe convert slide.ndpi -o slide.tiff
 
-# Convert and anonymize in one step
-pathsafe convert slide.ndpi -o slide.tiff --anonymize
+# Convert and deidentify in one step
+pathsafe convert slide.ndpi -o slide.tiff --deidentify
 
 # Extract the label image
 pathsafe convert slide.ndpi -o label.png --extract label
@@ -310,14 +310,14 @@ pathsafe convert /path/to/slides/ -o /path/to/converted/ -t tiff --workers 4
 
 ### All Command-Line Options
 
-#### `pathsafe anonymize`
+#### `pathsafe deidentify`
 
 | Option | What it does |
 |--------|-------------|
-| `--output DIR` / `-o` | Save anonymized copies to this directory |
+| `--output DIR` / `-o` | Save de-identified copies to this directory |
 | `--in-place` | Modify files directly instead of copying |
 | `--dry-run` | Show what would be done without making changes |
-| `--no-verify` | Skip the automatic post-anonymization check |
+| `--no-verify` | Skip the automatic post-de-identification check |
 | `--verbose` / `-v` | Show detailed output |
 | `--workers N` / `-w` | Process N files in parallel |
 | `--format FORMAT` | Only process one format (ndpi, svs, mrxs, bif, scn, dicom, tiff) |
@@ -351,7 +351,7 @@ pathsafe convert /path/to/slides/ -o /path/to/converted/ -t tiff --workers 4
 |--------|-------------|
 | `--output FILE` / `-o` | Output file or directory (required) |
 | `--target-format` / `-t` | Target format: tiff, png, jpeg (default: tiff) |
-| `--anonymize` / `-a` | Anonymize the converted file |
+| `--deidentify` / `-a` | De-identify the converted file |
 | `--tile-size` | Tile size in pixels (default: 256) |
 | `--quality` | JPEG quality 1-100 (default: 90) |
 | `--extract` | Extract an image: label, macro, thumbnail |
@@ -376,16 +376,16 @@ In reports, findings are shown with human-readable names. For example, "Barcode"
 
 ### What "Verified" Means
 
-After anonymizing a file, PathSafe re-scans it with the exact same detection engine. If the re-scan finds zero findings, the file is "verified clean." This is your proof that the anonymization worked.
+After de-identifying a file, PathSafe re-scans it with the exact same detection engine. If the re-scan finds zero findings, the file is "verified clean." This is your proof that the de-identification worked.
 
 ### What "Image Integrity Verified" Means
 
-PathSafe takes a SHA-256 fingerprint of all the diagnostic image data (the tissue tiles) before and after anonymization. If the fingerprints match, the diagnostic images are mathematically proven to be identical. Label and macro images are expected to change (they were intentionally blanked), so those are skipped in the comparison.
+PathSafe takes a SHA-256 fingerprint of all the diagnostic image data (the tissue tiles) before and after de-identification. If the fingerprints match, the diagnostic images are mathematically proven to be identical. Label and macro images are expected to change (they were intentionally blanked), so those are skipped in the comparison.
 
 ### The SHA-256 Hash
 
 Every file gets a SHA-256 hash, a unique 64-character code that acts as a digital fingerprint. If even one byte of the file changes, the hash changes completely. You can use the "before" hash (from the scan report) and "after" hash (from the certificate) to confirm:
-- The file was not tampered with after anonymization
+- The file was not tampered with after de-identification
 - The file you received is the same one that was processed
 
 ### The Compliance Certificate
@@ -393,12 +393,12 @@ Every file gets a SHA-256 hash, a unique 64-character code that acts as a digita
 The certificate is a JSON file (with a matching PDF) that records everything PathSafe did. It includes:
 
 - The PathSafe version used
-- A unique ID for this anonymization run
+- A unique ID for this de-identification run
 - The exact date and time
 - For each file: what was found, what was removed, the SHA-256 hash of the final file, and whether verification passed
 - A legend explaining each finding type
 
-Keep this file with your anonymized slides. It serves as your audit trail for regulatory reviews, research submissions, and institutional records.
+Keep this file with your de-identified slides. It serves as your audit trail for regulatory reviews, research submissions, and institutional records.
 
 ---
 
@@ -414,7 +414,7 @@ PathSafe won't modify your files without explicit confirmation. Either provide a
 
 ### "Some files still contain PHI!"
 
-This is rare but can happen with unusual file structures. Try running anonymize again on the specific files that failed. If the problem persists, please report it.
+This is rare but can happen with unusual file structures. Try running de-identify again on the specific files that failed. If the problem persists, please report it.
 
 ### The GUI won't launch (Linux)
 
@@ -436,7 +436,7 @@ sudo apt install -y libxcb-cursor0
 ```bash
 pathsafe --help
 pathsafe scan --help
-pathsafe anonymize --help
+pathsafe deidentify --help
 pathsafe convert --help
 ```
 
@@ -450,8 +450,8 @@ Or open an issue at the project's GitHub repository.
 |---------------|---------|
 | See what patient data is in my files | `pathsafe scan /slides/ -v` |
 | Get a PDF scan report | `pathsafe scan /slides/ -r report.pdf` |
-| Anonymize and keep originals safe | `pathsafe anonymize /slides/ -o /clean/` |
-| Anonymize with compliance certificate | `pathsafe anonymize /slides/ -o /clean/ -c cert.json` |
+| De-identify and keep originals safe | `pathsafe deidentify /slides/ -o /clean/` |
+| De-identify with compliance certificate | `pathsafe deidentify /slides/ -o /clean/ -c cert.json` |
 | Double-check the results | `pathsafe verify /clean/ -v` |
 | Look at one file's metadata | `pathsafe info slide.ndpi` |
 | Convert to TIFF | `pathsafe convert slide.ndpi -o slide.tiff` |

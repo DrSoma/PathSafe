@@ -1,6 +1,6 @@
 """Roche/Ventana BIF format handler.
 
-Handles PHI detection and anonymization for BIF (BigTIFF) files, including:
+Handles PHI detection and deidentification for BIF (BigTIFF) files, including:
 - XMP tag (700): XML metadata with iScan element containing barcodes,
   scan dates, unique IDs, base filename
 - Standard TIFF tags: DateTime (306), Software (305), etc.
@@ -58,7 +58,7 @@ DATE_TAGS = {
     36868: "DateTimeDigitized",
 }
 
-# Pre-compiled regex patterns for XMP attribute scanning and anonymization.
+# Pre-compiled regex patterns for XMP attribute scanning and deidentification.
 # Keyed by attribute name so we compile once at import time, not per-IFD.
 _XMP_SCAN_PATTERNS = {
     attr: re.compile(rf'{attr}\s*=\s*"([^"]*)"', re.IGNORECASE) for attr in XMP_PHI_ATTRIBUTES
@@ -119,14 +119,14 @@ class BIFHandler(TiffFormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in a BIF file in-place."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in a BIF file in-place."""
         cleared: list[PHIFinding] = []
-        cleared += self._anonymize_xmp(filepath)
-        cleared += self._anonymize_datetime_tags(filepath)
-        cleared += self._anonymize_extra_metadata(filepath)
+        cleared += self._deidentify_xmp(filepath)
+        cleared += self._deidentify_datetime_tags(filepath)
+        cleared += self._deidentify_extra_metadata(filepath)
         cleared += self._blank_label_macro(filepath)
-        cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
+        cleared += self._deidentify_regex(filepath, {f.offset for f in cleared})
         return cleared
 
     def get_format_info(self, filepath: Path) -> dict[str, Any]:
@@ -184,7 +184,7 @@ class BIFHandler(TiffFormatHandler):
                         for attr in XMP_PHI_ATTRIBUTES:
                             for m in _XMP_SCAN_PATTERNS[attr].finditer(xmp_text):
                                 val = m.group(1).strip()
-                                if val and not _is_xmp_anonymized(val):
+                                if val and not _is_xmp_deidentified(val):
                                     findings.append(
                                         PHIFinding(
                                             offset=entry.value_offset,
@@ -198,8 +198,8 @@ class BIFHandler(TiffFormatHandler):
                         break  # Only one tag 700 per IFD
         return findings
 
-    def _anonymize_xmp(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in XMP tag by replacing attribute values across all IFDs."""
+    def _deidentify_xmp(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in XMP tag by replacing attribute values across all IFDs."""
         cleared = []
         seen = set()
         with open(filepath, "r+b") as f:
@@ -219,7 +219,7 @@ class BIFHandler(TiffFormatHandler):
 
                             def _replace(m: re.Match[str]) -> str:
                                 val = m.group(2)
-                                if val and not _is_xmp_anonymized(val):
+                                if val and not _is_xmp_deidentified(val):
                                     return m.group(1) + "X" * len(val) + m.group(3)
                                 return m.group(0)
 
@@ -233,7 +233,7 @@ class BIFHandler(TiffFormatHandler):
                                         length=entry.total_size,
                                         tag_id=700,
                                         tag_name=f"XMP:iScan:{attr}",
-                                        value_preview=f"{attr} anonymized",
+                                        value_preview=f"{attr} deidentified",
                                         source="tiff_tag",
                                     )
                                 )
@@ -250,8 +250,8 @@ class BIFHandler(TiffFormatHandler):
         return cleared
 
 
-def _is_xmp_anonymized(value: str) -> bool:
-    """Check if an XMP attribute value has already been anonymized."""
+def _is_xmp_deidentified(value: str) -> bool:
+    """Check if an XMP attribute value has already been deidentified."""
     if not value:
         return True
     return bool(all(c == "X" for c in value))

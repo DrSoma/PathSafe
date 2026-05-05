@@ -225,7 +225,7 @@ class TestLoadLookupTable:
             tmp_path,
             "Data",
             [
-                ["anonymized_identifier", "patient_id", "output_name"],
+                ["deidentified_identifier", "patient_id", "output_name"],
                 ["UUID-001", "PAT-A", "slide_renamed_1"],
                 ["UUID-002", "PAT-B", "slide_renamed_2"],
                 ["UUID-003", "PAT-A", "slide_renamed_3"],
@@ -234,7 +234,7 @@ class TestLoadLookupTable:
         grouping, rename = load_lookup_table(
             xlsx,
             "Data",
-            source_column="anonymized_identifier",
+            source_column="deidentified_identifier",
             group_column="patient_id",
             rename_column="output_name",
         )
@@ -293,14 +293,14 @@ class TestLoadLookupTable:
             tmp_path,
             "Sheet1",
             [
-                ["Anonymized_Identifier", "Patient_ID"],
+                ["Deidentified_Identifier", "Patient_ID"],
                 ["U1", "P1"],
             ],
         )
         grouping, _ = load_lookup_table(
             xlsx,
             "Sheet1",
-            source_column="anonymized_identifier",
+            source_column="deidentified_identifier",
             group_column="patient_id",
         )
         assert grouping == {"U1": "P1"}

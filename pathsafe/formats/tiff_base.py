@@ -2,11 +2,11 @@
 
 Extracts duplicated methods that are nearly identical across SVS, BIF,
 SCN, GenericTIFF, and NDPI handlers:
-- DateTime tag scanning/anonymization
-- EXIF/GPS sub-IFD scanning/anonymization
-- Extra metadata tag scanning/anonymization (includes EXIF/GPS)
+- DateTime tag scanning/deidentification
+- EXIF/GPS sub-IFD scanning/deidentification
+- Extra metadata tag scanning/deidentification (includes EXIF/GPS)
 - Label/macro image detection and blanking
-- Regex safety scanning/anonymization
+- Regex safety scanning/deidentification
 
 Subclasses customize behavior via class attributes and method overrides.
 """
@@ -20,7 +20,7 @@ from pathsafe.formats.base import FormatHandler
 from pathsafe.models import PHIFinding
 from pathsafe.scanner import (
     DEFAULT_SCAN_SIZE,
-    is_date_anonymized,
+    is_date_deidentified,
     scan_bytes_for_phi,
 )
 from pathsafe.tiff import (
@@ -49,7 +49,7 @@ class TiffFormatHandler(FormatHandler):
     """Intermediate base for TIFF-based WSI format handlers.
 
     Provides default implementations for common TIFF scanning and
-    anonymization operations. Subclasses override class attributes
+    deidentification operations. Subclasses override class attributes
     and specific methods for format-specific behavior.
     """
 
@@ -65,7 +65,7 @@ class TiffFormatHandler(FormatHandler):
     extra_metadata_exclude_tags: set[int] = set()
 
     # ----------------------------------------------------------------
-    # DateTime tag scanning / anonymization
+    # DateTime tag scanning / deidentification
     # ----------------------------------------------------------------
 
     def _scan_datetime_tags(self, filepath: Path) -> list[PHIFinding]:
@@ -81,7 +81,7 @@ class TiffFormatHandler(FormatHandler):
                     if entry.tag_id in self.date_tags and entry.value_offset not in seen:
                         seen.add(entry.value_offset)
                         value = read_tag_string(f, entry)
-                        if value and not is_date_anonymized(value):
+                        if value and not is_date_deidentified(value):
                             findings.append(
                                 PHIFinding(
                                     offset=entry.value_offset,
@@ -94,8 +94,8 @@ class TiffFormatHandler(FormatHandler):
                             )
         return findings
 
-    def _anonymize_datetime_tags(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize DateTime tags by writing null bytes across all IFDs."""
+    def _deidentify_datetime_tags(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify DateTime tags by writing null bytes across all IFDs."""
         cleared: list[PHIFinding] = []
         seen: set = set()
         with open(filepath, "r+b") as f:
@@ -107,7 +107,7 @@ class TiffFormatHandler(FormatHandler):
                     if entry.tag_id in self.date_tags and entry.value_offset not in seen:
                         seen.add(entry.value_offset)
                         value = read_tag_string(f, entry)
-                        if value and not is_date_anonymized(value):
+                        if value and not is_date_deidentified(value):
                             f.seek(entry.value_offset)
                             f.write(b"\x00" * entry.total_size)
                             cleared.append(
@@ -123,7 +123,7 @@ class TiffFormatHandler(FormatHandler):
         return cleared
 
     # ----------------------------------------------------------------
-    # EXIF / GPS sub-IFD scanning / anonymization
+    # EXIF / GPS sub-IFD scanning / deidentification
     # ----------------------------------------------------------------
 
     @staticmethod
@@ -184,7 +184,7 @@ class TiffFormatHandler(FormatHandler):
         return findings
 
     @staticmethod
-    def _anonymize_exif_gps_entries(
+    def _deidentify_exif_gps_entries(
         f: BinaryIO, header, entries: list, seen: set
     ) -> list[PHIFinding]:
         """Blank EXIF and GPS sub-IFD PHI tags for a single IFD's entries.
@@ -262,8 +262,8 @@ class TiffFormatHandler(FormatHandler):
                 findings.extend(self._scan_exif_gps_entries(f, header, entries, seen))
         return findings
 
-    def _anonymize_exif_gps(self, filepath: Path, seen: set | None = None) -> list[PHIFinding]:
-        """Anonymize EXIF and GPS sub-IFDs across all IFDs.
+    def _deidentify_exif_gps(self, filepath: Path, seen: set | None = None) -> list[PHIFinding]:
+        """Deidentify EXIF and GPS sub-IFDs across all IFDs.
 
         Args:
             seen: Optional shared set of already-seen value_offsets for dedup.
@@ -277,11 +277,11 @@ class TiffFormatHandler(FormatHandler):
             if header is None:
                 return cleared
             for _, entries in iter_ifds(f, header):
-                cleared.extend(self._anonymize_exif_gps_entries(f, header, entries, seen))
+                cleared.extend(self._deidentify_exif_gps_entries(f, header, entries, seen))
         return cleared
 
     # ----------------------------------------------------------------
-    # Extra metadata scanning / anonymization (includes EXIF/GPS)
+    # Extra metadata scanning / deidentification (includes EXIF/GPS)
     # ----------------------------------------------------------------
 
     def _scan_extra_metadata(self, filepath: Path) -> list[PHIFinding]:
@@ -368,8 +368,8 @@ class TiffFormatHandler(FormatHandler):
                         )
         return findings
 
-    def _anonymize_extra_metadata(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize extra metadata tags plus EXIF/GPS sub-IFDs and SubIFDs.
+    def _deidentify_extra_metadata(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify extra metadata tags plus EXIF/GPS sub-IFDs and SubIFDs.
 
         Uses ``self.extra_metadata_exclude_tags`` for the exclude set.
         """
@@ -543,7 +543,7 @@ class TiffFormatHandler(FormatHandler):
         return cleared
 
     # ----------------------------------------------------------------
-    # Regex safety scanning / anonymization
+    # Regex safety scanning / deidentification
     # ----------------------------------------------------------------
 
     def _scan_regex(self, filepath: Path, skip_offsets: set[int] | None = None) -> list[PHIFinding]:
@@ -566,8 +566,8 @@ class TiffFormatHandler(FormatHandler):
             )
         return findings
 
-    def _anonymize_regex(self, filepath: Path, skip_offsets: set[int]) -> list[PHIFinding]:
-        """Regex safety scan + anonymize stragglers."""
+    def _deidentify_regex(self, filepath: Path, skip_offsets: set[int]) -> list[PHIFinding]:
+        """Regex safety scan + deidentify stragglers."""
         with open(filepath, "rb") as f:
             data = f.read(DEFAULT_SCAN_SIZE)
         raw_findings = scan_bytes_for_phi(data, skip_offsets=skip_offsets)

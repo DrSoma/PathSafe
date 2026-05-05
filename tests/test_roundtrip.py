@@ -1,6 +1,6 @@
-"""Round-trip consistency tests -- structural validity after anonymization.
+"""Round-trip consistency tests -- structural validity after deidentification.
 
-Verifies that anonymized files remain structurally valid: TIFF header intact,
+Verifies that deidentified files remain structurally valid: TIFF header intact,
 IFDs parseable, dimensions preserved, strip/tile data intact for main images,
 byte order preserved.
 
@@ -19,14 +19,14 @@ from tests.conftest import build_tiff, build_tiff_with_strips
 
 
 class TestNDPIRoundTrip:
-    """NDPI files remain valid TIFF after anonymization."""
+    """NDPI files remain valid TIFF after deidentification."""
 
     def test_header_preserved(self, tmp_ndpi):
         with open(tmp_ndpi, "rb") as f:
             before = read_header(f)
 
         handler = get_handler(tmp_ndpi)
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
 
         with open(tmp_ndpi, "rb") as f:
             after = read_header(f)
@@ -38,7 +38,7 @@ class TestNDPIRoundTrip:
 
     def test_ifd_parseable(self, tmp_ndpi):
         handler = get_handler(tmp_ndpi)
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
 
         with open(tmp_ndpi, "rb") as f:
             header = read_header(f)
@@ -57,7 +57,7 @@ class TestNDPIRoundTrip:
                 before_dims.append((w, h))
 
         handler = get_handler(tmp_ndpi)
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
 
         with open(tmp_ndpi, "rb") as f:
             header = read_header(f)
@@ -69,23 +69,23 @@ class TestNDPIRoundTrip:
 
         assert before_dims == after_dims
 
-    def test_format_info_works_after_anonymize(self, tmp_ndpi):
+    def test_format_info_works_after_deidentify(self, tmp_ndpi):
         handler = get_handler(tmp_ndpi)
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
         info = handler.get_format_info(tmp_ndpi)
         assert info["format"] == "ndpi"
         assert info["file_size"] > 0
 
 
 class TestSVSRoundTrip:
-    """SVS files remain valid TIFF after anonymization."""
+    """SVS files remain valid TIFF after deidentification."""
 
     def test_header_preserved(self, tmp_svs):
         with open(tmp_svs, "rb") as f:
             before = read_header(f)
 
         handler = get_handler(tmp_svs)
-        handler.anonymize(tmp_svs)
+        handler.deidentify(tmp_svs)
 
         with open(tmp_svs, "rb") as f:
             after = read_header(f)
@@ -95,7 +95,7 @@ class TestSVSRoundTrip:
 
     def test_ifd_parseable(self, tmp_svs):
         handler = get_handler(tmp_svs)
-        handler.anonymize(tmp_svs)
+        handler.deidentify(tmp_svs)
 
         with open(tmp_svs, "rb") as f:
             header = read_header(f)
@@ -104,18 +104,18 @@ class TestSVSRoundTrip:
 
     def test_format_info_works(self, tmp_svs):
         handler = get_handler(tmp_svs)
-        handler.anonymize(tmp_svs)
+        handler.deidentify(tmp_svs)
         info = handler.get_format_info(tmp_svs)
         assert info["format"] == "svs"
         assert info["file_size"] > 0
 
 
 class TestBIFRoundTrip:
-    """BIF files remain valid TIFF after anonymization."""
+    """BIF files remain valid TIFF after deidentification."""
 
     def test_header_preserved(self, tmp_bif):
         handler = get_handler(tmp_bif)
-        handler.anonymize(tmp_bif)
+        handler.deidentify(tmp_bif)
 
         with open(tmp_bif, "rb") as f:
             header = read_header(f)
@@ -123,7 +123,7 @@ class TestBIFRoundTrip:
 
     def test_ifd_parseable(self, tmp_bif):
         handler = get_handler(tmp_bif)
-        handler.anonymize(tmp_bif)
+        handler.deidentify(tmp_bif)
 
         with open(tmp_bif, "rb") as f:
             header = read_header(f)
@@ -132,20 +132,20 @@ class TestBIFRoundTrip:
 
 
 class TestSCNRoundTrip:
-    """SCN files remain valid TIFF after anonymization."""
+    """SCN files remain valid TIFF after deidentification."""
 
     def test_header_preserved(self, tmp_scn):
         handler = get_handler(tmp_scn)
-        handler.anonymize(tmp_scn)
+        handler.deidentify(tmp_scn)
 
         with open(tmp_scn, "rb") as f:
             header = read_header(f)
         assert header is not None
 
     def test_xml_structure_preserved(self, tmp_scn):
-        """XML in ImageDescription should still be well-formed after anonymization."""
+        """XML in ImageDescription should still be well-formed after deidentification."""
         handler = get_handler(tmp_scn)
-        handler.anonymize(tmp_scn)
+        handler.deidentify(tmp_scn)
 
         with open(tmp_scn, "rb") as f:
             header = read_header(f)
@@ -161,11 +161,11 @@ class TestSCNRoundTrip:
 
 
 class TestMRXSRoundTrip:
-    """MRXS companion files remain valid after anonymization."""
+    """MRXS companion files remain valid after deidentification."""
 
     def test_slidedat_still_parseable(self, tmp_mrxs):
         handler = get_handler(tmp_mrxs)
-        handler.anonymize(tmp_mrxs)
+        handler.deidentify(tmp_mrxs)
 
         slidedat = tmp_mrxs.parent / tmp_mrxs.stem / "Slidedat.ini"
         assert slidedat.exists()
@@ -175,11 +175,11 @@ class TestMRXSRoundTrip:
 
 
 class TestGenericTIFFRoundTrip:
-    """Generic TIFF files remain valid after anonymization."""
+    """Generic TIFF files remain valid after deidentification."""
 
     def test_header_preserved(self, tmp_tiff_with_phi):
         handler = get_handler(tmp_tiff_with_phi)
-        handler.anonymize(tmp_tiff_with_phi)
+        handler.deidentify(tmp_tiff_with_phi)
 
         with open(tmp_tiff_with_phi, "rb") as f:
             header = read_header(f)
@@ -192,7 +192,7 @@ class TestGenericTIFFRoundTrip:
             before_dims = [(get_ifd_image_size(header, e, f)) for _, e in ifds]
 
         handler = get_handler(tmp_tiff_with_phi)
-        handler.anonymize(tmp_tiff_with_phi)
+        handler.deidentify(tmp_tiff_with_phi)
 
         with open(tmp_tiff_with_phi, "rb") as f:
             header = read_header(f)
@@ -203,10 +203,10 @@ class TestGenericTIFFRoundTrip:
 
 
 class TestStripDataIntegrity:
-    """Strip/tile data preserved for main image IFDs after anonymization."""
+    """Strip/tile data preserved for main image IFDs after deidentification."""
 
     def test_strip_data_unchanged(self, tmp_path):
-        """Strip data hash should match before and after anonymization
+        """Strip data hash should match before and after deidentification
         when the strip data itself has no PHI."""
         strip_data = b"\xab\xcd\xef" * 100
         desc = b"some metadata with date 2024:06:15\x00"
@@ -222,9 +222,9 @@ class TestStripDataIntegrity:
         pre_hashes = compute_image_hashes(f)
         assert len(pre_hashes) > 0
 
-        # Anonymize (metadata cleared, strip data untouched)
+        # Deidentify (metadata cleared, strip data untouched)
         handler = get_handler(f)
-        handler.anonymize(f)
+        handler.deidentify(f)
 
         # Hash after
         post_hashes = compute_image_hashes(f)
@@ -245,11 +245,11 @@ class TestStripDataIntegrity:
 
 
 class TestMultiIFDRoundTrip:
-    """Multi-IFD files remain valid after anonymization."""
+    """Multi-IFD files remain valid after deidentification."""
 
     def test_all_ifds_parseable(self, tmp_tiff_multi_ifd):
         handler = get_handler(tmp_tiff_multi_ifd)
-        handler.anonymize(tmp_tiff_multi_ifd)
+        handler.deidentify(tmp_tiff_multi_ifd)
 
         with open(tmp_tiff_multi_ifd, "rb") as f:
             header = read_header(f)
@@ -261,7 +261,7 @@ class TestMultiIFDRoundTrip:
     def test_both_ifds_datetime_cleared(self, tmp_tiff_multi_ifd):
         """Both IFDs should have DateTime cleared."""
         handler = get_handler(tmp_tiff_multi_ifd)
-        handler.anonymize(tmp_tiff_multi_ifd)
+        handler.deidentify(tmp_tiff_multi_ifd)
 
         with open(tmp_tiff_multi_ifd, "rb") as f:
             header = read_header(f)
@@ -274,7 +274,7 @@ class TestMultiIFDRoundTrip:
 
 
 class TestByteOrderRoundTrip:
-    """Byte order preserved through anonymization."""
+    """Byte order preserved through deidentification."""
 
     def test_little_endian_preserved(self, tmp_path):
         desc = b"AS-24-111222\x00"
@@ -283,7 +283,7 @@ class TestByteOrderRoundTrip:
         f.write_bytes(build_tiff(entries, endian="<"))
 
         handler = get_handler(f)
-        handler.anonymize(f)
+        handler.deidentify(f)
 
         with open(f, "rb") as fh:
             header = read_header(fh)
@@ -296,7 +296,7 @@ class TestByteOrderRoundTrip:
         f.write_bytes(build_tiff(entries, endian=">"))
 
         handler = get_handler(f)
-        handler.anonymize(f)
+        handler.deidentify(f)
 
         with open(f, "rb") as fh:
             header = read_header(fh)
@@ -304,39 +304,39 @@ class TestByteOrderRoundTrip:
 
 
 class TestFileSize:
-    """File size should not change after anonymization (in-place modification)."""
+    """File size should not change after deidentification (in-place modification)."""
 
     def test_ndpi_size_unchanged(self, tmp_ndpi):
         size_before = tmp_ndpi.stat().st_size
         handler = get_handler(tmp_ndpi)
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
         size_after = tmp_ndpi.stat().st_size
         assert size_before == size_after
 
     def test_svs_size_unchanged(self, tmp_svs):
         size_before = tmp_svs.stat().st_size
         handler = get_handler(tmp_svs)
-        handler.anonymize(tmp_svs)
+        handler.deidentify(tmp_svs)
         size_after = tmp_svs.stat().st_size
         assert size_before == size_after
 
     def test_bif_size_unchanged(self, tmp_bif):
         size_before = tmp_bif.stat().st_size
         handler = get_handler(tmp_bif)
-        handler.anonymize(tmp_bif)
+        handler.deidentify(tmp_bif)
         size_after = tmp_bif.stat().st_size
         assert size_before == size_after
 
     def test_scn_size_unchanged(self, tmp_scn):
         size_before = tmp_scn.stat().st_size
         handler = get_handler(tmp_scn)
-        handler.anonymize(tmp_scn)
+        handler.deidentify(tmp_scn)
         size_after = tmp_scn.stat().st_size
         assert size_before == size_after
 
     def test_generic_tiff_size_unchanged(self, tmp_tiff_with_phi):
         size_before = tmp_tiff_with_phi.stat().st_size
         handler = get_handler(tmp_tiff_with_phi)
-        handler.anonymize(tmp_tiff_with_phi)
+        handler.deidentify(tmp_tiff_with_phi)
         size_after = tmp_tiff_with_phi.stat().st_size
         assert size_before == size_after

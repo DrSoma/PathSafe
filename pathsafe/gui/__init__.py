@@ -1,6 +1,6 @@
 """PathSafe Qt GUI package - modern cross-platform interface for hospital staff.
 
-One-click anonymize workflow: browse files, scan, anonymize, verify.
+One-click deidentify workflow: browse files, scan, deidentify, verify.
 Uses PySide6 (Qt6) for native look and crisp text on all platforms.
 
 Features:
@@ -10,7 +10,7 @@ Features:
 - Menu bar with keyboard shortcuts
 - Tooltips on all controls
 - Status bar with live stats
-- Tabbed interface for Anonymize and Convert workflows
+- Tabbed interface for Deidentify and Convert workflows
 - Format filtering, dry-run mode, and log export
 """
 
@@ -64,7 +64,7 @@ def _install_linux_desktop_integration() -> None:
         desktop_dest.write_text(
             "[Desktop Entry]\n"
             "Name=PathSafe\n"
-            "Comment=Hospital-grade WSI anonymizer\n"
+            "Comment=Hospital-grade WSI deidentifier\n"
             "Exec=pathsafe-gui %f\n"
             "Icon=pathsafe\n"
             "Terminal=false\n"

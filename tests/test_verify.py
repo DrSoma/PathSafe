@@ -14,19 +14,19 @@ class TestVerifyFile:
         assert not result.is_clean
         assert len(result.findings) > 0
 
-    def test_svs_clean_after_anonymize(self, tmp_svs):
+    def test_svs_clean_after_deidentify(self, tmp_svs):
         from pathsafe.formats.svs import SVSHandler
 
         handler = SVSHandler()
-        handler.anonymize(tmp_svs)
+        handler.deidentify(tmp_svs)
         result = verify_file(tmp_svs)
         assert result.is_clean
 
-    def test_ndpi_clean_after_anonymize(self, tmp_ndpi):
+    def test_ndpi_clean_after_deidentify(self, tmp_ndpi):
         from pathsafe.formats.ndpi import NDPIHandler
 
         handler = NDPIHandler()
-        handler.anonymize(tmp_ndpi)
+        handler.deidentify(tmp_ndpi)
         result = verify_file(tmp_ndpi)
         assert result.is_clean
 

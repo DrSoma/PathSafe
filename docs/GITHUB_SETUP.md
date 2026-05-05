@@ -2,7 +2,7 @@
 
 ## Topics
 Add the following topics to the repository settings:
-- pathology, anonymization, phi, hipaa, wsi, digital-pathology, privacy, de-identification
+- pathology, de-identification, phi, hipaa, wsi, digital-pathology, privacy, de-identification
 
 ## Features to Enable
 - [ ] GitHub Discussions (Settings > General > Features)

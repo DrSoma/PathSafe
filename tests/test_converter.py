@@ -609,7 +609,7 @@ class TestConversionResult:
         )
         assert result.levels_written == 0
         assert result.conversion_time_ms == 0.0
-        assert result.anonymized is False
+        assert result.deidentified is False
         assert result.error is None
 
     def test_conversion_batch_result_defaults(self):

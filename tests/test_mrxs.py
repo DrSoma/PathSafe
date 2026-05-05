@@ -68,35 +68,35 @@ class TestMRXSScan:
         assert result.error is not None
 
 
-class TestMRXSAnonymize:
-    def test_anonymize_clears_phi(self, handler, tmp_mrxs):
+class TestMRXSDeidentify:
+    def test_deidentify_clears_phi(self, handler, tmp_mrxs):
         result = handler.scan(tmp_mrxs)
         assert not result.is_clean
 
-        cleared = handler.anonymize(tmp_mrxs)
+        cleared = handler.deidentify(tmp_mrxs)
         assert len(cleared) > 0
 
         result = handler.scan(tmp_mrxs)
         assert result.is_clean
 
-    def test_anonymize_already_clean(self, handler, tmp_mrxs_clean):
-        cleared = handler.anonymize(tmp_mrxs_clean)
+    def test_deidentify_already_clean(self, handler, tmp_mrxs_clean):
+        cleared = handler.deidentify(tmp_mrxs_clean)
         assert len(cleared) == 0
 
     def test_idempotent(self, handler, tmp_mrxs):
-        cleared1 = handler.anonymize(tmp_mrxs)
-        cleared2 = handler.anonymize(tmp_mrxs)
+        cleared1 = handler.deidentify(tmp_mrxs)
+        cleared2 = handler.deidentify(tmp_mrxs)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 
     def test_no_companion_returns_empty(self, handler, tmp_mrxs_no_companion):
-        cleared = handler.anonymize(tmp_mrxs_no_companion)
+        cleared = handler.deidentify(tmp_mrxs_no_companion)
         assert len(cleared) == 0
 
 
-class TestMRXSAnonymizeSlidedat:
+class TestMRXSDeidentifySlidedat:
     def test_slidedat_fields_replaced(self, handler, tmp_mrxs):
-        handler.anonymize(tmp_mrxs)
+        handler.deidentify(tmp_mrxs)
 
         # Read back and check
         import configparser

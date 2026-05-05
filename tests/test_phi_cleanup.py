@@ -1,19 +1,19 @@
-"""Tests for PHI leak prevention cleanup in anonymizer.py.
+"""Tests for PHI leak prevention cleanup in deidentifier.py.
 
-Covers the critical code path where anonymize_file() cleans up
-unanonymized copies when the format handler's anonymize() method
+Covers the critical code path where deidentify_file() cleans up
+undeidentified copies when the format handler's deidentify() method
 fails mid-way, preventing PHI from leaking into the output directory.
 """
 
 from pathlib import Path
 from unittest.mock import patch
 
-from pathsafe.anonymizer import anonymize_file
+from pathsafe.deidentifier import deidentify_file
 from tests.conftest import build_tiff
 
 
-class TestCopyModeCleanupOnAnonymizeFailure:
-    """Test that failed anonymization in copy mode removes the unanonymized copy."""
+class TestCopyModeCleanupOnDeidentifyFailure:
+    """Test that failed deidentification in copy mode removes the undeidentified copy."""
 
     def _make_tiff_with_phi(self, tmp_path: Path, name: str = "phi_slide.tif") -> Path:
         """Create a synthetic TIFF with known PHI in a tag."""
@@ -28,45 +28,45 @@ class TestCopyModeCleanupOnAnonymizeFailure:
         filepath.write_bytes(content)
         return filepath
 
-    def test_output_removed_on_anonymize_exception(self, tmp_path):
-        """When handler.anonymize() raises, the unanonymized copy must be deleted."""
+    def test_output_removed_on_deidentify_exception(self, tmp_path):
+        """When handler.deidentify() raises, the undeidentified copy must be deleted."""
         src = self._make_tiff_with_phi(tmp_path, "source.tif")
         out_dir = tmp_path / "output"
         out = out_dir / "source.tif"
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = RuntimeError(
-                "Simulated crash during anonymization"
+            mock_handler.deidentify.side_effect = RuntimeError(
+                "Simulated crash during deidentification"
             )
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=out)
+            result = deidentify_file(src, output_path=out)
 
         # The result must report an error
         assert result.error is not None
         assert "Simulated crash" in result.error or "crash" in result.error.lower()
 
-        # The output file must NOT exist -- it was an unanonymized copy
-        assert not out.exists(), "Unanonymized copy was not cleaned up after anonymize() failure"
+        # The output file must NOT exist -- it was an undeidentified copy
+        assert not out.exists(), "Undeidentified copy was not cleaned up after deidentify() failure"
 
         # No files should remain in the output directory
         if out_dir.exists():
             remaining = list(out_dir.iterdir())
             assert len(remaining) == 0, f"Unexpected files remain in output dir: {remaining}"
 
-    def test_original_untouched_on_anonymize_exception(self, tmp_path):
-        """The source file must remain intact when copy-mode anonymization fails."""
+    def test_original_untouched_on_deidentify_exception(self, tmp_path):
+        """The source file must remain intact when copy-mode deidentification fails."""
         src = self._make_tiff_with_phi(tmp_path, "original.tif")
         original_bytes = src.read_bytes()
         out = tmp_path / "output" / "original.tif"
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = OSError("Disk I/O error")
+            mock_handler.deidentify.side_effect = OSError("Disk I/O error")
             mock_handler.can_handle.return_value = True
 
-            anonymize_file(src, output_path=out)
+            deidentify_file(src, output_path=out)
 
         # Source must be unchanged
         assert src.read_bytes() == original_bytes
@@ -76,12 +76,12 @@ class TestCopyModeCleanupOnAnonymizeFailure:
         src = self._make_tiff_with_phi(tmp_path)
         out = tmp_path / "output" / src.name
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = ValueError("bad data")
+            mock_handler.deidentify.side_effect = ValueError("bad data")
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=out)
+            result = deidentify_file(src, output_path=out)
 
         assert result.mode == "copy"
         assert result.error is not None
@@ -91,7 +91,7 @@ class TestMRXSCompanionDirectoryCleanup:
     """Test that MRXS companion directory is also cleaned up on failure."""
 
     def test_mrxs_companion_dir_removed_on_failure(self, tmp_path):
-        """When anonymize() fails on an MRXS file in copy mode,
+        """When deidentify() fails on an MRXS file in copy mode,
         both the .mrxs copy and its companion data directory must be deleted."""
         # Create source MRXS file and its companion directory
         src = tmp_path / "src" / "slide.mrxs"
@@ -112,14 +112,14 @@ class TestMRXSCompanionDirectoryCleanup:
         out_dir = tmp_path / "output"
         out = out_dir / "slide.mrxs"
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = RuntimeError(
-                "Simulated MRXS anonymization failure"
+            mock_handler.deidentify.side_effect = RuntimeError(
+                "Simulated MRXS deidentification failure"
             )
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=out)
+            result = deidentify_file(src, output_path=out)
 
         assert result.error is not None
 
@@ -139,12 +139,12 @@ class TestMRXSCompanionDirectoryCleanup:
 
         out = tmp_path / "output" / "solo.mrxs"
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = RuntimeError("fail")
+            mock_handler.deidentify.side_effect = RuntimeError("fail")
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=out)
+            result = deidentify_file(src, output_path=out)
 
         # Should complete without secondary exceptions
         assert result.error is not None
@@ -155,7 +155,7 @@ class TestInPlaceModeNoCleanup:
     """Verify that in-place mode does NOT delete the source on failure."""
 
     def test_inplace_mode_preserves_file_on_error(self, tmp_path):
-        """In-place mode: the source file must survive even if anonymize() fails."""
+        """In-place mode: the source file must survive even if deidentify() fails."""
         phi_value = b"Patient: Jane Doe\x00"
         entries = [
             (256, 3, 1, 256),
@@ -167,12 +167,12 @@ class TestInPlaceModeNoCleanup:
         src.write_bytes(content)
         src.read_bytes()
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = RuntimeError("crash")
+            mock_handler.deidentify.side_effect = RuntimeError("crash")
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=None)
+            result = deidentify_file(src, output_path=None)
 
         assert result.error is not None
         assert result.mode == "inplace"
@@ -198,12 +198,14 @@ class TestCleanupWithPartialCopy:
 
         out = tmp_path / "output" / "partial.tif"
 
-        with patch("pathsafe.anonymizer.get_handler") as mock_get:
+        with patch("pathsafe.deidentifier.get_handler") as mock_get:
             mock_handler = mock_get.return_value
-            mock_handler.anonymize.side_effect = MemoryError("Out of memory during anonymization")
+            mock_handler.deidentify.side_effect = MemoryError(
+                "Out of memory during deidentification"
+            )
             mock_handler.can_handle.return_value = True
 
-            result = anonymize_file(src, output_path=out)
+            result = deidentify_file(src, output_path=out)
 
         assert result.error is not None
-        assert not out.exists(), "Partially-anonymized copy was not cleaned up after MemoryError"
+        assert not out.exists(), "Partially-deidentified copy was not cleaned up after MemoryError"

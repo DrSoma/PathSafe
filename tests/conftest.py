@@ -195,7 +195,7 @@ def tmp_ndpi(tmp_path):
 
 @pytest.fixture
 def tmp_ndpi_clean(tmp_path):
-    """Create a synthetic NDPI file that has already been anonymized."""
+    """Create a synthetic NDPI file that has already been deidentified."""
     barcode = b"XXXXXXXXXXXX\x00"
     reference = b"XXXXXXX\x00"
     datetime_val = b"\x00" * 20
@@ -348,7 +348,7 @@ def tmp_bif(tmp_path):
 
 @pytest.fixture
 def tmp_bif_clean(tmp_path):
-    """Create a synthetic BIF file that has already been anonymized."""
+    """Create a synthetic BIF file that has already been deidentified."""
     xmp = (
         b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         b'<x:xmpmeta xmlns:x="adobe:ns:meta/">'
@@ -406,7 +406,7 @@ def tmp_scn(tmp_path):
 
 @pytest.fixture
 def tmp_scn_clean(tmp_path):
-    """Create a synthetic SCN file that has already been anonymized."""
+    """Create a synthetic SCN file that has already been deidentified."""
     xml = (
         b'<?xml version="1.0" encoding="UTF-8"?>'
         b'<scn xmlns="http://www.leica-microsystems.com/scn/2010/10/01">'
@@ -466,7 +466,7 @@ def tmp_mrxs(tmp_path):
 
 @pytest.fixture
 def tmp_mrxs_clean(tmp_path):
-    """Create a synthetic MRXS file that has already been anonymized."""
+    """Create a synthetic MRXS file that has already been deidentified."""
     filepath = tmp_path / "clean_slide.mrxs"
     filepath.write_bytes(b"MIRAX\x00")
 

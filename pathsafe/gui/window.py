@@ -39,12 +39,12 @@ from PySide6.QtWidgets import (
 )
 
 import pathsafe
-from pathsafe.anonymizer import WSI_EXTENSIONS
+from pathsafe.deidentifier import WSI_EXTENSIONS
 from pathsafe.gui.themes import _FORMAT_FILTER_ITEMS, DARK_QSS, LIGHT_QSS
 from pathsafe.gui.widgets import DropZoneWidget
 from pathsafe.gui.workers import (
-    AnonymizeWorker,
     ConvertWorker,
+    DeidentifyWorker,
     InfoWorker,
     ScanWorker,
     VerifyWorker,
@@ -58,7 +58,7 @@ class PathSafeWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle(f"PathSafe v{pathsafe.__version__} - WSI Anonymizer")
+        self.setWindowTitle(f"PathSafe v{pathsafe.__version__} - WSI Deidentifier")
         # Set application icon (works both from source and PyInstaller bundle)
         base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent))
         icon_path = base / "pathsafe" / "assets" / "icon.png"
@@ -73,13 +73,13 @@ class PathSafeWindow(QMainWindow):
 
         self._worker = None
         self._last_dir = str(Path.home())
-        self._last_anonymized_paths = []  # output paths from last anonymize run
+        self._last_deidentified_paths = []  # output paths from last deidentify run
         self._last_output_dir = None  # actual output dir (date-stamped subfolder)
         self._selected_files = []  # multi-file selection list
         self._settings = QSettings("PathSafe", "PathSafe")
         self._current_theme = self._settings.value("theme", "dark")
         self._institution_name = self._settings.value("institution_name", "")
-        from pathsafe.anonymizer import auto_workers
+        from pathsafe.deidentifier import auto_workers
 
         self._auto_workers = auto_workers()
         self._step_completed = set()  # track completed steps {1, 2, 3}
@@ -87,7 +87,7 @@ class PathSafeWindow(QMainWindow):
             1: ("Step 1", "Select Files"),
             2: ("Step 2", "Scan for PHI"),
             3: ("Step 3", "Select File Output"),
-            4: ("Step 4", "Anonymize"),
+            4: ("Step 4", "Deidentify"),
         }
         self._step_buttons = {}  # populated in _build_ui
 
@@ -137,10 +137,10 @@ class PathSafeWindow(QMainWindow):
         self._scan_action.triggered.connect(self._run_scan)
         actions_menu.addAction(self._scan_action)
 
-        self._anonymize_action = QAction("&Anonymize", self)
-        self._anonymize_action.setShortcut("Ctrl+R")
-        self._anonymize_action.triggered.connect(self._run_anonymize)
-        actions_menu.addAction(self._anonymize_action)
+        self._deidentify_action = QAction("&Deidentify", self)
+        self._deidentify_action.setShortcut("Ctrl+R")
+        self._deidentify_action.triggered.connect(self._run_deidentify)
+        actions_menu.addAction(self._deidentify_action)
 
         self._verify_action = QAction("&Verify", self)
         self._verify_action.setShortcut("Ctrl+E")
@@ -249,19 +249,19 @@ class PathSafeWindow(QMainWindow):
         self.btn_output = QPushButton("Step 3\nSelect File Output")
         self.btn_output.setObjectName("btn_convert")
         self.btn_output.setToolTip(
-            "Choose the output folder where anonymized\ncopies will be saved."
+            "Choose the output folder where deidentified\ncopies will be saved."
         )
         self.btn_output.clicked.connect(self._browse_output_dir_step)
         step_layout.addWidget(self.btn_output)
 
-        self.btn_anonymize = QPushButton("Step 4\nAnonymize")
-        self.btn_anonymize.setObjectName("btn_anonymize")
-        self.btn_anonymize.setToolTip(
+        self.btn_deidentify = QPushButton("Step 4\nDeidentify")
+        self.btn_deidentify.setObjectName("btn_deidentify")
+        self.btn_deidentify.setToolTip(
             "Remove all detected patient information from files.\n"
-            "Enable 'Verify after anonymize' to confirm removal. [Ctrl+R]"
+            "Enable 'Verify after deidentify' to confirm removal. [Ctrl+R]"
         )
-        self.btn_anonymize.clicked.connect(self._run_anonymize)
-        step_layout.addWidget(self.btn_anonymize)
+        self.btn_deidentify.clicked.connect(self._run_deidentify)
+        step_layout.addWidget(self.btn_deidentify)
 
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setObjectName("btn_stop")
@@ -273,7 +273,7 @@ class PathSafeWindow(QMainWindow):
         step_layout.addWidget(self.btn_stop)
 
         # Step buttons: fixed height so they don't stretch the top section
-        for btn in (self.btn_select, self.btn_scan, self.btn_output, self.btn_anonymize):
+        for btn in (self.btn_select, self.btn_scan, self.btn_output, self.btn_deidentify):
             btn.setFixedHeight(70)
         self.btn_stop.setFixedHeight(50)
 
@@ -282,7 +282,7 @@ class PathSafeWindow(QMainWindow):
             1: self.btn_select,
             2: self.btn_scan,
             3: self.btn_output,
-            4: self.btn_anonymize,
+            4: self.btn_deidentify,
         }
         top_split.addWidget(step_group)
 
@@ -312,11 +312,11 @@ class PathSafeWindow(QMainWindow):
 
         controls_layout.addWidget(paths_group)
 
-        # Tab Widget (Anonymize / Convert)
+        # Tab Widget (Deidentify / Convert)
         self.tabs = QTabWidget()
         controls_layout.addWidget(self.tabs)
 
-        self._build_anonymize_tab()
+        self._build_deidentify_tab()
         self._build_convert_tab()
 
         try:
@@ -376,8 +376,8 @@ class PathSafeWindow(QMainWindow):
         export_row.addStretch()
         layout.addLayout(export_row)
 
-    def _build_anonymize_tab(self) -> None:
-        """Build the Anonymize tab with output, options, compliance, and action buttons."""
+    def _build_deidentify_tab(self) -> None:
+        """Build the Deidentify tab with output, options, compliance, and action buttons."""
         anon_tab = QWidget()
         anon_layout = QVBoxLayout(anon_tab)
         anon_layout.setContentsMargins(8, 8, 8, 8)
@@ -389,7 +389,7 @@ class PathSafeWindow(QMainWindow):
         self.output_edit = QLineEdit()
         self.output_edit.setPlaceholderText("Output folder for copy mode...")
         self.output_edit.setToolTip(
-            "Where anonymized copies will be saved.\nOnly needed in Copy mode."
+            "Where deidentified copies will be saved.\nOnly needed in Copy mode."
         )
         output_row.addWidget(self.output_edit, 1)
         anon_layout.addLayout(output_row)
@@ -403,16 +403,16 @@ class PathSafeWindow(QMainWindow):
         # Row 1: Mode
         mode_row = QHBoxLayout()
         mode_row.addWidget(QLabel("Mode:"))
-        self.radio_copy = QRadioButton("Copy and anonymize")
+        self.radio_copy = QRadioButton("Copy and deidentify")
         self.radio_copy.setChecked(True)
         self.radio_copy.setToolTip(
-            "Creates anonymized copies in the output folder.\n"
+            "Creates deidentified copies in the output folder.\n"
             "Your original files are never modified. (Recommended)"
         )
         self.radio_inplace = QRadioButton("Modify originals directly")
         self.radio_inplace.setToolTip(
             "Modifies the original files directly.\n"
-            "WARNING: Original data cannot be recovered after anonymization."
+            "WARNING: Original data cannot be recovered after deidentification."
         )
         self.radio_inplace.toggled.connect(self._on_inplace_toggled)
         self.radio_copy.toggled.connect(lambda checked: checked and self._on_copy_mode_restored())
@@ -433,7 +433,7 @@ class PathSafeWindow(QMainWindow):
         self.institution_edit.setPlaceholderText('e.g. "Memorial General Hospital"')
         self.institution_edit.setToolTip(
             "Institution name displayed on PDF scan reports\n"
-            "and anonymization certificates.\n"
+            "and deidentification certificates.\n"
             "Leave empty to omit from reports."
         )
         self.institution_edit.setText(self._institution_name)
@@ -464,16 +464,16 @@ class PathSafeWindow(QMainWindow):
         )
         format_row.addWidget(self.check_checksum)
         format_row.addSpacing(20)
-        self.check_verify = QCheckBox("Verify after anonymize")
+        self.check_verify = QCheckBox("Verify after deidentify")
         self.check_verify.setChecked(True)
         self.check_verify.setToolTip(
-            "Re-scan each file after anonymization to confirm\nall PHI was successfully removed."
+            "Re-scan each file after deidentification to confirm\nall PHI was successfully removed."
         )
         format_row.addWidget(self.check_verify)
         format_row.addSpacing(20)
         self.check_integrity = QCheckBox("Verify image integrity")
         self.check_integrity.setToolTip(
-            "Compare tile hashes before and after anonymization\n"
+            "Compare tile hashes before and after deidentification\n"
             "to prove tissue image data was not altered.\n"
             "Adds processing time but valuable for compliance."
         )
@@ -769,7 +769,7 @@ class PathSafeWindow(QMainWindow):
         self.combo_unmatched.currentTextChanged.connect(self._schedule_rename_preview)
         self.input_edit.textChanged.connect(self._schedule_rename_preview)
 
-        self.tabs.addTab(anon_tab, "Anonymize")
+        self.tabs.addTab(anon_tab, "Deidentify")
 
     def _build_convert_tab(self) -> None:
         """Build the Convert tab with output, conversion options, and action buttons."""
@@ -853,9 +853,11 @@ class PathSafeWindow(QMainWindow):
         opts_group = QGroupBox("Options")
         opts_layout = QHBoxLayout(opts_group)
 
-        self.check_convert_anonymize = QCheckBox("Anonymize after conversion")
-        self.check_convert_anonymize.setToolTip("Run anonymization on the converted output files.")
-        opts_layout.addWidget(self.check_convert_anonymize)
+        self.check_convert_deidentify = QCheckBox("Deidentify after conversion")
+        self.check_convert_deidentify.setToolTip(
+            "Run deidentification on the converted output files."
+        )
+        opts_layout.addWidget(self.check_convert_deidentify)
 
         opts_layout.addSpacing(16)
         opts_layout.addWidget(QLabel("Workers:"))
@@ -1034,7 +1036,7 @@ class PathSafeWindow(QMainWindow):
             "Patient information will be removed directly from the source files.</p>"
             "<p><b>This cannot be undone.</b> If you do not have backups of your "
             "original files, the unmodified data will be lost forever.</p>"
-            '<p>For safety, we recommend using <b>"Copy and anonymize"</b> instead, '
+            '<p>For safety, we recommend using <b>"Copy and deidentify"</b> instead, '
             "which creates clean copies and leaves your originals untouched.</p>"
         )
         btn_continue = dlg.addButton("I understand, use in-place", QMessageBox.AcceptRole)
@@ -1049,14 +1051,14 @@ class PathSafeWindow(QMainWindow):
         self.rename_group.setEnabled(False)
         self.rename_group.setToolTip(
             "File renaming is only available in Copy mode.\n"
-            "Switch to 'Copy and anonymize' above to enable this."
+            "Switch to 'Copy and deidentify' above to enable this."
         )
 
     def _on_copy_mode_restored(self):
         """Re-enable rename group when switching back to copy mode."""
         self.rename_group.setEnabled(True)
         self.rename_group.setToolTip(
-            "Rename anonymized files to remove PHI from filenames.\nOnly available in Copy mode."
+            "Rename deidentified files to remove PHI from filenames.\nOnly available in Copy mode."
         )
 
     def _on_path_dropped(self, path: str) -> None:
@@ -1113,7 +1115,7 @@ class PathSafeWindow(QMainWindow):
             self.statusBar().showMessage(f"Log saved to {path}")
 
     def _auto_save_log(self, output_dir: str | Path) -> None:
-        """Auto-save the log to the output folder after anonymization."""
+        """Auto-save the log to the output folder after deidentification."""
         try:
             log_path = Path(output_dir) / "pathsafe_log.html"
             with open(log_path, "w", encoding="utf-8") as f:
@@ -1170,15 +1172,15 @@ class PathSafeWindow(QMainWindow):
                     )
                 lines.append("</table>")
                 if phi_files:
-                    lines.append("<p>Run <b>Anonymize</b> to remove detected PHI.</p>")
+                    lines.append("<p>Run <b>Deidentify</b> to remove detected PHI.</p>")
                 scan_report = data.get("scan_report", "")
                 if scan_report:
                     lines.append(f"<p>Scan report:<br><code>{Path(scan_report).name}</code></p>")
                 msg = "".join(lines)
 
-        elif op == "anonymize":
+        elif op == "deidentify":
             total = data.get("total", 0)
-            anonymized = data.get("anonymized", 0)
+            deidentified = data.get("deidentified", 0)
             already_clean = data.get("already_clean", 0)
             errors = data.get("errors", 0)
             elapsed = data.get("time", "?")
@@ -1188,23 +1190,23 @@ class PathSafeWindow(QMainWindow):
             # Store output paths so Verify can check just these files
             output_paths = data.get("output_paths", [])
             if output_paths:
-                self._last_anonymized_paths = output_paths
+                self._last_deidentified_paths = output_paths
 
             if dry_run:
                 icon = QMessageBox.Information
-                title = "Anonymization DRY RUN Complete"
+                title = "Deidentification DRY RUN Complete"
             elif errors == 0:
                 icon = QMessageBox.Information
-                title = "Anonymization Complete"
+                title = "Deidentification Complete"
             else:
                 icon = QMessageBox.Warning
-                title = "Anonymization Complete (with errors)"
+                title = "Deidentification Complete (with errors)"
 
-            lines = ['<h3>Anonymization Results</h3><table cellpadding="4">']
+            lines = ['<h3>Deidentification Results</h3><table cellpadding="4">']
             lines.append(f"<tr><td>Total files:</td><td><b>{total}</b></td></tr>")
-            if anonymized:
+            if deidentified:
                 lines.append(
-                    f'<tr><td>Anonymized:</td><td style="color:#b45300"><b>{anonymized}</b></td></tr>'
+                    f'<tr><td>Deidentified:</td><td style="color:#b45300"><b>{deidentified}</b></td></tr>'
                 )
             if already_clean:
                 lines.append(
@@ -1409,7 +1411,7 @@ class PathSafeWindow(QMainWindow):
                 self,
                 "Rename Unavailable",
                 "File renaming is only available in Copy mode.\n"
-                'Switch to "Copy and anonymize" to enable renaming.',
+                'Switch to "Copy and deidentify" to enable renaming.',
             )
             self.rename_group.setChecked(False)
             return
@@ -1485,7 +1487,7 @@ class PathSafeWindow(QMainWindow):
             input_text = self.input_edit.text().strip()
             if input_text:
                 input_path = Path(input_text)
-                from pathsafe.anonymizer import WSI_EXTENSIONS
+                from pathsafe.deidentifier import WSI_EXTENSIONS
 
                 if input_path.is_file() and input_path.suffix.lower() in WSI_EXTENSIONS:
                     source_paths = [input_path]
@@ -1568,10 +1570,10 @@ class PathSafeWindow(QMainWindow):
         self.btn_select.setEnabled(not running)
         self.btn_scan.setEnabled(not running)
         self.btn_output.setEnabled(not running)
-        self.btn_anonymize.setEnabled(not running)
+        self.btn_deidentify.setEnabled(not running)
         self.btn_stop.setEnabled(running)
         self._scan_action.setEnabled(not running)
-        self._anonymize_action.setEnabled(not running)
+        self._deidentify_action.setEnabled(not running)
         self._verify_action.setEnabled(not running)
         self._info_action.setEnabled(not running)
         self._convert_action.setEnabled(not running)
@@ -1596,7 +1598,7 @@ class PathSafeWindow(QMainWindow):
         self.combo_extract.setEnabled(not running)
         self.combo_tile_size.setEnabled(not running)
         self.slider_quality.setEnabled(not running)
-        self.check_convert_anonymize.setEnabled(not running)
+        self.check_convert_deidentify.setEnabled(not running)
         self.slider_convert_workers.setEnabled(not running)
         self.combo_convert_format_filter.setEnabled(not running)
         self.btn_convert.setEnabled(not running)
@@ -1632,7 +1634,7 @@ class PathSafeWindow(QMainWindow):
         return p
 
     def _get_format_filter(self) -> str | None:
-        """Read the format filter from the Anonymize tab combo box."""
+        """Read the format filter from the Deidentify tab combo box."""
         idx = self.combo_format_filter.currentIndex()
         if idx == 0:
             return None
@@ -1672,9 +1674,9 @@ class PathSafeWindow(QMainWindow):
         )
         self._worker.start()
 
-    # --- Anonymize ---
+    # --- Deidentify ---
 
-    def _run_anonymize(self) -> None:
+    def _run_deidentify(self) -> None:
         input_p = self._validate_input()
         if not input_p:
             return
@@ -1698,7 +1700,7 @@ class PathSafeWindow(QMainWindow):
             reply = QMessageBox.warning(
                 self,
                 "Confirm: Modify Originals",
-                "You are about to anonymize your original files in-place.\n\n"
+                "You are about to deidentify your original files in-place.\n\n"
                 "This will permanently remove patient information from the "
                 "source files. This cannot be undone.\n\n"
                 "Do you want to proceed?",
@@ -1733,7 +1735,7 @@ class PathSafeWindow(QMainWindow):
 
         # --- Apply file filters if enabled ---
         if self.check_filter.isChecked():
-            from pathsafe.anonymizer import collect_wsi_files
+            from pathsafe.deidentifier import collect_wsi_files
             from pathsafe.serializer import apply_filters
 
             # Get file list to filter
@@ -1794,7 +1796,7 @@ class PathSafeWindow(QMainWindow):
                 if file_list:
                     source_files = list(file_list)
                 else:
-                    from pathsafe.anonymizer import collect_wsi_files
+                    from pathsafe.deidentifier import collect_wsi_files
 
                     source_files = collect_wsi_files(
                         input_p, format_filter=self._get_format_filter()
@@ -1810,7 +1812,7 @@ class PathSafeWindow(QMainWindow):
                 precomputed_pairs = None
                 rename_plan = None
 
-        self._worker = AnonymizeWorker(
+        self._worker = DeidentifyWorker(
             input_p,
             output_dir,
             self.check_verify.isChecked(),
@@ -1832,11 +1834,11 @@ class PathSafeWindow(QMainWindow):
     # --- Verify ---
 
     def _run_verify(self) -> None:
-        # If we just anonymized files, verify only those specific outputs
+        # If we just deidentified files, verify only those specific outputs
         file_list = None
-        if self._last_anonymized_paths:
-            file_list = self._last_anonymized_paths
-            verify_path = Path(self._last_anonymized_paths[0]).parent
+        if self._last_deidentified_paths:
+            file_list = self._last_deidentified_paths
+            verify_path = Path(self._last_deidentified_paths[0]).parent
         elif self.radio_copy.isChecked():
             out = self.output_edit.text().strip()
             if out and Path(out).exists():
@@ -1858,7 +1860,7 @@ class PathSafeWindow(QMainWindow):
 
         def on_done() -> None:
             self._on_finished()
-            self._last_anonymized_paths = []  # clear after verify
+            self._last_deidentified_paths = []  # clear after verify
 
         signals.finished.connect(on_done)
 
@@ -1935,8 +1937,8 @@ class PathSafeWindow(QMainWindow):
         tile_size = int(self.combo_tile_size.currentText())
         quality = self.slider_quality.value()
 
-        anonymize_after = self.check_convert_anonymize.isChecked()
-        reset_timestamps = anonymize_after
+        deidentify_after = self.check_convert_deidentify.isChecked()
+        reset_timestamps = deidentify_after
         workers = self.slider_convert_workers.value()
 
         fmt_idx = self.combo_convert_format_filter.currentIndex()
@@ -1966,7 +1968,7 @@ class PathSafeWindow(QMainWindow):
             extract,
             tile_size,
             quality,
-            anonymize_after,
+            deidentify_after,
             reset_timestamps,
             workers,
             format_filter,
@@ -2011,7 +2013,7 @@ class PathSafeWindow(QMainWindow):
                 reply = QMessageBox.question(
                     self,
                     "Operation In Progress",
-                    "An anonymization or conversion is still running. "
+                    "An deidentification or conversion is still running. "
                     "Closing now may leave partially written output files.\n\n"
                     "Are you sure you want to quit?",
                     QMessageBox.Yes | QMessageBox.No,
@@ -2032,10 +2034,10 @@ class PathSafeWindow(QMainWindow):
             self,
             "About PathSafe",
             f"<h3>PathSafe v{pathsafe.__version__}</h3>"
-            "<p>Production-tested WSI anonymizer for pathology slide files.</p>"
+            "<p>WSI de-identifier for pathology slide files.</p>"
             "<p>Removes patient-identifying information (PHI) from "
             "NDPI, SVS, MRXS, DICOM, and other whole-slide image formats.</p>"
-            "<p>Includes label/macro image blanking, post-anonymization "
+            "<p>Includes label/macro image blanking, post-deidentification "
             "verification, and PDF compliance certificates.</p>"
             "<hr>"
             "<p style='font-size:small; color:gray;'>"

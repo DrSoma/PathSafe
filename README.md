@@ -152,9 +152,9 @@ Click **Scan for PHI**. PathSafe checks your files and shows you what patient da
 
 Pick the output folder where your cleaned copies will go. A default location is already filled in for you.
 
-### Step 4: Anonymize
+### Step 4: De-identify
 
-Click **Anonymize**. PathSafe copies your files to the output folder and removes all patient data from the copies. **Your original files are never modified.**
+Click **De-identify**. PathSafe copies your files to the output folder and removes all patient data from the copies. **Your original files are never modified.**
 
 A summary popup tells you exactly what happened after each step.
 
@@ -165,7 +165,7 @@ A summary popup tells you exactly what happened after each step.
 | **Switch between dark and light theme** | Use the View menu (your choice is remembered) |
 | **Drag and drop files** | Drop files or folders directly onto the window |
 | **Select multiple files at once** | Hold Ctrl or Shift when browsing |
-| **Use keyboard shortcuts** | Ctrl+O (open files), Ctrl+Shift+O (open folder), Ctrl+S (scan), Ctrl+R (anonymize), Ctrl+E (verify), Ctrl+I (file info), Ctrl+T (convert), Ctrl+L (save log), Esc (stop) |
+| **Use keyboard shortcuts** | Ctrl+O (open files), Ctrl+Shift+O (open folder), Ctrl+S (scan), Ctrl+R (de-identify), Ctrl+E (verify), Ctrl+I (file info), Ctrl+T (convert), Ctrl+L (save log), Esc (stop) |
 | **Speed up large batches** | Increase the Workers slider (try 2-4) |
 | **Preview without changing anything** | Check the "Dry run" box |
 | **Generate SHA-256 checksums** | Check the "SHA-256 checksum" box for audit-trail hashes |
@@ -190,8 +190,8 @@ For users comfortable with a terminal. Three commands is all you need:
 # 1. Scan your files (nothing is changed)
 pathsafe scan /path/to/slides/ --verbose
 
-# 2. Anonymize (copies to a new folder, originals safe)
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/
+# 2. Deidentify (copies to a new folder, originals safe)
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/
 
 # 3. Verify the results
 pathsafe verify /path/to/clean/
@@ -200,7 +200,7 @@ pathsafe verify /path/to/clean/
 ### Generate compliance documentation
 
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ \
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ \
     --certificate certificate.json --institution "My Hospital"
 ```
 
@@ -216,17 +216,17 @@ pathsafe scan /path/to/slides/ --report scan_report.pdf --institution "My Hospit
 pathsafe scan /path/to/slides/ --json-out results.json
 ```
 
-### Anonymize files in place (modifies originals, so make sure you have backups!)
+### De-identify files in place (modifies originals, so make sure you have backups!)
 
 ```bash
-pathsafe anonymize /path/to/slides/ --in-place
+pathsafe deidentify /path/to/slides/ --in-place
 ```
 
 ### Convert between file formats
 
 ```bash
 pathsafe convert slide.ndpi -o slide.tiff                          # Convert to pyramidal TIFF
-pathsafe convert slide.ndpi -o slide.tiff --anonymize              # Convert and anonymize
+pathsafe convert slide.ndpi -o slide.tiff --deidentify              # Convert and deidentify
 pathsafe convert slide.ndpi -o slide.png -t png                    # Convert to PNG
 pathsafe convert slide.ndpi -o slide.jpg -t jpeg --quality 85      # Convert to JPEG
 pathsafe convert slide.ndpi -o label.png --extract label           # Extract label image
@@ -240,8 +240,8 @@ pathsafe convert /slides/ -o /converted/ -t tiff -w 4              # Batch conve
 
 ```
 pathsafe scan PATH       Check files for patient data (read-only)
-pathsafe anonymize PATH  Remove patient data from files
-pathsafe verify PATH     Confirm anonymization was successful
+pathsafe deidentify PATH  Remove patient data from files
+pathsafe verify PATH     Confirm deidentification was successful
 pathsafe convert PATH    Convert WSI files between formats
 pathsafe info FILE       Show metadata for a single file
 pathsafe gui             Launch the graphical interface
@@ -259,7 +259,7 @@ pathsafe gui             Launch the graphical interface
 | `--institution NAME` | Institution name for PDF report headers |
 | `--log FILE` | Save all output to a log file |
 
-### Anonymize options
+### De-identify options
 
 | Option | What it does |
 |--------|-------------|
@@ -291,7 +291,7 @@ pathsafe gui             Launch the graphical interface
 | `--target-format` / `-t` | Target format: `tiff` (default), `png`, or `jpeg` |
 | `--tile-size N` | Tile size for pyramidal TIFF in pixels (default: 256) |
 | `--quality N` | JPEG quality 1-100 (default: 90) |
-| `--anonymize` / `-a` | Also anonymize the converted output |
+| `--deidentify` / `-a` | Also de-identify the converted output |
 | `--extract TYPE` | Extract a `label`, `macro`, or `thumbnail` image (single file only) |
 | `--reset-timestamps` | Reset file timestamps on output files |
 | `--workers N` / `-w N` | Number of parallel workers for batch conversion |
@@ -304,7 +304,7 @@ pathsafe gui             Launch the graphical interface
 
 ## Compliance Certificate
 
-When you anonymize files (through the GUI or with `--certificate` on the command line), PathSafe generates a report documenting everything it did. This report serves as proof that your files were properly de-identified.
+When you de-identify files (through the GUI or with `--certificate` on the command line), PathSafe generates a report documenting everything it did. This report serves as proof that your files were properly de-identified.
 
 **What's in the certificate:**
 
@@ -314,7 +314,7 @@ When you anonymize files (through the GUI or with `--certificate` on the command
 - A unique fingerprint (hash) of each cleaned file, so you can later prove the file hasn't been modified
 - A glossary explaining each type of finding
 
-**Why this matters:** This documentation can be used for regulatory reviews, research ethics submissions, or institutional audit trails. Keep the certificate with your anonymized files.
+**Why this matters:** This documentation can be used for regulatory reviews, research ethics submissions, or institutional audit trails. Keep the certificate with your de-identified files.
 
 ---
 
@@ -354,9 +354,9 @@ For a detailed technical breakdown of exactly which fields are cleaned in each f
 
 ## Why PathSafe?
   
-  There are other WSI anonymization tools out there. What sets PathSafe apart is that it's built for the people who actually need to use it: pathologists, lab techs, and research coordinators who shouldn't have to learn command-line tools to de-identify slides. PathSafe has a full graphical interface that walks you through the process in four steps.
+  There are other WSI de-identification tools out there. What sets PathSafe apart is that it's built for the people who actually need to use it: pathologists, lab techs, and research coordinators who shouldn't have to learn command-line tools to de-identify slides. PathSafe has a full graphical interface that walks you through the process in four steps.
   
-  It also implements [Level IV anonymization (Bisson et al., 2023)](https://doi.org/10.1177/20552076231171475), covering filename detection, label/macro image destruction, and complete metadata removal across 7 scanner formats.
+  It also implements [Level IV de-identification (Bisson et al., 2023)](https://doi.org/10.1177/20552076231171475), covering filename detection, label/macro image destruction, and complete metadata removal across 7 scanner formats.
   
   ---
   
@@ -370,10 +370,10 @@ For a detailed technical breakdown of exactly which fields are cleaned in each f
 
 ## Independent Verification
 
-A standalone verification script is included in the `tools/` directory. This script uses no PathSafe code and independently verifies that anonymized files contain no remaining patient data. It parses the TIFF binary structure from scratch, checks every IFD for label and macro images, scans all string and binary metadata tags, looks for EXIF and GPS sub-IFDs, and runs regex patterns against the raw file bytes.
+A standalone verification script is included in the `tools/` directory. This script uses no PathSafe code and independently verifies that de-identified files contain no remaining patient data. It parses the TIFF binary structure from scratch, checks every IFD for label and macro images, scans all string and binary metadata tags, looks for EXIF and GPS sub-IFDs, and runs regex patterns against the raw file bytes.
 
 ```bash
-python tools/independent_scanner.py /path/to/anonymized/file.svs
+python tools/independent_scanner.py /path/to/deidentified/file.svs
 ```
 
 No dependencies required beyond Python 3.9+.

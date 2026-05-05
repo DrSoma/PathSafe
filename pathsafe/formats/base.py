@@ -13,7 +13,7 @@ from pathsafe.scanner import scan_filename_for_phi
 class FormatHandler(ABC):
     """Base class for all WSI format handlers.
 
-    Each handler knows how to detect, scan, and anonymize one WSI format.
+    Each handler knows how to detect, scan, and deidentify one WSI format.
     """
 
     @abstractmethod
@@ -33,8 +33,8 @@ class FormatHandler(ABC):
         ...
 
     @abstractmethod
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in a file. Modifies the file in-place.
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in a file. Modifies the file in-place.
 
         Returns list of PHIFinding objects describing what was cleared.
         The file at filepath must already exist (copy done by caller).

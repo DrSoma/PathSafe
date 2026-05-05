@@ -94,24 +94,24 @@ class TestGenericTIFFScan:
         assert any("Filename" in t for t in tag_names)
 
 
-class TestGenericTIFFAnonymize:
-    def test_anonymize_clears_phi(self, handler, tmp_tiff_with_phi):
+class TestGenericTIFFDeidentify:
+    def test_deidentify_clears_phi(self, handler, tmp_tiff_with_phi):
         result = handler.scan(tmp_tiff_with_phi)
         assert not result.is_clean
 
-        cleared = handler.anonymize(tmp_tiff_with_phi)
+        cleared = handler.deidentify(tmp_tiff_with_phi)
         assert len(cleared) > 0
 
         result = handler.scan(tmp_tiff_with_phi)
         assert result.is_clean
 
-    def test_anonymize_clean_file(self, handler, tmp_tiff_clean):
-        cleared = handler.anonymize(tmp_tiff_clean)
+    def test_deidentify_clean_file(self, handler, tmp_tiff_clean):
+        cleared = handler.deidentify(tmp_tiff_clean)
         assert len(cleared) == 0
 
     def test_idempotent(self, handler, tmp_tiff_with_phi):
-        cleared1 = handler.anonymize(tmp_tiff_with_phi)
-        cleared2 = handler.anonymize(tmp_tiff_with_phi)
+        cleared1 = handler.deidentify(tmp_tiff_with_phi)
+        cleared2 = handler.deidentify(tmp_tiff_with_phi)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 
@@ -174,20 +174,20 @@ class TestGenericTIFFLabelMacro:
         assert any(f.tag_name == "LabelImage" for f in result.findings)
 
     def test_blank_label_image(self, handler, tmp_path):
-        """Anonymize blanks label image data."""
+        """Deidentify blanks label image data."""
         fp = self._build_tiff_with_label(tmp_path, "label image")
-        cleared = handler.anonymize(fp)
+        cleared = handler.deidentify(fp)
         assert any(f.tag_name == "LabelImage" for f in cleared)
 
-    def test_scan_anonymize_verify_roundtrip(self, handler, tmp_path):
-        """Full roundtrip: scan → find label → anonymize → verify clean."""
+    def test_scan_deidentify_verify_roundtrip(self, handler, tmp_path):
+        """Full roundtrip: scan → find label → deidentify → verify clean."""
         fp = self._build_tiff_with_label(tmp_path, "Label Image")
         # Scan: should find label
         result = handler.scan(fp)
         assert any(f.tag_name == "LabelImage" for f in result.findings)
 
-        # Anonymize
-        handler.anonymize(fp)
+        # Deidentify
+        handler.deidentify(fp)
 
         # Re-scan: label should be gone
         result2 = handler.scan(fp)
@@ -196,13 +196,13 @@ class TestGenericTIFFLabelMacro:
     def test_already_blanked_label_not_reflagged(self, handler, tmp_path):
         """Already-blanked label image is not reported again."""
         fp = self._build_tiff_with_label(tmp_path, "label image")
-        handler.anonymize(fp)
+        handler.deidentify(fp)
         # Second scan should not flag label
         result = handler.scan(fp)
         assert not any(f.tag_name == "LabelImage" for f in result.findings)
 
     def test_blank_macro_image(self, handler, tmp_path):
-        """Anonymize blanks macro image data."""
+        """Deidentify blanks macro image data."""
         fp = self._build_tiff_with_label(tmp_path, "Macro overview")
-        cleared = handler.anonymize(fp)
+        cleared = handler.deidentify(fp)
         assert any(f.tag_name == "MacroImage" for f in cleared)

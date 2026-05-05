@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pathsafe.anonymizer import anonymize_file, collect_wsi_files
+from pathsafe.deidentifier import collect_wsi_files, deidentify_file
 from pathsafe.scanner import scan_filename_for_phi
 from tests.conftest import build_tiff
 
@@ -82,19 +82,19 @@ class TestUnicodeFilenames:
 
 
 class TestUnicodeFilenamePipeline:
-    """Test full anonymize pipeline with Unicode filenames."""
+    """Test full deidentify pipeline with Unicode filenames."""
 
-    def test_anonymize_unicode_filename_reports_phi(self, tmp_path):
-        """Full anonymize with Unicode filename reports filename_has_phi."""
+    def test_deidentify_unicode_filename_reports_phi(self, tmp_path):
+        """Full deidentify with Unicode filename reports filename_has_phi."""
         filepath = _make_tiff(tmp_path / "Ñoño-AS-24-123456.ndpi")
-        result = anonymize_file(filepath)
+        result = deidentify_file(filepath)
         assert result.error is None
         assert result.filename_has_phi is True
 
-    def test_anonymize_unicode_clean_filename(self, tmp_path):
+    def test_deidentify_unicode_clean_filename(self, tmp_path):
         """Unicode filename without PHI → filename_has_phi=False."""
         filepath = _make_tiff(tmp_path / "検体サンプル.ndpi")
-        result = anonymize_file(filepath)
+        result = deidentify_file(filepath)
         assert result.error is None
         assert result.filename_has_phi is False
 

@@ -55,14 +55,14 @@ class TestSVSScan:
         assert any("User" in t for t in tag_names)
 
 
-class TestSVSAnonymize:
-    def test_anonymize_all_fields(self, handler, tmp_svs):
+class TestSVSDeidentify:
+    def test_deidentify_all_fields(self, handler, tmp_svs):
         # Verify PHI present
         result = handler.scan(tmp_svs)
         assert not result.is_clean
 
-        # Anonymize
-        cleared = handler.anonymize(tmp_svs)
+        # Deidentify
+        cleared = handler.deidentify(tmp_svs)
         assert len(cleared) > 0
 
         # Verify clean
@@ -70,8 +70,8 @@ class TestSVSAnonymize:
         assert result.is_clean
 
     def test_idempotent(self, handler, tmp_svs):
-        cleared1 = handler.anonymize(tmp_svs)
-        cleared2 = handler.anonymize(tmp_svs)
+        cleared1 = handler.deidentify(tmp_svs)
+        cleared2 = handler.deidentify(tmp_svs)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 
@@ -96,17 +96,17 @@ class TestSVSExtendedPHIFields:
         for field in self.EXTENDED_FIELDS:
             assert any(field in t for t in tag_names), f"{field} not detected"
 
-    def test_anonymize_clears_extended_fields(self, handler, tmp_svs):
-        """All extended PHI fields are redacted after anonymization."""
-        handler.anonymize(tmp_svs)
+    def test_deidentify_clears_extended_fields(self, handler, tmp_svs):
+        """All extended PHI fields are redacted after deidentification."""
+        handler.deidentify(tmp_svs)
         result = handler.scan(tmp_svs)
         tag_names = {f.tag_name for f in result.findings}
         for field in self.EXTENDED_FIELDS:
             assert not any(field in t for t in tag_names), f"{field} still present"
 
-    def test_anonymize_preserves_non_phi(self, handler, tmp_svs):
-        """Non-PHI fields (AppMag, MPP) survive anonymization."""
-        handler.anonymize(tmp_svs)
+    def test_deidentify_preserves_non_phi(self, handler, tmp_svs):
+        """Non-PHI fields (AppMag, MPP) survive deidentification."""
+        handler.deidentify(tmp_svs)
         # Re-parse the tag to check non-PHI fields
         from pathsafe.formats.svs import _parse_tag270
         from pathsafe.tiff import iter_ifds, read_header, read_tag_string
@@ -123,9 +123,9 @@ class TestSVSExtendedPHIFields:
         pytest.fail("Tag 270 not found")
 
     def test_idempotent_with_extended_fields(self, handler, tmp_svs):
-        """Second anonymize pass clears zero findings."""
-        handler.anonymize(tmp_svs)
-        cleared = handler.anonymize(tmp_svs)
+        """Second deidentify pass clears zero findings."""
+        handler.deidentify(tmp_svs)
+        cleared = handler.deidentify(tmp_svs)
         assert len(cleared) == 0
 
 

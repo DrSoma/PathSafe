@@ -124,16 +124,16 @@ class TestDateBypass:
         # Not matched -- known limitation (would need NLP)
         assert len(results) == 0
 
-    def test_anonymized_tiff_date_skipped(self):
-        """Already-anonymized dates should be skipped."""
+    def test_deidentified_tiff_date_skipped(self):
+        """Already-deidentified dates should be skipped."""
         results = scan_bytes_for_dates(b"1900:01:01 00:00:00")
         assert len(results) == 0
 
-    def test_anonymized_iso_date_skipped(self):
+    def test_deidentified_iso_date_skipped(self):
         results = scan_bytes_for_dates(b"1900-01-01")
         assert len(results) == 0
 
-    def test_anonymized_slash_date_skipped(self):
+    def test_deidentified_slash_date_skipped(self):
         results = scan_bytes_for_dates(b"1900/01/01")
         assert len(results) == 0
 
@@ -277,8 +277,8 @@ class TestEncodingBypass:
         # This is a known limitation for binary scanning
         assert len(results) == 0
 
-    def test_already_anonymized_xxx(self):
-        """Already anonymized string (all X's) should be skipped."""
+    def test_already_deidentified_xxx(self):
+        """Already deidentified string (all X's) should be skipped."""
         data = b"XXXXXXXXXXXX\x00"
         results = scan_bytes_for_phi(data)
         assert len(results) == 0
@@ -345,8 +345,8 @@ class TestHandlerBypass:
         tag_names = {finding.tag_name for finding in result.findings}
         assert any("regex" in t for t in tag_names)
 
-    def test_anonymize_then_verify_no_residual(self, tmp_path):
-        """After anonymization, no PHI residue should remain."""
+    def test_deidentify_then_verify_no_residual(self, tmp_path):
+        """After deidentification, no PHI residue should remain."""
         desc = b"Patient: AS-22-555555 MRN-12345678 DOB-19801231\x00"
         entries = [
             (256, 3, 1, 512),
@@ -361,8 +361,8 @@ class TestHandlerBypass:
         result = handler.scan(f)
         assert not result.is_clean
 
-        # Anonymize
-        cleared = handler.anonymize(f)
+        # Deidentify
+        cleared = handler.deidentify(f)
         assert len(cleared) > 0
 
         # Verify clean
@@ -371,7 +371,7 @@ class TestHandlerBypass:
             f"Residual findings: {[(f.tag_name, f.value_preview) for f in result.findings]}"
         )
 
-    def test_scan_after_anonymize_at_scan_size_boundary(self, tmp_path):
+    def test_scan_after_deidentify_at_scan_size_boundary(self, tmp_path):
         """PHI near the DEFAULT_SCAN_SIZE boundary."""
         from pathsafe.scanner import DEFAULT_SCAN_SIZE
 

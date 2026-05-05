@@ -1,4 +1,4 @@
-"""CLI interface for PathSafe -- scan, anonymize, verify, info subcommands.
+"""CLI interface for PathSafe -- scan, deidentify, verify, info subcommands.
 
 Color-coded terminal output with structured log file support.
 """
@@ -13,10 +13,10 @@ from pathlib import Path
 import click
 
 import pathsafe
-from pathsafe.anonymizer import (
-    anonymize_batch,
+from pathsafe.deidentifier import (
     auto_workers,
     collect_wsi_files,
+    deidentify_batch,
     preflight_check,
     scan_batch,
 )
@@ -55,7 +55,7 @@ def _apply_custom_patterns(patterns_path: str) -> None:
 )
 @click.version_option(version=pathsafe.__version__, prog_name="pathsafe")
 def main() -> None:
-    """PathSafe -- Production-tested WSI anonymizer.
+    """PathSafe -- WSI de-identifier.
 
     Detect and remove Protected Health Information (PHI) from
     whole-slide image files (NDPI, SVS, TIFF).
@@ -153,9 +153,9 @@ def scan(
                         f"{cli_warning(f.mask_preview())}"
                     )
 
-        # NOTE: Do NOT hash the original (pre-anonymization) file here.
-        # A hash of the original could link anonymized output back to a
-        # specific patient.  Hashing is only safe on post-anonymization files.
+        # NOTE: Do NOT hash the original (pre-deidentification) file here.
+        # A hash of the original could link deidentified output back to a
+        # specific patient.  Hashing is only safe on post-deidentification files.
         file_sha256 = ""
 
         if json_out:
@@ -207,7 +207,7 @@ def scan(
         click.echo(cli_success("\nAll files are clean -- no PHI detected."))
     elif phi_count > 0:
         click.echo(
-            cli_warning(f'\n{phi_count} file(s) contain PHI -- run "pathsafe anonymize" to clean.')
+            cli_warning(f'\n{phi_count} file(s) contain PHI -- run "pathsafe deidentify" to clean.')
         )
 
     if report:
@@ -234,12 +234,12 @@ def scan(
     "--output",
     "-o",
     type=click.Path(),
-    help="Output directory (copy mode). If omitted, anonymizes in-place.",
+    help="Output directory (copy mode). If omitted, deidentifies in-place.",
 )
 @click.option(
     "--in-place",
     is_flag=True,
-    help="Explicitly confirm in-place anonymization (required if no --output).",
+    help="Explicitly confirm in-place deidentification (required if no --output).",
 )
 @click.option("--dry-run", is_flag=True, help="Scan only, don't modify files.")
 @click.option(
@@ -351,7 +351,7 @@ def scan(
     default=False,
     help="Skip interactive confirmation prompts (e.g., for --in-place).",
 )
-def anonymize(
+def deidentify(
     path: str,
     output: str | None,
     in_place: bool,
@@ -379,7 +379,7 @@ def anonymize(
     filter_file: str | None,
     yes: bool,
 ) -> None:
-    """Anonymize PHI in WSI files.
+    """Deidentify PHI in WSI files.
 
     PATH can be a single file or a directory to process recursively.
 
@@ -532,9 +532,11 @@ def anonymize(
 
         emit(
             cli_header(
-                f"PathSafe v{pathsafe.__version__} -- {mode_str} anonymization{workers_str}"
+                f"PathSafe v{pathsafe.__version__} -- {mode_str} deidentification{workers_str}"
             ),
-            log_info(f"PathSafe v{pathsafe.__version__} -- {mode_str} anonymization{workers_str}"),
+            log_info(
+                f"PathSafe v{pathsafe.__version__} -- {mode_str} deidentification{workers_str}"
+            ),
         )
         emit(
             cli_info(f"Processing {len(files)} file(s)..."),
@@ -609,7 +611,7 @@ def anonymize(
         )
         if rename_plan is not None:
             batch_kwargs["precomputed_pairs"] = rename_plan
-        batch_result = anonymize_batch(**batch_kwargs)
+        batch_result = deidentify_batch(**batch_kwargs)
 
         # Summary
         emit(cli_separator(), "-" * 60)
@@ -621,10 +623,10 @@ def anonymize(
             f"  Total:         {cli_bold(str(batch_result.total_files))}",
             log_info(f"  Total:         {batch_result.total_files}"),
         )
-        if batch_result.files_anonymized:
+        if batch_result.files_deidentified:
             emit(
-                f"  Anonymized:    {cli_warning(str(batch_result.files_anonymized))}",
-                log_info(f"  Anonymized:    {batch_result.files_anonymized}"),
+                f"  Deidentified:    {cli_warning(str(batch_result.files_deidentified))}",
+                log_info(f"  Deidentified:    {batch_result.files_deidentified}"),
             )
         if batch_result.files_already_clean:
             emit(
@@ -705,7 +707,7 @@ def anonymize(
     help="Only verify files of this format.",
 )
 def verify(path: str, verbose: bool, fmt: str | None) -> None:
-    """Verify that files have been fully anonymized.
+    """Verify that files have been fully deidentified.
 
     Re-scans all files to confirm no PHI remains.
     """
@@ -784,7 +786,7 @@ def gui() -> None:
     help="Target format (default: tiff).",
 )
 @click.option(
-    "--anonymize", "-a", is_flag=True, help="Run PathSafe anonymization on converted output."
+    "--deidentify", "-a", is_flag=True, help="Run PathSafe deidentification on converted output."
 )
 @click.option(
     "--tile-size",
@@ -826,7 +828,7 @@ def convert(
     path: str,
     output: str,
     target_format: str,
-    anonymize: bool,
+    deidentify: bool,
     tile_size: int,
     quality: int,
     extract: str | None,
@@ -842,7 +844,7 @@ def convert(
     \b
     Examples:
         pathsafe convert slide.ndpi -o slide.tiff
-        pathsafe convert slide.ndpi -o slide.tiff --anonymize
+        pathsafe convert slide.ndpi -o slide.tiff --deidentify
         pathsafe convert slide.ndpi -o label.png --extract label
         pathsafe convert /slides/ -o /converted/ -t tiff -w 4
     """
@@ -881,7 +883,7 @@ def convert(
 
     if input_path.is_file():
         # Single file conversion
-        anon_str = " + anonymize" if anonymize else ""
+        anon_str = " + deidentify" if deidentify else ""
         click.echo(cli_info(f"Converting {input_path.name} → {target_format}{anon_str}"))
 
         result = convert_file(
@@ -890,7 +892,7 @@ def convert(
             target_format=target_format,
             tile_size=tile_size,
             quality=quality,
-            anonymize=anonymize,
+            deidentify=deidentify,
             reset_timestamps=reset_timestamps,
         )
 
@@ -901,8 +903,8 @@ def convert(
             click.echo(cli_success(f"Converted to {output_path}"))
             details = [f"{result.levels_written} level(s)"]
             details.append(f"{result.conversion_time_ms / 1000:.1f}s")
-            if result.anonymized:
-                details.append("anonymized")
+            if result.deidentified:
+                details.append("deidentified")
             click.echo(cli_dim(f"  {', '.join(details)}"))
     else:
         # Batch conversion
@@ -925,8 +927,8 @@ def convert(
             else:
                 parts = [f"{result.levels_written} level(s)"]
                 parts.append(f"{result.conversion_time_ms / 1000:.1f}s")
-                if result.anonymized:
-                    parts.append("anonymized")
+                if result.deidentified:
+                    parts.append("deidentified")
                 status = cli_success(", ".join(parts))
 
             click.echo(f"  {counter} {stats} | {filepath.name} | {status}")
@@ -937,7 +939,7 @@ def convert(
             target_format=target_format,
             tile_size=tile_size,
             quality=quality,
-            anonymize=anonymize,
+            deidentify=deidentify,
             format_filter=fmt,
             progress_callback=progress,
             workers=workers,
@@ -1002,7 +1004,7 @@ def info(path: str) -> None:
 @click.option("--output", "-o", type=click.Path(), help="Output JSON/CSV file for classifications.")
 @click.option("--format", "out_fmt", type=click.Choice(["json", "csv"]), default="json")
 @click.option(
-    "--use-filenames", is_flag=True, help="Use filenames as keys (only for pre-anonymized files)."
+    "--use-filenames", is_flag=True, help="Use filenames as keys (only for pre-deidentified files)."
 )
 @click.option("--limit", type=int, help="Process only first N files.")
 def classify(path, output, out_fmt, use_filenames, limit):
@@ -1079,7 +1081,7 @@ def classify(path, output, out_fmt, use_filenames, limit):
 @click.option("--dry-run", is_flag=True, help="Show what would be transferred.")
 @click.option("--verify", is_flag=True, default=True, help="Verify transfers via SHA256.")
 def transfer(path, remote, ssh_key, bwlimit, dry_run, verify):
-    """Transfer anonymized files to a remote server via rsync."""
+    """Transfer deidentified files to a remote server via rsync."""
     try:
         from pathsafe.transfer import TransferConfig, transfer_batch
     except ImportError as e:
@@ -1155,7 +1157,7 @@ def transfer(path, remote, ssh_key, bwlimit, dry_run, verify):
 @click.option("--rename", type=click.Choice(["keep", "auto"]), default="auto", help="Rename mode.")
 @click.option("--prefix", default="ANON", help="Prefix for auto rename.")
 @click.option(
-    "--transfer", "do_transfer", is_flag=True, help="Transfer to remote after anonymization."
+    "--transfer", "do_transfer", is_flag=True, help="Transfer to remote after deidentification."
 )
 @click.option("--remote", "-r", type=str, help="Remote destination for transfer.")
 @click.option("--workers", "-w", type=int, default=0, help="Parallel workers (0=auto).")
@@ -1169,7 +1171,7 @@ def transfer(path, remote, ssh_key, bwlimit, dry_run, verify):
 @click.option("--lookup-sheet", default="Sheet1", help="Sheet name in the Excel file.")
 @click.option(
     "--lookup-key",
-    default="anonymized_identifier",
+    default="deidentified_identifier",
     help="Column name for matching against filenames.",
 )
 @click.option(
@@ -1199,7 +1201,7 @@ def pipeline(
     lookup_group,
     resume,
 ):
-    """Full pipeline: classify -> filter -> anonymize -> transfer.
+    """Full pipeline: classify -> filter -> deidentify -> transfer.
 
     This is the recommended command for end-to-end slide processing.
     """
@@ -1259,11 +1261,11 @@ def pipeline(
     )
 
     mode_str = "DRY RUN" if dry_run else "pipeline"
-    stages = ["anonymize"]
+    stages = ["deidentify"]
     if do_classify:
         stages.insert(0, "classify")
     if stain:
-        stages.insert(stages.index("anonymize"), "filter")
+        stages.insert(stages.index("deidentify"), "filter")
     if do_transfer:
         stages.append("transfer")
 
@@ -1302,7 +1304,7 @@ def pipeline(
     for status, count in sorted(by_status.items()):
         if status == "error":
             click.echo(f"  {status:12s}: {cli_error(str(count))}")
-        elif status in ("anonymized", "transferred"):
+        elif status in ("deidentified", "transferred"):
             click.echo(f"  {status:12s}: {cli_success(str(count))}")
         elif status == "filtered":
             click.echo(f"  {status:12s}: {cli_dim(str(count))}")

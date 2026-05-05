@@ -1,6 +1,6 @@
 """3DHISTECH MRXS (MIRAX) format handler.
 
-Handles PHI detection and anonymization for MRXS files, including:
+Handles PHI detection and deidentification for MRXS files, including:
 - Slidedat.ini metadata: SLIDE_ID, SLIDE_NAME, SLIDE_BARCODE,
   SLIDE_CREATIONDATETIME, and other PHI fields across ALL sections
 - Non-hierarchical associated images (label, macro, thumbnail)
@@ -153,8 +153,8 @@ class MRXSHandler(FormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in MRXS files in-place.
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in MRXS files in-place.
 
         Parses Slidedat.ini exactly once and passes the ConfigParser to
         every sub-method to avoid redundant file reads.
@@ -168,16 +168,16 @@ class MRXSHandler(FormatHandler):
         slidedat = data_dir / "Slidedat.ini"
         if slidedat.exists():
             config = _read_slidedat(slidedat)
-            cleared += self._anonymize_slidedat(slidedat, config)
-            cleared += self._anonymize_slidedat_all_sections(slidedat, config)
+            cleared += self._deidentify_slidedat(slidedat, config)
+            cleared += self._deidentify_slidedat_all_sections(slidedat, config)
             # Regex pass must run AFTER both config-based writes are
             # complete, otherwise _write_slidedat() would overwrite
             # the byte-level patches.
-            cleared += self._anonymize_slidedat_regex(slidedat)
+            cleared += self._deidentify_slidedat_regex(slidedat)
             cleared += self._blank_associated_images(config, data_dir)
 
-        # Anonymize regex patterns in the .mrxs file
-        cleared += self._anonymize_mrxs_file(filepath)
+        # Deidentify regex patterns in the .mrxs file
+        cleared += self._deidentify_mrxs_file(filepath)
 
         return cleared
 
@@ -243,7 +243,7 @@ class MRXSHandler(FormatHandler):
             if actual_key is None:
                 continue
             value = config.get("GENERAL", actual_key).strip()
-            if not value or _is_anonymized(field, value):
+            if not value or _is_deidentified(field, value):
                 continue
 
             findings.append(
@@ -271,7 +271,7 @@ class MRXSHandler(FormatHandler):
                 if key_upper not in EXTRA_PHI_FIELDS:
                     continue
                 value = config.get(section, key).strip()
-                if not value or _is_anonymized(key_upper, value):
+                if not value or _is_deidentified(key_upper, value):
                     continue
                 findings.append(
                     PHIFinding(
@@ -360,10 +360,10 @@ class MRXSHandler(FormatHandler):
             )
         return findings
 
-    def _anonymize_slidedat(
+    def _deidentify_slidedat(
         self, slidedat_path: Path, config: configparser.ConfigParser
     ) -> list[PHIFinding]:
-        """Anonymize PHI fields in Slidedat.ini [GENERAL] section."""
+        """Deidentify PHI fields in Slidedat.ini [GENERAL] section."""
         cleared = []
 
         if not config.has_section("GENERAL"):
@@ -378,10 +378,10 @@ class MRXSHandler(FormatHandler):
             if actual_key is None:
                 continue
             value = config.get("GENERAL", actual_key).strip()
-            if not value or _is_anonymized(field, value):
+            if not value or _is_deidentified(field, value):
                 continue
 
-            # Replace with anonymized value
+            # Replace with deidentified value
             if field in DATE_FIELDS:
                 anon_value = "19000101000000"
             else:
@@ -405,8 +405,8 @@ class MRXSHandler(FormatHandler):
 
         return cleared
 
-    def _anonymize_slidedat_regex(self, slidedat_path: Path) -> list[PHIFinding]:
-        """Regex anonymization on the raw Slidedat.ini file.
+    def _deidentify_slidedat_regex(self, slidedat_path: Path) -> list[PHIFinding]:
+        """Regex deidentification on the raw Slidedat.ini file.
 
         Must be called AFTER all config-based writes are complete,
         because _write_slidedat() re-serializes the entire in-memory
@@ -433,10 +433,10 @@ class MRXSHandler(FormatHandler):
                     )
         return cleared
 
-    def _anonymize_slidedat_all_sections(
+    def _deidentify_slidedat_all_sections(
         self, slidedat_path: Path, config: configparser.ConfigParser
     ) -> list[PHIFinding]:
-        """Anonymize extra PHI fields in all Slidedat.ini sections."""
+        """Deidentify extra PHI fields in all Slidedat.ini sections."""
         cleared = []
         modified = False
 
@@ -448,7 +448,7 @@ class MRXSHandler(FormatHandler):
                 if key_upper not in EXTRA_PHI_FIELDS:
                     continue
                 value = config.get(section, key).strip()
-                if not value or _is_anonymized(key_upper, value):
+                if not value or _is_deidentified(key_upper, value):
                     continue
 
                 if "DATE" in key_upper or "TIME" in key_upper:
@@ -512,8 +512,8 @@ class MRXSHandler(FormatHandler):
 
         return cleared
 
-    def _anonymize_mrxs_file(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize regex patterns in the .mrxs file itself."""
+    def _deidentify_mrxs_file(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify regex patterns in the .mrxs file itself."""
         data = filepath.read_bytes()
         raw_findings = scan_bytes_for_phi(data)
         if not raw_findings:
@@ -563,8 +563,8 @@ def _write_slidedat(slidedat_path: Path, config: configparser.ConfigParser) -> N
         config.write(f)
 
 
-def _is_anonymized(field: str, value: str) -> bool:
-    """Check if a field value has already been anonymized."""
+def _is_deidentified(field: str, value: str) -> bool:
+    """Check if a field value has already been deidentified."""
     if not value:
         return True
     if all(c == "X" for c in value):

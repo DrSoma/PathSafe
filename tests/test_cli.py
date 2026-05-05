@@ -45,27 +45,27 @@ class TestScanCommand:
         assert result.exit_code == 0
 
 
-class TestAnonymizeCommand:
+class TestDeidentifyCommand:
     def test_requires_output_or_inplace(self, runner, tmp_ndpi):
-        result = runner.invoke(main, ["anonymize", str(tmp_ndpi)])
+        result = runner.invoke(main, ["deidentify", str(tmp_ndpi)])
         assert result.exit_code == 1
         assert "must specify" in result.output.lower()
 
     def test_copy_mode(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "output"
-        result = runner.invoke(main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir)])
+        result = runner.invoke(main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir)])
         assert result.exit_code == 0
-        assert "anonymized" in result.output.lower()
+        assert "deidentified" in result.output.lower()
         assert (out_dir / tmp_ndpi.name).exists()
 
     def test_inplace_mode(self, runner, tmp_ndpi):
-        result = runner.invoke(main, ["anonymize", str(tmp_ndpi), "--in-place", "--yes"])
+        result = runner.invoke(main, ["deidentify", str(tmp_ndpi), "--in-place", "--yes"])
         assert result.exit_code == 0
 
     def test_dry_run(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "dry_output"
         result = runner.invoke(
-            main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--dry-run"]
+            main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir), "--dry-run"]
         )
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
@@ -75,7 +75,14 @@ class TestAnonymizeCommand:
         cert_file = tmp_path / "cert.json"
         result = runner.invoke(
             main,
-            ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--certificate", str(cert_file)],
+            [
+                "deidentify",
+                str(tmp_ndpi),
+                "--output",
+                str(out_dir),
+                "--certificate",
+                str(cert_file),
+            ],
         )
         assert result.exit_code == 0
         cert = json.loads(cert_file.read_text())
@@ -85,16 +92,16 @@ class TestAnonymizeCommand:
     def test_workers(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "parallel_output"
         result = runner.invoke(
-            main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--workers", "2"]
+            main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir), "--workers", "2"]
         )
         assert result.exit_code == 0
 
 
-class TestAnonymizeTimestamps:
+class TestDeidentifyTimestamps:
     def test_reset_timestamps(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "ts_output"
         result = runner.invoke(
-            main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--reset-timestamps"]
+            main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir), "--reset-timestamps"]
         )
         assert result.exit_code == 0
         output_file = out_dir / tmp_ndpi.name
@@ -105,7 +112,7 @@ class TestAnonymizeTimestamps:
 
     def test_reset_timestamps_by_default(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "nots_output"
-        result = runner.invoke(main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir)])
+        result = runner.invoke(main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir)])
         assert result.exit_code == 0
         output_file = out_dir / tmp_ndpi.name
         assert output_file.stat().st_mtime == 0
@@ -113,7 +120,7 @@ class TestAnonymizeTimestamps:
     def test_no_reset_timestamps_flag(self, runner, tmp_ndpi, tmp_path):
         out_dir = tmp_path / "nots_output2"
         result = runner.invoke(
-            main, ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--no-reset-timestamps"]
+            main, ["deidentify", str(tmp_ndpi), "--output", str(out_dir), "--no-reset-timestamps"]
         )
         assert result.exit_code == 0
         output_file = out_dir / tmp_ndpi.name
@@ -126,7 +133,14 @@ class TestCertificateMeasures:
         cert_file = tmp_path / "cert_measures.json"
         result = runner.invoke(
             main,
-            ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--certificate", str(cert_file)],
+            [
+                "deidentify",
+                str(tmp_ndpi),
+                "--output",
+                str(out_dir),
+                "--certificate",
+                str(cert_file),
+            ],
         )
         assert result.exit_code == 0
         assert cert_file.exists()
@@ -141,7 +155,14 @@ class TestCertificateMeasures:
         cert_file = tmp_path / "cert_ts.json"
         result = runner.invoke(
             main,
-            ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--certificate", str(cert_file)],
+            [
+                "deidentify",
+                str(tmp_ndpi),
+                "--output",
+                str(out_dir),
+                "--certificate",
+                str(cert_file),
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(cert_file.read_text())
@@ -154,7 +175,7 @@ class TestCertificateMeasures:
         result = runner.invoke(
             main,
             [
-                "anonymize",
+                "deidentify",
                 str(tmp_ndpi),
                 "--output",
                 str(out_dir),
@@ -171,7 +192,14 @@ class TestCertificateMeasures:
         cert_file = tmp_path / "combined_cert.json"
         result = runner.invoke(
             main,
-            ["anonymize", str(tmp_ndpi), "--output", str(out_dir), "--certificate", str(cert_file)],
+            [
+                "deidentify",
+                str(tmp_ndpi),
+                "--output",
+                str(out_dir),
+                "--certificate",
+                str(cert_file),
+            ],
         )
         assert result.exit_code == 0
         output_file = out_dir / tmp_ndpi.name

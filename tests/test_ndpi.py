@@ -41,28 +41,28 @@ class TestNDPIScan:
         assert any("regex" in f.tag_name for f in result.findings)
 
 
-class TestNDPIAnonymize:
-    def test_anonymize_barcode(self, handler, tmp_ndpi):
+class TestNDPIDeidentify:
+    def test_deidentify_barcode(self, handler, tmp_ndpi):
         # Verify PHI exists
         result = handler.scan(tmp_ndpi)
         assert not result.is_clean
 
-        # Anonymize
-        cleared = handler.anonymize(tmp_ndpi)
+        # Deidentify
+        cleared = handler.deidentify(tmp_ndpi)
         assert len(cleared) > 0
 
         # Verify clean
         result = handler.scan(tmp_ndpi)
         assert result.is_clean
 
-    def test_anonymize_already_clean(self, handler, tmp_ndpi_clean):
-        cleared = handler.anonymize(tmp_ndpi_clean)
+    def test_deidentify_already_clean(self, handler, tmp_ndpi_clean):
+        cleared = handler.deidentify(tmp_ndpi_clean)
         assert len(cleared) == 0
 
     def test_idempotent(self, handler, tmp_ndpi):
-        # Anonymize twice
-        cleared1 = handler.anonymize(tmp_ndpi)
-        cleared2 = handler.anonymize(tmp_ndpi)
+        # Deidentify twice
+        cleared1 = handler.deidentify(tmp_ndpi)
+        cleared2 = handler.deidentify(tmp_ndpi)
         assert len(cleared1) > 0
         assert len(cleared2) == 0  # Second pass should find nothing
 
@@ -88,24 +88,24 @@ class TestNDPIScanProfileAndBarcodeType:
         result = handler.scan(tmp_ndpi_with_scanprofile)
         assert any(f.tag_id == 65480 for f in result.findings)
 
-    def test_anonymize_clears_both(self, handler, tmp_ndpi_with_scanprofile):
-        """Both tags are blanked after anonymization."""
-        cleared = handler.anonymize(tmp_ndpi_with_scanprofile)
+    def test_deidentify_clears_both(self, handler, tmp_ndpi_with_scanprofile):
+        """Both tags are blanked after deidentification."""
+        cleared = handler.deidentify(tmp_ndpi_with_scanprofile)
         cleared_ids = {f.tag_id for f in cleared}
         assert 65477 in cleared_ids
         assert 65480 in cleared_ids
 
-    def test_rescan_clean_after_anonymize(self, handler, tmp_ndpi_with_scanprofile):
-        """Re-scan after anonymize finds no PHI in tags 65477/65480."""
-        handler.anonymize(tmp_ndpi_with_scanprofile)
+    def test_rescan_clean_after_deidentify(self, handler, tmp_ndpi_with_scanprofile):
+        """Re-scan after deidentify finds no PHI in tags 65477/65480."""
+        handler.deidentify(tmp_ndpi_with_scanprofile)
         result = handler.scan(tmp_ndpi_with_scanprofile)
         assert not any(f.tag_id == 65477 for f in result.findings)
         assert not any(f.tag_id == 65480 for f in result.findings)
 
     def test_idempotent(self, handler, tmp_ndpi_with_scanprofile):
-        """Second anonymize pass clears zero findings for these tags."""
-        handler.anonymize(tmp_ndpi_with_scanprofile)
-        cleared = handler.anonymize(tmp_ndpi_with_scanprofile)
+        """Second deidentify pass clears zero findings for these tags."""
+        handler.deidentify(tmp_ndpi_with_scanprofile)
+        cleared = handler.deidentify(tmp_ndpi_with_scanprofile)
         assert not any(f.tag_id in (65477, 65480) for f in cleared)
 
     def test_not_double_reported(self, handler, tmp_ndpi_with_scanprofile):
@@ -201,8 +201,8 @@ class TestNDPIPrivateTags:
         count_65427 = sum(1 for f in result.findings if f.tag_id == 65427)
         assert count_65427 == 1
 
-    def test_anonymize_blanks_private_tags(self, tmp_path):
-        """Anonymize blanks unhandled private string tags."""
+    def test_deidentify_blanks_private_tags(self, tmp_path):
+        """Deidentify blanks unhandled private string tags."""
         scan_profile = b"Profile data with serial ABC\x00"
         entries = [
             (256, 3, 1, 1024),
@@ -214,7 +214,7 @@ class TestNDPIPrivateTags:
         fp.write_bytes(data)
 
         handler = NDPIHandler()
-        cleared = handler.anonymize(fp)
+        cleared = handler.deidentify(fp)
         assert any(f.tag_id == 65477 for f in cleared)
 
         # Re-scan should be clean

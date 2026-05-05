@@ -16,7 +16,7 @@ from pathsafe.formats.dicom import (  # noqa: E402
     PATHSAFE_UID_ROOT,
     DICOMHandler,
     _has_dicom_magic,
-    _is_dicom_anonymized,
+    _is_dicom_deidentified,
     _remap_uid,
 )
 
@@ -79,10 +79,10 @@ def tmp_dicom(tmp_path):
 
 @pytest.fixture
 def tmp_dicom_clean(tmp_path):
-    """Create a DICOM file that has been anonymized."""
+    """Create a DICOM file that has been deidentified."""
     filepath = _make_dicom_file(tmp_path / "clean.dcm")
     handler = DICOMHandler()
-    handler.anonymize(filepath)
+    handler.deidentify(filepath)
     return filepath
 
 
@@ -125,7 +125,7 @@ class TestDICOMScan:
 
     def test_clean_file(self, handler, tmp_dicom_clean):
         result = handler.scan(tmp_dicom_clean)
-        # After anonymization, PatientIdentityRemoved=YES
+        # After deidentification, PatientIdentityRemoved=YES
         # and all PHI tags blanked/deleted
         assert result.is_clean
 
@@ -142,70 +142,70 @@ class TestDICOMScan:
         assert result.error is not None
 
 
-class TestDICOMAnonymize:
-    def test_anonymize_blanks_type2(self, handler, tmp_dicom):
-        cleared = handler.anonymize(tmp_dicom)
+class TestDICOMDeidentify:
+    def test_deidentify_blanks_type2(self, handler, tmp_dicom):
+        cleared = handler.deidentify(tmp_dicom)
         assert len(cleared) > 0
 
         ds = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         assert str(ds.PatientName) == ""
         assert str(ds.PatientID) == ""
 
-    def test_anonymize_deletes_type3(self, handler, tmp_path):
+    def test_deidentify_deletes_type3(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / "del.dcm")
         ds = pydicom.dcmread(str(filepath))
         ds.add_new(Tag(0x0010, 0x1040), "LO", "123 Main St")  # PatientAddress
         ds.save_as(str(filepath))
 
-        handler.anonymize(filepath)
+        handler.deidentify(filepath)
         ds = pydicom.dcmread(str(filepath), stop_before_pixels=True, force=True)
         assert Tag(0x0010, 0x1040) not in ds
 
-    def test_anonymize_dates(self, handler, tmp_dicom):
-        handler.anonymize(tmp_dicom)
+    def test_deidentify_dates(self, handler, tmp_dicom):
+        handler.deidentify(tmp_dicom)
         ds = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         assert ds.StudyDate == "19000101"
         assert ds.StudyTime == "000000"
         assert ds.PatientBirthDate == "19000101"
 
-    def test_anonymize_remaps_uids(self, handler, tmp_dicom):
+    def test_deidentify_remaps_uids(self, handler, tmp_dicom):
         ds_before = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         original_study_uid = str(ds_before.StudyInstanceUID)
 
-        handler.anonymize(tmp_dicom)
+        handler.deidentify(tmp_dicom)
         ds_after = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
 
         assert str(ds_after.StudyInstanceUID) != original_study_uid
         assert str(ds_after.StudyInstanceUID).startswith(PATHSAFE_UID_ROOT)
 
-    def test_anonymize_keeps_sop_class_uid(self, handler, tmp_dicom):
+    def test_deidentify_keeps_sop_class_uid(self, handler, tmp_dicom):
         ds_before = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         original_sop_class = str(ds_before.SOPClassUID)
 
-        handler.anonymize(tmp_dicom)
+        handler.deidentify(tmp_dicom)
         ds_after = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         assert str(ds_after.SOPClassUID) == original_sop_class
 
-    def test_anonymize_removes_private_tags(self, handler, tmp_path):
+    def test_deidentify_removes_private_tags(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / "priv.dcm")
         ds = pydicom.dcmread(str(filepath))
         ds.add_new(Tag(0x0009, 0x0010), "LO", "PrivateCreator")
         ds.add_new(Tag(0x0009, 0x1001), "LO", "PrivateData")
         ds.save_as(str(filepath))
 
-        handler.anonymize(filepath)
+        handler.deidentify(filepath)
         ds = pydicom.dcmread(str(filepath), stop_before_pixels=True, force=True)
         private_count = sum(1 for elem in ds if elem.tag.is_private)
         assert private_count == 0
 
-    def test_anonymize_sets_identity_removed(self, handler, tmp_dicom):
-        handler.anonymize(tmp_dicom)
+    def test_deidentify_sets_identity_removed(self, handler, tmp_dicom):
+        handler.deidentify(tmp_dicom)
         ds = pydicom.dcmread(str(tmp_dicom), stop_before_pixels=True, force=True)
         assert ds[Tag(0x0012, 0x0062)].value == "YES"
 
     def test_idempotent(self, handler, tmp_dicom):
-        cleared1 = handler.anonymize(tmp_dicom)
-        cleared2 = handler.anonymize(tmp_dicom)
+        cleared1 = handler.deidentify(tmp_dicom)
+        cleared2 = handler.deidentify(tmp_dicom)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 
@@ -226,7 +226,7 @@ class TestDICOMSequences:
         tag_names = {f.tag_name for f in result.findings}
         assert any("SQ:" in t for t in tag_names)
 
-    def test_anonymize_cleans_sequences(self, handler, tmp_path):
+    def test_deidentify_cleans_sequences(self, handler, tmp_path):
         filepath = _make_dicom_file(tmp_path / "seq_anon.dcm")
         ds = pydicom.dcmread(str(filepath))
 
@@ -235,7 +235,7 @@ class TestDICOMSequences:
         ds.ReferencedStudySequence = Sequence([item])
         ds.save_as(str(filepath))
 
-        handler.anonymize(filepath)
+        handler.deidentify(filepath)
         ds = pydicom.dcmread(str(filepath), stop_before_pixels=True, force=True)
         # ReferencedStudySequence is in TAGS_TO_DELETE, so it should be removed
         assert Tag(0x0008, 0x1110) not in ds
@@ -258,20 +258,20 @@ class TestDICOMHelpers:
         f.write_bytes(b"NOT DICOM" * 20)
         assert not _has_dicom_magic(f)
 
-    def test_is_anonymized_date(self):
-        assert _is_dicom_anonymized("19000101", "DA")
+    def test_is_deidentified_date(self):
+        assert _is_dicom_deidentified("19000101", "DA")
 
-    def test_is_anonymized_time(self):
-        assert _is_dicom_anonymized("000000", "TM")
+    def test_is_deidentified_time(self):
+        assert _is_dicom_deidentified("000000", "TM")
 
-    def test_is_anonymized_datetime(self):
-        assert _is_dicom_anonymized("19000101000000", "DT")
+    def test_is_deidentified_datetime(self):
+        assert _is_dicom_deidentified("19000101000000", "DT")
 
-    def test_is_anonymized_empty(self):
-        assert _is_dicom_anonymized("", "LO")
+    def test_is_deidentified_empty(self):
+        assert _is_dicom_deidentified("", "LO")
 
-    def test_is_not_anonymized(self):
-        assert not _is_dicom_anonymized("Doe^John", "PN")
+    def test_is_not_deidentified(self):
+        assert not _is_dicom_deidentified("Doe^John", "PN")
 
     def test_remap_uid_deterministic(self, tmp_dicom):
         uid1 = _remap_uid("1.2.3.4")

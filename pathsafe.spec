@@ -30,7 +30,7 @@ _hidden = [
     'pathsafe.models',
     'pathsafe.tiff',
     'pathsafe.scanner',
-    'pathsafe.anonymizer',
+    'pathsafe.deidentifier',
     'pathsafe.verify',
     'pathsafe.report',
     'pathsafe.openslide_utils',

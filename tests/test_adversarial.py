@@ -8,7 +8,7 @@ All tests use synthetic temporary files -- no original WSI images are touched.
 import os
 import struct
 
-from pathsafe.anonymizer import anonymize_file, collect_wsi_files
+from pathsafe.deidentifier import collect_wsi_files, deidentify_file
 from pathsafe.formats import detect_format, get_handler
 from pathsafe.scanner import scan_bytes_for_phi, scan_string_for_phi
 from pathsafe.tiff import (
@@ -247,14 +247,14 @@ class TestHandlerEdgeCases:
         result = handler.scan(f)
         assert result is not None
 
-    def test_anonymize_missing_file(self, tmp_path):
-        """Anonymize a non-existent file."""
-        result = anonymize_file(tmp_path / "nonexistent.ndpi")
+    def test_deidentify_missing_file(self, tmp_path):
+        """Deidentify a non-existent file."""
+        result = deidentify_file(tmp_path / "nonexistent.ndpi")
         assert result.error is not None
         assert "not found" in result.error.lower()
 
-    def test_anonymize_read_only_file(self, tmp_path):
-        """Anonymize a read-only file should fail gracefully."""
+    def test_deidentify_read_only_file(self, tmp_path):
+        """Deidentify a read-only file should fail gracefully."""
         entries = [
             (256, 3, 1, 512),
             (270, 2, 12, b"AS-24-12345\x00"),
@@ -263,7 +263,7 @@ class TestHandlerEdgeCases:
         f.write_bytes(build_tiff(entries))
         os.chmod(f, 0o444)
         try:
-            result = anonymize_file(f)
+            result = deidentify_file(f)
             # Should either error or succeed (depends on OS)
             assert result is not None
         finally:

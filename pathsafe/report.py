@@ -59,13 +59,13 @@ def generate_certificate(
     pdf: bool = True,
     institution: str = "",
 ) -> dict[str, Any]:
-    """Generate a JSON compliance certificate for a batch anonymization run.
+    """Generate a JSON compliance certificate for a batch deidentification run.
 
     Includes per-file records and a summary of all technical measures applied.
     When output_path is provided and pdf=True, a companion PDF is also generated.
 
     Args:
-        batch_result: The BatchResult from anonymize_batch().
+        batch_result: The BatchResult from deidentify_batch().
         output_path: If provided, write the certificate JSON to this file.
         timestamps_reset: Whether timestamps were reset to epoch.
         pdf: If True (default), auto-generate a companion PDF alongside JSON.
@@ -90,7 +90,7 @@ def generate_certificate(
             "format": _detect_format_from_ext(result.output_path),
             "findings_cleared": result.findings_cleared,
             "verified_clean": result.verified,
-            "anonymization_time_ms": round(result.anonymization_time_ms, 1),
+            "deidentification_time_ms": round(result.deidentification_time_ms, 1),
         }
 
         # Include detailed findings with replacement info
@@ -141,7 +141,7 @@ def generate_certificate(
     )
     measures.append(
         {
-            "measure": "Post-anonymization verification",
+            "measure": "Post-deidentification verification",
             "status": "passed"
             if verified_count == len(batch_result.results) and verified_count > 0
             else "skipped",
@@ -170,7 +170,7 @@ def generate_certificate(
         "mode": mode,
         "summary": {
             "total_files": batch_result.total_files,
-            "anonymized": batch_result.files_anonymized,
+            "deidentified": batch_result.files_deidentified,
             "already_clean": batch_result.files_already_clean,
             "errors": batch_result.files_errored,
             "verified": verified_count == len(batch_result.results) and verified_count > 0,
@@ -435,7 +435,7 @@ def generate_pdf_certificate(
 
     # --- Header ---
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "PathSafe Anonymization Certificate", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, "PathSafe Deidentification Certificate", new_x="LMARGIN", new_y="NEXT")
     if institution:
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(30, 60, 120)
@@ -464,7 +464,7 @@ def generate_pdf_certificate(
         pdf,
         [
             ("Total files", str(summary.get("total_files", 0))),
-            ("Anonymized", str(summary.get("anonymized", 0))),
+            ("Deidentified", str(summary.get("deidentified", 0))),
             ("Already clean", str(summary.get("already_clean", 0))),
             ("Errors", str(summary.get("errors", 0))),
             ("All verified", "Yes" if summary.get("verified") else "No"),
@@ -575,7 +575,7 @@ def generate_pdf_certificate(
         0,
         4,
         "This certificate confirms that PathSafe processed the listed files "
-        "and applied the indicated anonymization measures. Embedded metadata "
+        "and applied the indicated deidentification measures. Embedded metadata "
         "tags, label images, and macro images containing patient information "
         "were cleared. Filenames are NOT modified by PathSafe and may still "
         "contain patient information - check warnings above.",
@@ -797,7 +797,7 @@ _PDF_HIDDEN_TAGS = {
 def generate_scan_report(
     scan_data: dict[str, Any], output_path: Path, institution: str = ""
 ) -> Path:
-    """Generate a PDF report of a pre-anonymization PHI scan.
+    """Generate a PDF report of a pre-deidentification PHI scan.
 
     Args:
         scan_data: Dict with keys: total, clean, phi_files, phi_findings,
@@ -907,8 +907,8 @@ def generate_scan_report(
     pdf.multi_cell(
         0,
         4,
-        "This is a pre-anonymization scan report. It shows patient information "
-        "(PHI) detected in the listed files. Run PathSafe anonymization to "
+        "This is a pre-deidentification scan report. It shows patient information "
+        "(PHI) detected in the listed files. Run PathSafe deidentification to "
         "remove the detected PHI and generate a compliance certificate "
         "confirming the cleanup.",
     )

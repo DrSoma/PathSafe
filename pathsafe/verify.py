@@ -1,4 +1,4 @@
-"""Verification -- re-scan anonymized files to confirm all PHI cleared."""
+"""Verification -- re-scan deidentified files to confirm all PHI cleared."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from pathsafe.anonymizer import collect_wsi_files
+from pathsafe.deidentifier import collect_wsi_files
 from pathsafe.formats import get_handler
 from pathsafe.models import ScanResult
 from pathsafe.utils import _sanitize_error
 
 
 def verify_file(filepath: Path) -> ScanResult:
-    """Verify that a file has been fully anonymized.
+    """Verify that a file has been fully deidentified.
 
     Re-scans the file for PHI. Returns ScanResult where is_clean=True
     means no PHI was found.

@@ -8,7 +8,7 @@ PathSafe is organized into layers:
 GUI (gui_qt.py / gui.py) ─── CLI (cli.py)
         \                       /
          v                     v
-Orchestration (anonymizer.py, verify.py, report.py)
+Orchestration (deidentifier.py, verify.py, report.py)
               |
               v
 Format Handlers (formats/ndpi.py, svs.py, mrxs.py, dicom.py, generic_tiff.py)
@@ -24,7 +24,7 @@ Optional (openslide_utils.py)
 
 - **`tiff.py`**: Low-level TIFF/BigTIFF binary parser using Python's `struct` module. Reads headers, IFD entries, tag values. Handles both byte orders and BigTIFF. Also provides label/macro image blanking utilities (`blank_ifd_image_data`, `get_ifd_image_size`, `get_ifd_image_data_size`), EXIF/GPS sub-IFD traversal (`read_exif_sub_ifd`, `read_gps_sub_ifd`, `scan_exif_sub_ifd_tags`, `scan_gps_sub_ifd`, `blank_exif_sub_ifd_tags`, `blank_gps_sub_ifd`), and ICC Profile scanning via `EXTRA_METADATA_TAGS`.
 - **`scanner.py`**: PHI detection patterns (regex for accession numbers, dates). Provides `scan_bytes_for_phi()` and `scan_string_for_phi()`.
-- **`models.py`**: Dataclasses (`PHIFinding`, `ScanResult`, `AnonymizationResult`, `BatchResult`).
+- **`models.py`**: Dataclasses (`PHIFinding`, `ScanResult`, `DeidentificationResult`, `BatchResult`).
 
 ### Format Handlers
 
@@ -34,7 +34,7 @@ Each handler implements the `FormatHandler` ABC from `formats/base.py`:
 class FormatHandler(ABC):
     def can_handle(self, filepath: Path) -> bool: ...
     def scan(self, filepath: Path) -> ScanResult: ...
-    def anonymize(self, filepath: Path) -> List[PHIFinding]: ...
+    def deidentify(self, filepath: Path) -> List[PHIFinding]: ...
     def get_format_info(self, filepath: Path) -> dict: ...
 ```
 
@@ -52,18 +52,18 @@ Handlers are registered in `formats/__init__.py` in priority order. The first ha
 
 ### Orchestration Layer
 
-- **`anonymizer.py`**: `anonymize_file()` handles copy-then-anonymize and in-place modes. `anonymize_batch()` processes directories with progress callbacks. Supports parallel processing via `ThreadPoolExecutor`. Accepts `precomputed_pairs` parameter for pre-computed `(source, output)` file pairs (used by the serializer for upfront rename). `auto_workers()` determines optimal worker count from CPU cores: `min(cpu_count // 2, 8)`.
+- **`deidentifier.py`**: `deidentify_file()` handles copy-then-de-identify and in-place modes. `deidentify_batch()` processes directories with progress callbacks. Supports parallel processing via `ThreadPoolExecutor`. Accepts `precomputed_pairs` parameter for pre-computed `(source, output)` file pairs (used by the serializer for upfront rename). `auto_workers()` determines optimal worker count from CPU cores: `min(cpu_count // 2, 8)`.
 - **`serializer.py`**: File serialization and renaming module. Three modes: AUTO (sequential numbering), MAPPING (CSV lookup), TEMPLATE (pattern-based with restricted token substitution). Computes rename plans upfront via `compute_rename_plan()` before any files are processed. Includes `preview_names()` for GUI live preview, `write_manifest()` for audit trail CSV, and `_validate_filename()` for security (path traversal, reserved names, unresolved tokens).
 - **`updater.py`**: Background update checker. Queries GitHub releases API with 2-second timeout. Returns `UpdateInfo` with platform-aware download URL. Disabled by default for hospital network privacy.
-- **`verify.py`**: Re-scans files after anonymization.
+- **`verify.py`**: Re-scans files after de-identification.
 - **`report.py`**: Generates JSON compliance certificates with SHA-256 hashes, PDF scan reports, and PDF compliance certificates. Integrity and SHA-256 columns are dynamically shown only when those features were used.
 
 ### Interface Layer
 
-- **`cli.py`**: Click-based CLI with `scan`, `anonymize`, `verify`, `info`, `convert`, and `gui` subcommands. The `anonymize` command supports `--rename` (keep/auto/mapping/template), `--prefix`, `--start`, `--digits`, `--separator`, `--mapping-file`, `--template`, and `--manifest` options. `--workers` defaults to 0 (auto-detect).
+- **`cli.py`**: Click-based CLI with `scan`, `deidentify`, `verify`, `info`, `convert`, and `gui` subcommands. The `deidentify` command supports `--rename` (keep/auto/mapping/template), `--prefix`, `--start`, `--digits`, `--separator`, `--mapping-file`, `--template`, and `--manifest` options. `--workers` defaults to 0 (auto-detect).
 - **`gui/window.py`**: PySide6 Qt GUI with dark/light themes, drag-and-drop, workflow step indicator, multi-file selection, menu bar with keyboard shortcuts, tooltips, status bar. Includes "Rename Output Files" panel with 3 radio modes + live preview (300ms debounce). Settings menu has opt-in update checker. Workers auto-detected from hardware.
 - **`gui/toast.py`**: Non-blocking toast notification widget for update alerts. Uses `QGraphicsOpacityEffect` + `QPropertyAnimation` for fade-out. `UpdateCheckThread` runs on background `QThread`.
-- **`gui/workers.py`**: Background `QThread` workers for scan, anonymize, verify, info, and convert operations. `AnonymizeWorker` accepts `precomputed_pairs` and `rename_plan` for serializer integration.
+- **`gui/workers.py`**: Background `QThread` workers for scan, de-identify, verify, info, and convert operations. `DeidentifyWorker` accepts `precomputed_pairs` and `rename_plan` for serializer integration.
 
 ### Optional Utilities
 
@@ -116,7 +116,7 @@ class ISyntaxHandler(FormatHandler):
         # Scan for PHI, return ScanResult
         ...
 
-    def anonymize(self, filepath):
+    def deidentify(self, filepath):
         # Remove PHI, return list of PHIFinding
         ...
 
@@ -139,7 +139,7 @@ _HANDLERS = [
 ]
 ```
 
-4. Add the format to `WSI_EXTENSIONS` in `anonymizer.py` and `--format` choices in `cli.py`.
+4. Add the format to `WSI_EXTENSIONS` in `deidentifier.py` and `--format` choices in `cli.py`.
 
 5. The GUI will automatically pick up the new format, so no changes are needed there.
 
@@ -185,11 +185,11 @@ Test fixtures in `tests/conftest.py` create synthetic NDPI and SVS files with em
 # Scan test files
 pathsafe scan /path/to/test/slides/ --verbose
 
-# Dry-run anonymization
-pathsafe anonymize /path/to/test/slides/ --output /tmp/test_clean/ --dry-run
+# Dry-run deidentification
+pathsafe deidentify /path/to/test/slides/ --output /tmp/test_clean/ --dry-run
 
 # Full test
-pathsafe anonymize /path/to/test/slides/ --output /tmp/test_clean/ --certificate /tmp/test_cert.json --verbose
+pathsafe deidentify /path/to/test/slides/ --output /tmp/test_clean/ --certificate /tmp/test_cert.json --verbose
 pathsafe verify /tmp/test_clean/ --verbose
 ```
 
@@ -220,7 +220,7 @@ This produces:
 - Type hints on all public functions
 - Dataclasses for structured return values
 - No external dependencies for file parsing (security and portability)
-- Format handlers are self-contained, as each knows how to detect, scan, and anonymize its format
+- Format handlers are self-contained, as each knows how to detect, scan, and de-identify its format
 - Optional dependencies use `try: import ... except ImportError` pattern with graceful fallbacks
 - GUI operations run in background threads (`QThread` for Qt, `threading.Thread` for Tkinter)
 - Parallel batch processing uses `ThreadPoolExecutor` (thread-safe stat updates via locks)

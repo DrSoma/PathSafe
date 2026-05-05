@@ -1,4 +1,4 @@
-"""End-to-end pipeline: classify -> filter -> anonymize -> transfer.
+"""End-to-end pipeline: classify -> filter -> deidentify -> transfer.
 
 Orchestrates the full slide processing workflow with resume support,
 manifest tracking, and compliance certificate generation.
@@ -27,7 +27,7 @@ class PipelineFileEntry:
     """State tracking for a single file in the pipeline."""
 
     source: str
-    status: str = "pending"  # pending | classified | filtered | anonymized | transferred | error
+    status: str = "pending"  # pending | classified | filtered | deidentified | transferred | error
     stain: str | None = None
     stain_category: str | None = None
     output_path: str | None = None
@@ -55,7 +55,7 @@ class PipelineManifest:
 
     def get_pending(self, up_to_status: str = "pending") -> list[str]:
         """Get files that have not yet reached the given status."""
-        status_order = ["pending", "classified", "filtered", "anonymized", "transferred"]
+        status_order = ["pending", "classified", "filtered", "deidentified", "transferred"]
         try:
             target_idx = status_order.index(up_to_status)
         except ValueError:
@@ -76,7 +76,7 @@ class PipelineManifest:
 
     def get_completed(self, status: str) -> list[str]:
         """Get files that have reached or passed the given status."""
-        status_order = ["pending", "classified", "filtered", "anonymized", "transferred"]
+        status_order = ["pending", "classified", "filtered", "deidentified", "transferred"]
         try:
             target_idx = status_order.index(status)
         except ValueError:
@@ -176,7 +176,7 @@ def run_pipeline(
     config: PipelineConfig,
     progress_callback: Callable | None = None,
 ) -> PipelineManifest:
-    """Execute the full pipeline: classify -> filter -> anonymize -> transfer.
+    """Execute the full pipeline: classify -> filter -> deidentify -> transfer.
 
     Args:
         config: Pipeline configuration.
@@ -187,7 +187,7 @@ def run_pipeline(
     """
     from datetime import datetime, timezone
 
-    from pathsafe.anonymizer import anonymize_batch, auto_workers, collect_wsi_files
+    from pathsafe.deidentifier import auto_workers, collect_wsi_files, deidentify_batch
 
     config.output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = config.output_dir / ".pipeline_manifest.json"
@@ -262,12 +262,12 @@ def run_pipeline(
         ]
         manifest.save(manifest_path)
 
-    # Stage 3: Anonymization
+    # Stage 3: Deidentification
     if not config.dry_run:
         config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Skip already-anonymized files (resume support)
-    completed_anon = set(manifest.get_completed("anonymized"))
+    # Skip already-deidentified files (resume support)
+    completed_anon = set(manifest.get_completed("deidentified"))
     files_to_anon = [f for f in files if str(f) not in completed_anon]
 
     if files_to_anon:
@@ -279,13 +279,13 @@ def run_pipeline(
                     entry.status = "error"
                     entry.error = result.error
                 else:
-                    entry.status = "anonymized"
+                    entry.status = "deidentified"
                     entry.output_path = str(result.output_path)
                     entry.sha256 = result.sha256_after
             if progress_callback:
-                progress_callback("anonymize", i, total, filepath, "")
+                progress_callback("deidentify", i, total, filepath, "")
 
-        anonymize_batch(
+        deidentify_batch(
             input_path=config.input_path,
             output_dir=config.output_dir,
             dry_run=config.dry_run,
@@ -303,7 +303,7 @@ def run_pipeline(
             output_files = [
                 Path(e.output_path)
                 for e in manifest.entries.values()
-                if e.status == "anonymized" and e.output_path
+                if e.status == "deidentified" and e.output_path
             ]
 
             if output_files:

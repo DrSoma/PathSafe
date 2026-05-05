@@ -296,7 +296,7 @@ def scan_extra_metadata_tags(
         raw = read_tag_value_bytes(f, entry)
         if not raw or raw == b"\x00" * len(raw):
             continue
-        # Check if already anonymized (all X's + null)
+        # Check if already deidentified (all X's + null)
         stripped = raw.rstrip(b"\x00")
         if stripped and all(b == ord("X") for b in stripped):
             continue

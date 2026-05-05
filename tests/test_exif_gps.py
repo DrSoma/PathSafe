@@ -96,7 +96,7 @@ class TestExifSubIFDScanning:
         assert len(findings) >= 1
         assert any(e.tag_id == 37510 for e, _ in findings)
 
-    def test_already_anonymized_skipped(self):
+    def test_already_deidentified_skipped(self):
         """Zeroed-out EXIF tags are skipped."""
         date_val = b"\x00" * 20
         main = [(256, 3, 1, 1024)]
@@ -255,7 +255,7 @@ class TestGPSScanning:
 
 
 class TestExifGPSPerHandler:
-    """Test that NDPI, SVS, and GenericTIFF handlers scan+anonymize EXIF/GPS sub-IFDs."""
+    """Test that NDPI, SVS, and GenericTIFF handlers scan+deidentify EXIF/GPS sub-IFDs."""
 
     def _write_tiff_with_exif(self, tmp_path, ext, date_val=b"2024:06:15 10:30:00\x00"):
         """Helper: create a TIFF file with an EXIF sub-IFD containing a date."""
@@ -283,10 +283,10 @@ class TestExifGPSPerHandler:
         assert not result.is_clean
         assert any("EXIF" in f.tag_name for f in result.findings)
 
-    def test_ndpi_anonymize_exif(self, tmp_path):
+    def test_ndpi_deidentify_exif(self, tmp_path):
         fp = self._write_tiff_with_exif(tmp_path, ".ndpi")
         handler = NDPIHandler()
-        cleared = handler.anonymize(fp)
+        cleared = handler.deidentify(fp)
         assert any("EXIF" in f.tag_name for f in cleared)
         # Re-scan should be clean (or at least no EXIF findings)
         result = handler.scan(fp)
@@ -299,10 +299,10 @@ class TestExifGPSPerHandler:
         assert not result.is_clean
         assert any("GPS" in f.tag_name for f in result.findings)
 
-    def test_ndpi_anonymize_gps(self, tmp_path):
+    def test_ndpi_deidentify_gps(self, tmp_path):
         fp = self._write_tiff_with_gps(tmp_path, ".ndpi")
         handler = NDPIHandler()
-        cleared = handler.anonymize(fp)
+        cleared = handler.deidentify(fp)
         assert any("GPS" in f.tag_name for f in cleared)
         result = handler.scan(fp)
         assert not any("GPS" in f.tag_name for f in result.findings)
@@ -313,10 +313,10 @@ class TestExifGPSPerHandler:
         result = handler.scan(fp)
         assert any("EXIF" in f.tag_name for f in result.findings)
 
-    def test_svs_anonymize_exif(self, tmp_path):
+    def test_svs_deidentify_exif(self, tmp_path):
         fp = self._write_tiff_with_exif(tmp_path, ".svs")
         handler = SVSHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
         result = handler.scan(fp)
         assert not any("EXIF" in f.tag_name for f in result.findings)
 
@@ -326,10 +326,10 @@ class TestExifGPSPerHandler:
         result = handler.scan(fp)
         assert any("EXIF" in f.tag_name for f in result.findings)
 
-    def test_generic_anonymize_exif(self, tmp_path):
+    def test_generic_deidentify_exif(self, tmp_path):
         fp = self._write_tiff_with_exif(tmp_path, ".tif")
         handler = GenericTIFFHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
         result = handler.scan(fp)
         assert not any("EXIF" in f.tag_name for f in result.findings)
 
@@ -339,9 +339,9 @@ class TestExifGPSPerHandler:
         result = handler.scan(fp)
         assert any("GPS" in f.tag_name for f in result.findings)
 
-    def test_generic_anonymize_gps(self, tmp_path):
+    def test_generic_deidentify_gps(self, tmp_path):
         fp = self._write_tiff_with_gps(tmp_path, ".tif")
         handler = GenericTIFFHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
         result = handler.scan(fp)
         assert not any("GPS" in f.tag_name for f in result.findings)

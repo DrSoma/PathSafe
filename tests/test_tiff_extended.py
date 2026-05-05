@@ -278,7 +278,7 @@ class TestMakerNote:
         assert len(findings) >= 1
         assert any(e.tag_id == 37500 for e, _ in findings)
 
-    def test_makernote_blanked_during_anonymization(self):
+    def test_makernote_blanked_during_deidentification(self):
         """MakerNote is zeroed out by blank_exif_sub_ifd_tags()."""
         maker_data = b"Leica Scanner SN:ABC-999 OpID:admin\x00"
         main = [(256, 3, 1, 1024)]

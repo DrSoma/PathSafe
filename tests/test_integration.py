@@ -1,4 +1,4 @@
-"""Integration tests -- full scan → anonymize → verify → report pipeline.
+"""Integration tests -- full scan → deidentify → verify → report pipeline.
 
 These test the entire flow end-to-end using synthetic temporary files.
 No original WSI images are touched.
@@ -6,7 +6,7 @@ No original WSI images are touched.
 
 import json
 
-from pathsafe.anonymizer import anonymize_batch, anonymize_file, scan_batch
+from pathsafe.deidentifier import deidentify_batch, deidentify_file, scan_batch
 from pathsafe.formats import get_handler
 from pathsafe.report import generate_certificate
 from pathsafe.verify import verify_batch, verify_file
@@ -23,10 +23,10 @@ class TestNDPIPipeline:
         assert len(result.findings) > 0
 
     def test_full_pipeline_copy_mode(self, tmp_ndpi, tmp_path):
-        output = tmp_path / "output" / "anonymized.ndpi"
+        output = tmp_path / "output" / "deidentified.ndpi"
 
-        # 1. Anonymize in copy mode
-        result = anonymize_file(tmp_ndpi, output_path=output, verify=True)
+        # 1. Deidentify in copy mode
+        result = deidentify_file(tmp_ndpi, output_path=output, verify=True)
         assert result.error is None
         assert result.mode == "copy"
         assert result.findings_cleared > 0
@@ -48,8 +48,8 @@ class TestNDPIPipeline:
         assert not scan_result.is_clean
         len(scan_result.findings)
 
-        # 2. Anonymize in-place
-        result = anonymize_file(tmp_ndpi, verify=True)
+        # 2. Deidentify in-place
+        result = deidentify_file(tmp_ndpi, verify=True)
         assert result.error is None
         assert result.mode == "inplace"
         assert result.findings_cleared > 0
@@ -61,7 +61,7 @@ class TestNDPIPipeline:
 
     def test_dry_run_no_modification(self, tmp_ndpi):
         original_bytes = tmp_ndpi.read_bytes()
-        result = anonymize_file(tmp_ndpi, dry_run=True)
+        result = deidentify_file(tmp_ndpi, dry_run=True)
         assert result.findings_cleared > 0
         assert not result.verified
         assert tmp_ndpi.read_bytes() == original_bytes
@@ -73,7 +73,7 @@ class TestSVSPipeline:
     def test_full_pipeline(self, tmp_svs, tmp_path):
         output = tmp_path / "out" / "slide.svs"
 
-        result = anonymize_file(tmp_svs, output_path=output, verify=True)
+        result = deidentify_file(tmp_svs, output_path=output, verify=True)
         assert result.error is None
         assert result.findings_cleared > 0
         assert result.verified
@@ -88,7 +88,7 @@ class TestBIFPipeline:
     def test_full_pipeline(self, tmp_bif, tmp_path):
         output = tmp_path / "out" / "slide.bif"
 
-        result = anonymize_file(tmp_bif, output_path=output, verify=True)
+        result = deidentify_file(tmp_bif, output_path=output, verify=True)
         assert result.error is None
         assert result.findings_cleared > 0
         assert result.verified
@@ -103,7 +103,7 @@ class TestSCNPipeline:
     def test_full_pipeline(self, tmp_scn, tmp_path):
         output = tmp_path / "out" / "slide.scn"
 
-        result = anonymize_file(tmp_scn, output_path=output, verify=True)
+        result = deidentify_file(tmp_scn, output_path=output, verify=True)
         assert result.error is None
         assert result.findings_cleared > 0
         assert result.verified
@@ -118,7 +118,7 @@ class TestMRXSPipeline:
     def test_full_pipeline(self, tmp_mrxs, tmp_path):
         output = tmp_path / "out" / "slide.mrxs"
 
-        result = anonymize_file(tmp_mrxs, output_path=output, verify=True)
+        result = deidentify_file(tmp_mrxs, output_path=output, verify=True)
         assert result.error is None
         assert result.findings_cleared > 0
         assert result.verified
@@ -137,7 +137,7 @@ class TestGenericTIFFPipeline:
     def test_full_pipeline(self, tmp_tiff_with_phi, tmp_path):
         output = tmp_path / "out" / "slide.tif"
 
-        result = anonymize_file(tmp_tiff_with_phi, output_path=output, verify=True)
+        result = deidentify_file(tmp_tiff_with_phi, output_path=output, verify=True)
         assert result.error is None
         assert result.findings_cleared > 0
         assert result.verified
@@ -149,7 +149,7 @@ class TestGenericTIFFPipeline:
 class TestBatchPipeline:
     """Batch pipeline -- multiple files of different formats."""
 
-    def test_batch_scan_and_anonymize(self, tmp_ndpi, tmp_svs, tmp_path):
+    def test_batch_scan_and_deidentify(self, tmp_ndpi, tmp_svs, tmp_path):
         # Set up input directory
         indir = tmp_path / "input"
         indir.mkdir()
@@ -164,11 +164,11 @@ class TestBatchPipeline:
         for _filepath, result in scan_results:
             assert not result.is_clean
 
-        # 2. Batch anonymize
+        # 2. Batch deidentify
         outdir = tmp_path / "output"
-        batch_result = anonymize_batch(indir, output_dir=outdir, verify=True)
+        batch_result = deidentify_batch(indir, output_dir=outdir, verify=True)
         assert batch_result.total_files == 2
-        assert batch_result.files_anonymized == 2
+        assert batch_result.files_deidentified == 2
         assert batch_result.files_errored == 0
 
         # 3. Batch verify
@@ -186,9 +186,9 @@ class TestBatchPipeline:
         shutil.copy2(str(tmp_ndpi_clean), str(indir / "clean.ndpi"))
 
         outdir = tmp_path / "output"
-        batch_result = anonymize_batch(indir, output_dir=outdir, verify=True)
+        batch_result = deidentify_batch(indir, output_dir=outdir, verify=True)
         assert batch_result.total_files == 2
-        assert batch_result.files_anonymized >= 1
+        assert batch_result.files_deidentified >= 1
         assert batch_result.files_errored == 0
 
     def test_batch_format_filter(self, tmp_ndpi, tmp_svs, tmp_path):
@@ -200,7 +200,7 @@ class TestBatchPipeline:
         shutil.copy2(str(tmp_svs), str(indir / "slide.svs"))
 
         outdir = tmp_path / "output"
-        batch_result = anonymize_batch(indir, output_dir=outdir, format_filter="ndpi")
+        batch_result = deidentify_batch(indir, output_dir=outdir, format_filter="ndpi")
         assert batch_result.total_files == 1
 
     def test_batch_progress_callback(self, tmp_ndpi, tmp_path):
@@ -216,7 +216,7 @@ class TestBatchPipeline:
             progress.append((i, total, filepath.name))
 
         outdir = tmp_path / "output"
-        anonymize_batch(indir, output_dir=outdir, progress_callback=cb)
+        deidentify_batch(indir, output_dir=outdir, progress_callback=cb)
         assert len(progress) == 1
         assert progress[0][0] == 1
         assert progress[0][1] == 1
@@ -225,9 +225,9 @@ class TestBatchPipeline:
 class TestCertificatePipeline:
     """Certificate generation after full pipeline."""
 
-    def test_certificate_after_anonymize(self, tmp_ndpi, tmp_path):
+    def test_certificate_after_deidentify(self, tmp_ndpi, tmp_path):
         outdir = tmp_path / "output"
-        batch_result = anonymize_batch(
+        batch_result = deidentify_batch(
             tmp_ndpi,
             output_dir=outdir,
             verify=True,
@@ -242,7 +242,7 @@ class TestCertificatePipeline:
         assert cert_path.exists()
         data = json.loads(cert_path.read_text())
         assert data["summary"]["total_files"] == 1
-        assert data["summary"]["anonymized"] == 1
+        assert data["summary"]["deidentified"] == 1
         assert data["summary"]["verified"] is True
         assert len(data["files"]) == 1
 
@@ -254,12 +254,12 @@ class TestCertificatePipeline:
         # Measures should include all applied ones
         measure_names = [m["measure"] for m in data["measures"]]
         assert "Metadata tags cleared" in measure_names
-        assert "Post-anonymization verification" in measure_names
+        assert "Post-deidentification verification" in measure_names
         assert "Filesystem timestamps reset" in measure_names
 
     def test_certificate_with_integrity(self, tmp_tiff_with_strips, tmp_path):
         outdir = tmp_path / "output"
-        batch_result = anonymize_batch(
+        batch_result = deidentify_batch(
             tmp_tiff_with_strips, output_dir=outdir, verify=True, verify_integrity=True
         )
 
@@ -276,7 +276,7 @@ class TestIntegrityPipeline:
     def test_integrity_verified_on_tiff(self, tmp_tiff_with_strips, tmp_path):
         output = tmp_path / "output" / "strips.tif"
 
-        result = anonymize_file(
+        result = deidentify_file(
             tmp_tiff_with_strips, output_path=output, verify=True, verify_integrity=True
         )
 
@@ -287,7 +287,7 @@ class TestIntegrityPipeline:
     def test_integrity_not_checked_when_disabled(self, tmp_ndpi, tmp_path):
         output = tmp_path / "output" / "slide.ndpi"
 
-        result = anonymize_file(tmp_ndpi, output_path=output, verify=True, verify_integrity=False)
+        result = deidentify_file(tmp_ndpi, output_path=output, verify=True, verify_integrity=False)
 
         assert result.image_integrity_verified is None
 
@@ -298,14 +298,14 @@ class TestFilenamePhiPipeline:
     def test_filename_phi_detected(self, tmp_ndpi_phi_filename, tmp_path):
         output = tmp_path / "output" / "AS-24-999999.ndpi"
 
-        result = anonymize_file(tmp_ndpi_phi_filename, output_path=output, verify=True)
+        result = deidentify_file(tmp_ndpi_phi_filename, output_path=output, verify=True)
 
         assert result.filename_has_phi is True
 
     def test_clean_filename_no_phi(self, tmp_ndpi, tmp_path):
         output = tmp_path / "output" / "safe_name.ndpi"
 
-        result = anonymize_file(tmp_ndpi, output_path=output, verify=True)
+        result = deidentify_file(tmp_ndpi, output_path=output, verify=True)
 
         assert result.filename_has_phi is False
 
@@ -317,7 +317,7 @@ class TestTimestampPipeline:
         output = tmp_path / "output" / "slide.ndpi"
         import os
 
-        result = anonymize_file(tmp_ndpi, output_path=output, reset_timestamps=True)
+        result = deidentify_file(tmp_ndpi, output_path=output, reset_timestamps=True)
 
         assert result.error is None
         stat = os.stat(output)
@@ -328,7 +328,7 @@ class TestTimestampPipeline:
         output = tmp_path / "output" / "slide.ndpi"
         import os
 
-        anonymize_file(tmp_ndpi, output_path=output, reset_timestamps=False)
+        deidentify_file(tmp_ndpi, output_path=output, reset_timestamps=False)
 
         stat = os.stat(output)
         assert stat.st_mtime > 0

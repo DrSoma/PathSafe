@@ -775,7 +775,7 @@ def classify_batch(
             result: StainClassification) -> None``.
         use_filenames: If True, use filenames as dict keys instead of
             SHA-256 hashes.  Only appropriate when files have already
-            been anonymized.
+            been deidentified.
 
     Returns:
         Dict mapping identifier (hash or filename) to
@@ -783,7 +783,7 @@ def classify_batch(
     """
     import os
 
-    from pathsafe.anonymizer import FORMAT_EXT_MAP, WSI_EXTENSIONS
+    from pathsafe.deidentifier import FORMAT_EXT_MAP, WSI_EXTENSIONS
 
     slides_dir = Path(slides_dir)
     if not slides_dir.is_dir():

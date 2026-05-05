@@ -66,24 +66,24 @@ class TestBIFScan:
         assert result.error is not None
 
 
-class TestBIFAnonymize:
-    def test_anonymize_xmp(self, handler, tmp_bif):
+class TestBIFDeidentify:
+    def test_deidentify_xmp(self, handler, tmp_bif):
         result = handler.scan(tmp_bif)
         assert not result.is_clean
 
-        cleared = handler.anonymize(tmp_bif)
+        cleared = handler.deidentify(tmp_bif)
         assert len(cleared) > 0
 
         result = handler.scan(tmp_bif)
         assert result.is_clean
 
-    def test_anonymize_already_clean(self, handler, tmp_bif_clean):
-        cleared = handler.anonymize(tmp_bif_clean)
+    def test_deidentify_already_clean(self, handler, tmp_bif_clean):
+        cleared = handler.deidentify(tmp_bif_clean)
         assert len(cleared) == 0
 
     def test_idempotent(self, handler, tmp_bif):
-        cleared1 = handler.anonymize(tmp_bif)
-        cleared2 = handler.anonymize(tmp_bif)
+        cleared1 = handler.deidentify(tmp_bif)
+        cleared2 = handler.deidentify(tmp_bif)
         assert len(cleared1) > 0
         assert len(cleared2) == 0
 

@@ -1,6 +1,6 @@
 """Leica SCN format handler.
 
-Handles PHI detection and anonymization for SCN (BigTIFF) files, including:
+Handles PHI detection and deidentification for SCN (BigTIFF) files, including:
 - ImageDescription tag (270): XML metadata in Leica namespace containing
   barcode, creationDate, device info
 - Standard TIFF tags: DateTime (306), Software (305), etc.
@@ -121,14 +121,14 @@ class SCNHandler(TiffFormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in an SCN file in-place."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in an SCN file in-place."""
         cleared: list[PHIFinding] = []
-        cleared += self._anonymize_xml_metadata(filepath)
-        cleared += self._anonymize_datetime_tags(filepath)
-        cleared += self._anonymize_extra_metadata(filepath)
+        cleared += self._deidentify_xml_metadata(filepath)
+        cleared += self._deidentify_datetime_tags(filepath)
+        cleared += self._deidentify_extra_metadata(filepath)
         cleared += self._blank_label_macro(filepath)
-        cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
+        cleared += self._deidentify_regex(filepath, {f.offset for f in cleared})
         return cleared
 
     def get_format_info(self, filepath: Path) -> dict[str, Any]:
@@ -175,7 +175,7 @@ class SCNHandler(TiffFormatHandler):
                             # Match <element>value</element> pattern
                             for m in _SCN_ELEM_SCAN_PATTERNS[elem_name].finditer(xml_text):
                                 val = m.group(1).strip()
-                                if val and not _is_scn_anonymized(val):
+                                if val and not _is_scn_deidentified(val):
                                     findings.append(
                                         PHIFinding(
                                             offset=entry.value_offset,
@@ -194,7 +194,7 @@ class SCNHandler(TiffFormatHandler):
                                 if prefix.rfind("<?") > prefix.rfind("?>"):
                                     continue
                                 val = m.group(1).strip()
-                                if val and not _is_scn_anonymized(val):
+                                if val and not _is_scn_deidentified(val):
                                     findings.append(
                                         PHIFinding(
                                             offset=entry.value_offset,
@@ -208,8 +208,8 @@ class SCNHandler(TiffFormatHandler):
                         break  # Only one tag 270 per IFD
         return findings
 
-    def _anonymize_xml_metadata(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in ImageDescription XML across all IFDs."""
+    def _deidentify_xml_metadata(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in ImageDescription XML across all IFDs."""
         cleared = []
         seen = set()
         with open(filepath, "r+b") as f:
@@ -232,7 +232,7 @@ class SCNHandler(TiffFormatHandler):
                             # Replace element content
                             def _replace_elem(m: re.Match[str]) -> str:
                                 val = m.group(2)
-                                if val.strip() and not _is_scn_anonymized(val.strip()):
+                                if val.strip() and not _is_scn_deidentified(val.strip()):
                                     return m.group(1) + "X" * len(val) + m.group(3)
                                 return m.group(0)
 
@@ -248,7 +248,7 @@ class SCNHandler(TiffFormatHandler):
                                         length=entry.total_size,
                                         tag_id=270,
                                         tag_name=f"SCN:XML:{elem_name}",
-                                        value_preview=f"{elem_name} anonymized",
+                                        value_preview=f"{elem_name} deidentified",
                                         source="tiff_tag",
                                     )
                                 )
@@ -260,7 +260,7 @@ class SCNHandler(TiffFormatHandler):
                                 if prefix.rfind("<?") > prefix.rfind("?>"):
                                     return m.group(0)
                                 val = m.group(2)
-                                if val and not _is_scn_anonymized(val):
+                                if val and not _is_scn_deidentified(val):
                                     return m.group(1) + "X" * len(val) + m.group(3)
                                 return m.group(0)
 
@@ -283,8 +283,8 @@ class SCNHandler(TiffFormatHandler):
         return cleared
 
 
-def _is_scn_anonymized(value: str) -> bool:
-    """Check if an SCN XML value has already been anonymized."""
+def _is_scn_deidentified(value: str) -> bool:
+    """Check if an SCN XML value has already been deidentified."""
     if not value:
         return True
     return bool(all(c == "X" for c in value))

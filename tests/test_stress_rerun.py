@@ -1,4 +1,4 @@
-"""Stress tests -- mixed-state re-anonymization, double-anonymize, legacy detection."""
+"""Stress tests -- mixed-state re-deidentification, double-deidentify, legacy detection."""
 
 from pathsafe.formats.bif import BIFHandler
 from pathsafe.formats.ndpi import NDPIHandler
@@ -108,15 +108,15 @@ def _make_scn(tmp_path, name, xml=None):
 # ---------------------------------------------------------------------------
 
 
-class TestMixedAnonymizationState:
-    """Test files where some tags are already anonymized and others aren't."""
+class TestMixedDeidentificationState:
+    """Test files where some tags are already deidentified and others aren't."""
 
     def test_ndpi_partial_tags(self, tmp_path):
         """NDPI with barcode X'd but reference still has PHI."""
         filepath = _make_ndpi(
             tmp_path,
             "partial.ndpi",
-            barcode=b"XXXXXXXXXXXX\x00",  # Already anonymized
+            barcode=b"XXXXXXXXXXXX\x00",  # Already deidentified
             reference=b"REF-001\x00",  # Still has PHI
         )
         handler = NDPIHandler()
@@ -125,21 +125,21 @@ class TestMixedAnonymizationState:
         tag_names = {f.tag_name for f in scan.findings}
         assert "NDPI_REFERENCE" in tag_names
 
-        cleared = handler.anonymize(filepath)
+        cleared = handler.deidentify(filepath)
         ref_cleared = [f for f in cleared if f.tag_name == "NDPI_REFERENCE"]
         assert len(ref_cleared) > 0
         barcode_cleared = [f for f in cleared if f.tag_name == "NDPI_BARCODE"]
         assert len(barcode_cleared) == 0
 
-    def test_ndpi_date_anonymized_phi_present(self, tmp_path):
+    def test_ndpi_date_deidentified_phi_present(self, tmp_path):
         """NDPI with date zeroed but barcode still has PHI."""
         filepath = _make_ndpi(
             tmp_path,
             "date_anon.ndpi",
-            datetime_val=b"\x00" * 20,  # Already anonymized
+            datetime_val=b"\x00" * 20,  # Already deidentified
         )
         handler = NDPIHandler()
-        cleared = handler.anonymize(filepath)
+        cleared = handler.deidentify(filepath)
         # Should clear barcode and reference, but NOT DateTime
         date_cleared = [f for f in cleared if f.tag_name == "DateTime"]
         assert len(date_cleared) == 0
@@ -166,21 +166,21 @@ class TestMixedAnonymizationState:
         filepath.write_bytes(content)
 
         handler = NDPIHandler()
-        cleared = handler.anonymize(filepath)
+        cleared = handler.deidentify(filepath)
         # Should clear barcode from IFD0 only
         barcode_cleared = [f for f in cleared if f.tag_name == "NDPI_BARCODE"]
         assert len(barcode_cleared) >= 1
 
 
-class TestDoubleAnonymization:
-    """Test that anonymizing twice is a no-op for all TIFF-based formats."""
+class TestDoubleDeidentification:
+    """Test that deidentifying twice is a no-op for all TIFF-based formats."""
 
     def test_ndpi_double(self, tmp_path):
         filepath = _make_ndpi(tmp_path, "double.ndpi")
         handler = NDPIHandler()
-        cleared1 = handler.anonymize(filepath)
+        cleared1 = handler.deidentify(filepath)
         assert len(cleared1) > 0
-        cleared2 = handler.anonymize(filepath)
+        cleared2 = handler.deidentify(filepath)
         assert len(cleared2) == 0
 
         scan = handler.scan(filepath)
@@ -189,9 +189,9 @@ class TestDoubleAnonymization:
     def test_svs_double(self, tmp_path):
         filepath = _make_svs(tmp_path, "double.svs")
         handler = SVSHandler()
-        cleared1 = handler.anonymize(filepath)
+        cleared1 = handler.deidentify(filepath)
         assert len(cleared1) > 0
-        cleared2 = handler.anonymize(filepath)
+        cleared2 = handler.deidentify(filepath)
         assert len(cleared2) == 0
 
         scan = handler.scan(filepath)
@@ -200,9 +200,9 @@ class TestDoubleAnonymization:
     def test_bif_double(self, tmp_path):
         filepath = _make_bif(tmp_path, "double.bif")
         handler = BIFHandler()
-        cleared1 = handler.anonymize(filepath)
+        cleared1 = handler.deidentify(filepath)
         assert len(cleared1) > 0
-        cleared2 = handler.anonymize(filepath)
+        cleared2 = handler.deidentify(filepath)
         assert len(cleared2) == 0
 
         scan = handler.scan(filepath)
@@ -211,9 +211,9 @@ class TestDoubleAnonymization:
     def test_scn_double(self, tmp_path):
         filepath = _make_scn(tmp_path, "double.scn")
         handler = SCNHandler()
-        cleared1 = handler.anonymize(filepath)
+        cleared1 = handler.deidentify(filepath)
         assert len(cleared1) > 0
-        cleared2 = handler.anonymize(filepath)
+        cleared2 = handler.deidentify(filepath)
         assert len(cleared2) == 0
 
         scan = handler.scan(filepath)
@@ -221,7 +221,7 @@ class TestDoubleAnonymization:
 
 
 class TestRerunWithLegacyBlanking:
-    """Test re-anonymization with legacy-style blanked labels."""
+    """Test re-deidentification with legacy-style blanked labels."""
 
     def test_legacy_soi_eoi_detected(self, tmp_path):
         """Legacy 4-byte SOI+EOI blanking is detected by is_ifd_image_blanked."""
@@ -270,11 +270,11 @@ class TestPartiallyCorruptFile:
             assert not scan.is_clean
 
 
-class TestSVSWithPartialAnonymization:
-    """Test SVS with some fields anonymized and others not."""
+class TestSVSWithPartialDeidentification:
+    """Test SVS with some fields deidentified and others not."""
 
     def test_date_anon_but_scanscope_present(self, tmp_path):
-        """Date anonymized but ScanScope ID present → only ID cleared."""
+        """Date deidentified but ScanScope ID present → only ID cleared."""
         desc = (
             b"Aperio Image Library v12.0.16\n"
             b"1024x768 [0,0 1024x768] (256x256) JPEG Q=70"
@@ -288,7 +288,7 @@ class TestSVSWithPartialAnonymization:
         )
         filepath = _make_svs(tmp_path, "partial_svs.svs", desc=desc)
         handler = SVSHandler()
-        cleared = handler.anonymize(filepath)
+        cleared = handler.deidentify(filepath)
         # Only ScanScope ID should be cleared (Date/Time/Filename/User already anon)
         tag_names = [f.tag_name for f in cleared]
         assert any("ScanScope ID" in t for t in tag_names)

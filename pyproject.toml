@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pathsafe"
-description = "Production-tested WSI anonymizer for pathology slide files"
+description = "WSI de-identifier for pathology slide files"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ dynamic = ["version"]
 authors = [
     {name = "PathSafe Contributors"},
 ]
-keywords = ["pathology", "anonymization", "NDPI", "SVS", "TIFF", "WSI", "PHI", "HIPAA"]
+keywords = ["pathology", "deidentification", "NDPI", "SVS", "TIFF", "WSI", "PHI", "HIPAA"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Healthcare Industry",

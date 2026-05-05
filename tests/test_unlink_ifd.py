@@ -216,7 +216,7 @@ class TestUnlinkBigTIFF:
 
 
 # ---------------------------------------------------------------------------
-# Handler integration tests -- label/macro IFDs unlinked after anonymize
+# Handler integration tests -- label/macro IFDs unlinked after deidentify
 # ---------------------------------------------------------------------------
 
 
@@ -248,7 +248,7 @@ class TestNDPIUnlinksLabelMacro:
         fp.write_bytes(content)
         return fp
 
-    def test_label_ifd_unlinked_after_anonymize(self, tmp_path):
+    def test_label_ifd_unlinked_after_deidentify(self, tmp_path):
         fp = self._build_ndpi_with_label(tmp_path)
 
         # Before: 2 IFDs
@@ -260,7 +260,7 @@ class TestNDPIUnlinksLabelMacro:
         from pathsafe.formats.ndpi import NDPIHandler
 
         handler = NDPIHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
 
         # After: label IFD should be unlinked
         with open(fp, "rb") as f:
@@ -294,7 +294,7 @@ class TestSVSUnlinksLabelMacro:
         fp.write_bytes(content)
         return fp
 
-    def test_label_ifd_unlinked_after_anonymize(self, tmp_path):
+    def test_label_ifd_unlinked_after_deidentify(self, tmp_path):
         fp = self._build_svs_with_label(tmp_path)
 
         with open(fp, "rb") as f:
@@ -304,7 +304,7 @@ class TestSVSUnlinksLabelMacro:
         from pathsafe.formats.svs import SVSHandler
 
         handler = SVSHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
 
         with open(fp, "rb") as f:
             header = read_header(f)
@@ -335,7 +335,7 @@ class TestBIFUnlinksLabelMacro:
         fp.write_bytes(content)
         return fp
 
-    def test_label_ifd_unlinked_after_anonymize(self, tmp_path):
+    def test_label_ifd_unlinked_after_deidentify(self, tmp_path):
         fp = self._build_bif_with_label(tmp_path)
 
         with open(fp, "rb") as f:
@@ -345,7 +345,7 @@ class TestBIFUnlinksLabelMacro:
         from pathsafe.formats.bif import BIFHandler
 
         handler = BIFHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
 
         with open(fp, "rb") as f:
             header = read_header(f)
@@ -376,7 +376,7 @@ class TestSCNUnlinksLabelMacro:
         fp.write_bytes(content)
         return fp
 
-    def test_label_ifd_unlinked_after_anonymize(self, tmp_path):
+    def test_label_ifd_unlinked_after_deidentify(self, tmp_path):
         fp = self._build_scn_with_label(tmp_path)
 
         with open(fp, "rb") as f:
@@ -386,7 +386,7 @@ class TestSCNUnlinksLabelMacro:
         from pathsafe.formats.scn import SCNHandler
 
         handler = SCNHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
 
         with open(fp, "rb") as f:
             header = read_header(f)
@@ -395,10 +395,10 @@ class TestSCNUnlinksLabelMacro:
 
 
 class TestRerunUnlinksOldBlanked:
-    """Re-running anonymize on an old (blanked-but-not-unlinked) file unlinks the IFD."""
+    """Re-running deidentify on an old (blanked-but-not-unlinked) file unlinks the IFD."""
 
     def test_rerun_unlinks(self, tmp_path):
-        """Simulate old-style blanking (no unlink), then re-anonymize to unlink."""
+        """Simulate old-style blanking (no unlink), then re-deidentify to unlink."""
         desc_label = b"label 128x96\x00"
         strip_data = b"\xff\xd8\xff\xe0" + b"\xab" * 500
 
@@ -433,11 +433,11 @@ class TestRerunUnlinksOldBlanked:
             _, label_entries = ifds[1]
             assert is_ifd_image_blanked(f, header, label_entries)
 
-        # Re-anonymize -- should unlink the already-blanked label
+        # Re-deidentify -- should unlink the already-blanked label
         from pathsafe.formats.svs import SVSHandler
 
         handler = SVSHandler()
-        handler.anonymize(fp)
+        handler.deidentify(fp)
 
         # Now only 1 IFD should be visible
         with open(fp, "rb") as f:
@@ -447,7 +447,7 @@ class TestRerunUnlinksOldBlanked:
 
 
 class TestScanAfterUnlink:
-    """After anonymize+unlink, scan reports clean (no label findings)."""
+    """After deidentify+unlink, scan reports clean (no label findings)."""
 
     def test_scan_clean_after_unlink(self, tmp_path):
         desc_label = b"label 128x96\x00"
@@ -476,8 +476,8 @@ class TestScanAfterUnlink:
         label_findings = [f for f in result.findings if f.tag_name == "LabelImage"]
         assert len(label_findings) > 0
 
-        # Anonymize (blanks + unlinks)
-        handler.anonymize(fp)
+        # Deidentify (blanks + unlinks)
+        handler.deidentify(fp)
 
         # After: scan should find no label
         result = handler.scan(fp)

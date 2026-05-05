@@ -1,6 +1,6 @@
 """Hamamatsu NDPI format handler.
 
-Handles PHI detection and anonymization for NDPI files, including:
+Handles PHI detection and deidentification for NDPI files, including:
 - Tag 65468 (NDPI_BARCODE): accession numbers
 - Tag 65427 (NDPI_REFERENCE): reference strings
 - Tag 65442 (NDPI_SERIAL_NUMBER): scanner serial number
@@ -35,7 +35,7 @@ from pathsafe.formats.tiff_base import TiffFormatHandler  # noqa: E402
 from pathsafe.models import PHIFinding, ScanResult  # noqa: E402
 from pathsafe.scanner import (  # noqa: E402
     DEFAULT_SCAN_SIZE,
-    is_date_anonymized,
+    is_date_deidentified,
     scan_bytes_for_phi,
 )
 from pathsafe.tiff import (  # noqa: E402
@@ -187,26 +187,26 @@ class NDPIHandler(TiffFormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in an NDPI file in-place."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in an NDPI file in-place."""
         cleared: list[PHIFinding] = []
 
         try:
-            cleared += self._anonymize_tags(filepath)
+            cleared += self._deidentify_tags(filepath)
         except Exception as e:
-            logger.warning("Tag anonymization failed for %s, using fallback: %s", filepath, e)
-            # Fallback for corrupt TIFF structure -- regex-based anonymization
-            cleared += self._anonymize_fallback(filepath)
+            logger.warning("Tag deidentification failed for %s, using fallback: %s", filepath, e)
+            # Fallback for corrupt TIFF structure -- regex-based deidentification
+            cleared += self._deidentify_fallback(filepath)
 
         # Label/macro blanking must always be attempted, even if tag
-        # anonymization failed above -- labels contain photographed PHI
+        # deidentification failed above -- labels contain photographed PHI
         try:
             cleared += self._blank_label_macro(filepath)
         except Exception as e:
             logger.error("Label/macro blanking failed for %s: %s", filepath, e)
 
-        cleared += self._anonymize_companion_files(filepath)
-        cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
+        cleared += self._deidentify_companion_files(filepath)
+        cleared += self._deidentify_regex(filepath, {f.offset for f in cleared})
         return cleared
 
     def get_format_info(self, filepath: Path) -> dict[str, Any]:
@@ -290,7 +290,7 @@ class NDPIHandler(TiffFormatHandler):
                     elif entry.tag_id in DATE_TAGS:
                         seen_offsets.add(entry.value_offset)
                         value = read_tag_string(f, entry)
-                        if value and not is_date_anonymized(value):
+                        if value and not is_date_deidentified(value):
                             findings.append(
                                 PHIFinding(
                                     offset=entry.value_offset,
@@ -496,8 +496,8 @@ class NDPIHandler(TiffFormatHandler):
                         break
         return cleared
 
-    def _anonymize_tags(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize TIFF tags containing PHI across ALL IFDs.
+    def _deidentify_tags(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify TIFF tags containing PHI across ALL IFDs.
 
         Uses seen_offsets dedup to avoid double-writing shared tag data.
         """
@@ -535,7 +535,7 @@ class NDPIHandler(TiffFormatHandler):
                         seen_offsets.add(entry.value_offset)
                         current = read_tag_value_bytes(f, entry)
                         value = current.rstrip(b"\x00").decode("ascii", errors="replace")
-                        if is_date_anonymized(value):
+                        if is_date_deidentified(value):
                             continue
                         f.seek(entry.value_offset)
                         f.write(b"\x00" * entry.total_size)
@@ -551,7 +551,7 @@ class NDPIHandler(TiffFormatHandler):
                         )
                     elif entry.tag_id == NDPI_SCANNER_PROPS_TAG:
                         seen_offsets.add(entry.value_offset)
-                        cleared += self._anonymize_scanner_props(f, entry)
+                        cleared += self._deidentify_scanner_props(f, entry)
 
                 # Blank extra metadata tags (XMP, EXIF UserComment, Artist, etc.)
                 for entry, value in scan_extra_metadata_tags(f, header, entries):
@@ -604,11 +604,11 @@ class NDPIHandler(TiffFormatHandler):
                                 )
 
                 # Blank EXIF / GPS sub-IFD tags (delegated to base class)
-                cleared.extend(self._anonymize_exif_gps_entries(f, header, entries, seen_offsets))
+                cleared.extend(self._deidentify_exif_gps_entries(f, header, entries, seen_offsets))
         return cleared
 
-    def _anonymize_scanner_props(self, f: BinaryIO, entry: IFDEntry) -> list[PHIFinding]:
-        """Anonymize PHI keys in NDPI_SCANNER_PROPS (tag 65449)."""
+    def _deidentify_scanner_props(self, f: BinaryIO, entry: IFDEntry) -> list[PHIFinding]:
+        """Deidentify PHI keys in NDPI_SCANNER_PROPS (tag 65449)."""
         cleared = []
         raw = read_tag_value_bytes(f, entry)
         value = raw.rstrip(b"\x00").decode("ascii", errors="replace")
@@ -656,8 +656,8 @@ class NDPIHandler(TiffFormatHandler):
             f.write(new_bytes)
         return cleared
 
-    def _anonymize_fallback(self, filepath: Path) -> list[PHIFinding]:
-        """Fallback anonymization for corrupt TIFF files."""
+    def _deidentify_fallback(self, filepath: Path) -> list[PHIFinding]:
+        """Fallback deidentification for corrupt TIFF files."""
         with open(filepath, "rb") as f:
             data = f.read(DEFAULT_SCAN_SIZE)
 
@@ -705,7 +705,7 @@ class NDPIHandler(TiffFormatHandler):
             )
         return findings
 
-    def _anonymize_companion_files(self, filepath: Path) -> list[PHIFinding]:
+    def _deidentify_companion_files(self, filepath: Path) -> list[PHIFinding]:
         """Delete companion files that contain PHI."""
         cleared = []
         for companion in _find_companion_files(filepath):

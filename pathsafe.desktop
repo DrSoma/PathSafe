@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=PathSafe
-Comment=Hospital-grade WSI anonymizer
+Comment=Hospital-grade WSI deidentifier
 Exec=pathsafe-gui %f
 Icon=pathsafe
 Terminal=false

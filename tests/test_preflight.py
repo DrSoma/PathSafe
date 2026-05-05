@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pathsafe.anonymizer import preflight_check
+from pathsafe.deidentifier import preflight_check
 
 
 class TestPreflightCheck:

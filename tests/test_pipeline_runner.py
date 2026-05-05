@@ -55,7 +55,7 @@ class TestPipelineManifest:
     def test_save_and_load(self, tmp_path):
         manifest = PipelineManifest(created="2024-01-01T00:00:00Z")
         entry = manifest.add_file(Path("/data/slide_001.ndpi"))
-        entry.status = "anonymized"
+        entry.status = "deidentified"
         entry.output_path = "/output/ANON_0001.ndpi"
         entry.sha256 = "abc123"
 
@@ -65,7 +65,7 @@ class TestPipelineManifest:
         loaded = PipelineManifest.load(manifest_path)
         assert len(loaded.entries) == 1
         loaded_entry = loaded.entries["/data/slide_001.ndpi"]
-        assert loaded_entry.status == "anonymized"
+        assert loaded_entry.status == "deidentified"
         assert loaded_entry.output_path == "/output/ANON_0001.ndpi"
         assert loaded_entry.sha256 == "abc123"
 
@@ -121,7 +121,7 @@ class TestResumeLogic:
         manifest = PipelineManifest()
         manifest.add_file(Path("/data/a.ndpi")).status = "classified"
         manifest.add_file(Path("/data/b.ndpi"))  # still pending
-        manifest.add_file(Path("/data/c.ndpi")).status = "anonymized"
+        manifest.add_file(Path("/data/c.ndpi")).status = "deidentified"
 
         pending = manifest.get_pending("classified")
         assert len(pending) == 1
@@ -136,41 +136,41 @@ class TestResumeLogic:
         assert len(pending) == 1
         assert "/data/b.ndpi" in pending
 
-    def test_get_pending_anonymized(self):
+    def test_get_pending_deidentified(self):
         manifest = PipelineManifest()
         manifest.add_file(Path("/data/a.ndpi")).status = "classified"
-        manifest.add_file(Path("/data/b.ndpi")).status = "anonymized"
+        manifest.add_file(Path("/data/b.ndpi")).status = "deidentified"
         manifest.add_file(Path("/data/c.ndpi"))  # pending
 
-        pending = manifest.get_pending("anonymized")
-        # a (classified) and c (pending) are both before anonymized
+        pending = manifest.get_pending("deidentified")
+        # a (classified) and c (pending) are both before deidentified
         assert len(pending) == 2
         assert "/data/a.ndpi" in pending
         assert "/data/c.ndpi" in pending
 
     def test_get_completed(self):
         manifest = PipelineManifest()
-        manifest.add_file(Path("/data/a.ndpi")).status = "anonymized"
+        manifest.add_file(Path("/data/a.ndpi")).status = "deidentified"
         manifest.add_file(Path("/data/b.ndpi")).status = "transferred"
         manifest.add_file(Path("/data/c.ndpi"))  # pending
 
-        completed = manifest.get_completed("anonymized")
+        completed = manifest.get_completed("deidentified")
         assert len(completed) == 2
         assert "/data/a.ndpi" in completed
         assert "/data/b.ndpi" in completed
 
     def test_get_completed_skips_errors(self):
         manifest = PipelineManifest()
-        manifest.add_file(Path("/data/a.ndpi")).status = "anonymized"
+        manifest.add_file(Path("/data/a.ndpi")).status = "deidentified"
         manifest.add_file(Path("/data/b.ndpi")).status = "error"
 
-        completed = manifest.get_completed("anonymized")
+        completed = manifest.get_completed("deidentified")
         assert len(completed) == 1
 
     def test_resume_from_saved_manifest(self, tmp_path):
         """Simulate a resume: save manifest with partial progress, load, and check."""
         manifest = PipelineManifest(created="2024-01-01T00:00:00Z")
-        manifest.add_file(Path("/data/a.ndpi")).status = "anonymized"
+        manifest.add_file(Path("/data/a.ndpi")).status = "deidentified"
         manifest.add_file(Path("/data/b.ndpi")).status = "classified"
         manifest.add_file(Path("/data/c.ndpi"))  # pending
 
@@ -179,7 +179,7 @@ class TestResumeLogic:
 
         # Simulate resume
         resumed = PipelineManifest.load(path)
-        pending_anon = resumed.get_pending("anonymized")
+        pending_anon = resumed.get_pending("deidentified")
         assert "/data/b.ndpi" in pending_anon
         assert "/data/c.ndpi" in pending_anon
         assert "/data/a.ndpi" not in pending_anon
@@ -220,8 +220,8 @@ class TestFilterIntegration:
         manifest.add_file(Path("/data/a.ndpi")).status = "filtered"
         manifest.add_file(Path("/data/b.ndpi")).status = "classified"
 
-        # Filtered files should not appear in pending for anonymization
-        pending = manifest.get_pending("anonymized")
+        # Filtered files should not appear in pending for deidentification
+        pending = manifest.get_pending("deidentified")
         # "filtered" is not a status in the normal progression
         # so "a" won't appear because status "filtered" isn't in the order list
         # and get_pending treats unknown statuses as pending

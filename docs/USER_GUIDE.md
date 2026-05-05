@@ -1,6 +1,6 @@
 # PathSafe User Guide
 
-Step-by-step instructions for hospital staff to anonymize pathology slide files.
+Step-by-step instructions for hospital staff to de-identify pathology slide files.
 
 ## Overview
 
@@ -42,7 +42,7 @@ You should see `pathsafe, version 1.1.0`.
 
 ## Step 1: Check Your Files First (Scan)
 
-Before anonymizing, scan your files to see what PHI is present.
+Before de-identifying, scan your files to see what PHI is present.
 
 ```bash
 pathsafe scan /path/to/your/slides/ --verbose
@@ -60,18 +60,18 @@ Scanning 500 file(s)...
 Summary: 500 files scanned, 0 clean, 500 with PHI (500 total findings)
 ```
 
-## Step 2: Anonymize (Copy Mode Recommended)
+## Step 2: De-identify (Copy Mode Recommended)
 
-Copy mode creates anonymized copies in a new directory. Your originals are untouched.
+Copy mode creates de-identified copies in a new directory. Your originals are untouched.
 
 ```bash
-pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/slides/ --certificate /path/to/clean/certificate.json --verbose
+pathsafe deidentify /path/to/your/slides/ --output /path/to/clean/slides/ --certificate /path/to/clean/certificate.json --verbose
 ```
 
 You'll see progress:
 
 ```
-PathSafe v1.1.0 - copy anonymization
+PathSafe v1.1.0 - copy deidentification
 Processing 500 file(s)...
 
   [1/500] 2.5/s ETA 3m | slide001.ndpi | cleared 1 finding(s) [verified]
@@ -80,27 +80,27 @@ Processing 500 file(s)...
 
 Done in 195.3s
   Total:         500
-  Anonymized:    498
+  Deidentified:    498
   Already clean: 2
   Errors:        0
 
 Compliance certificate: /path/to/clean/certificate.json
 ```
 
-### In-Place Anonymization
+### In-Place De-identification
 
 If you don't need to keep originals (e.g., you have backups):
 
 ```bash
-pathsafe anonymize /path/to/your/slides/ --in-place --verbose
+pathsafe deidentify /path/to/your/slides/ --in-place --verbose
 ```
 
 ### Dry Run
 
-Preview what would be anonymized without making changes:
+Preview what would be de-identified without making changes:
 
 ```bash
-pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/ --dry-run
+pathsafe deidentify /path/to/your/slides/ --output /path/to/clean/ --dry-run
 ```
 
 ### Parallel Processing
@@ -110,21 +110,21 @@ PathSafe automatically selects the optimal number of worker threads based on you
 You can override this if needed:
 
 ```bash
-pathsafe anonymize /path/to/your/slides/ --output /path/to/clean/ --workers 4
+pathsafe deidentify /path/to/your/slides/ --output /path/to/clean/ --workers 4
 ```
 
 When `--workers` is omitted (or set to 0), auto-detection is used.
 
 ### Renaming Output Files
 
-PathSafe can rename output files during anonymization to remove PHI from filenames. Three rename modes are available:
+PathSafe can rename output files during de-identification to remove PHI from filenames. Three rename modes are available:
 
 #### Auto Mode (Sequential Numbering)
 
 Assigns sequential numbers to output files:
 
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --rename auto --prefix SLIDE --start 1 --digits 4
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --rename auto --prefix SLIDE --start 1 --digits 4
 ```
 
 This produces `SLIDE_0001.ndpi`, `SLIDE_0002.ndpi`, etc. You can customize:
@@ -139,7 +139,7 @@ This produces `SLIDE_0001.ndpi`, `SLIDE_0002.ndpi`, etc. You can customize:
 Renames files based on a CSV file that maps original filenames to new names:
 
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --rename mapping --mapping-file /path/to/mapping.csv
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --rename mapping --mapping-file /path/to/mapping.csv
 ```
 
 The CSV file should have two columns (no header required):
@@ -154,7 +154,7 @@ original_slide_002.ndpi,RESEARCH_A002.ndpi
 Renames files using a template pattern:
 
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --rename template --template "STUDY_{n:04d}"
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --rename template --template "STUDY_{n:04d}"
 ```
 
 The `{n}` placeholder is replaced with a sequential number. Use Python-style format specifiers like `{n:04d}` for zero-padding.
@@ -164,7 +164,7 @@ The `{n}` placeholder is replaced with a sequential number. Use Python-style for
 Add `--manifest /path/to/manifest.csv` to generate a CSV file tracking the original-to-serialized filename mapping along with SHA-256 checksums:
 
 ```bash
-pathsafe anonymize /path/to/slides/ --output /path/to/clean/ --rename auto --manifest /path/to/manifest.csv
+pathsafe deidentify /path/to/slides/ --output /path/to/clean/ --rename auto --manifest /path/to/manifest.csv
 ```
 
 #### Keep Mode (Default)
@@ -173,7 +173,7 @@ Use `--rename keep` (or omit `--rename` entirely) to preserve original filenames
 
 ## Step 3: Verify
 
-After anonymization, verify that all PHI has been removed:
+After de-identification, verify that all PHI has been removed:
 
 ```bash
 pathsafe verify /path/to/clean/slides/ --verbose
@@ -192,14 +192,14 @@ All files verified clean.
 
 ## Step 4: Review the Compliance Certificate
 
-Open the JSON certificate file to review the anonymization report. It contains:
+Open the JSON certificate file to review the de-identification report. It contains:
 
 - PathSafe version used
 - Timestamp
 - Per-file details (findings cleared, SHA-256 hash, verification status)
 - Summary statistics
 
-Keep this certificate with the anonymized files for audit purposes.
+Keep this certificate with the de-identified files for audit purposes.
 
 ## Using the GUI
 
@@ -216,14 +216,14 @@ If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a moder
 - **Dark / Light theme**: Catppuccin-inspired color schemes, remembered between sessions
 - **Drag-and-drop**: Drop files or folders directly onto the window
 - **Multi-file selection**: Select multiple files at once when browsing (hold Ctrl or Shift)
-- **Workflow step indicator**: Visual progress through Select Files > Scan > Select Output > Anonymize, with [Default] and [Done] status labels
+- **Workflow step indicator**: Visual progress through Select Files > Scan > Select Output > De-identify, with [Default] and [Done] status labels
 - **Application icon**: Custom PathSafe icon in the title bar and taskbar
 - **Right-click integration**: On Linux, right-click any slide file and choose "Open with PathSafe"
 - **Menu bar with keyboard shortcuts**:
  - `Ctrl+O`: Open file(s)
  - `Ctrl+Shift+O`: Open folder
  - `Ctrl+S`: Scan
- - `Ctrl+R`: Anonymize
+ - `Ctrl+R`: De-identify
  - `Ctrl+E`: Verify
  - `Esc`: Stop current operation
 - **Tooltips**: Hover over any control for guidance
@@ -232,7 +232,7 @@ If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a moder
 - **PDF reports**: Scan reports and compliance certificates generated automatically with SHA-256 hashes and a findings legend
 - **Copy/in-place mode**: Select via radio buttons
 - **Auto-workers**: Worker count is automatically detected based on your CPU (no manual slider). The formula is `min(cpu_count // 2, 8)`.
-- **Rename output files**: Check the "Rename Output Files" checkbox to enable file renaming during anonymization. Select from Auto, Mapping, or Template mode via radio buttons. A live preview with 300ms debounce shows what the output filenames will look like before you run the operation.
+- **Rename output files**: Check the "Rename Output Files" checkbox to enable file renaming during de-identification. Select from Auto, Mapping, or Template mode via radio buttons. A live preview with 300ms debounce shows what the output filenames will look like before you run the operation.
 - **Update checker**: Optionally check for new PathSafe releases. Disabled by default. Enable via **Settings > "Check for updates on startup"**. When a new version is found, a toast notification appears in the top-right corner (auto-dismisses after 20 seconds) with a "Download" button that opens your browser to the correct platform download. A persistent badge also appears in the status bar. You can also trigger a manual check from **Settings > "Check for updates now"**.
 - **Institution name**: Optional field for PDF report headers, remembered between sessions
 - **Persistent settings**: Institution and theme are saved between sessions
@@ -262,7 +262,7 @@ If PySide6 is installed (`pip install pathsafe[gui]`), PathSafe launches a moder
 | `--template PATTERN` | Template pattern for template mode (e.g., `STUDY_{n:04d}`) |
 | `--manifest FILE` | Write original-to-new filename manifest CSV with SHA-256 checksums |
 
-## What Gets Anonymized
+## What Gets De-identified
 
 PathSafe removes these categories of PHI:
 
@@ -286,16 +286,16 @@ All tags are scanned across **every IFD** (image layer) in the file, not just th
 
 For a detailed breakdown by format, see the main [README](../README.md).
 
-## Renaming Files During Anonymization
+## Renaming Files During De-identification
 
-Slide filenames often contain patient identifiers (e.g., `AS22001663_1030624.svs`). PathSafe can rename files during copy-mode anonymization to remove this PHI.
+Slide filenames often contain patient identifiers (e.g., `AS22001663_1030624.svs`). PathSafe can rename files during copy-mode de-identification to remove this PHI.
 
 ### Auto-Sequential Mode
 
 Number files sequentially with a prefix:
 
 ```bash
-pathsafe anonymize /slides/ --output /anon/ --rename auto --prefix STUDY --digits 4
+pathsafe deidentify /slides/ --output /anon/ --rename auto --prefix STUDY --digits 4
 ```
 
 Produces: `STUDY_0001.ndpi`, `STUDY_0002.svs`, `STUDY_0003.ndpi`, ...
@@ -307,7 +307,7 @@ Options: `--prefix` (default: ANON), `--start` (default: 1), `--digits` (default
 Rename using a CSV lookup table:
 
 ```bash
-pathsafe anonymize /slides/ --output /anon/ --rename mapping --mapping-file renames.csv
+pathsafe deidentify /slides/ --output /anon/ --rename mapping --mapping-file renames.csv
 ```
 
 Where `renames.csv` contains:
@@ -324,7 +324,7 @@ Files not in the mapping are skipped by default.
 Use a naming pattern with tokens:
 
 ```bash
-pathsafe anonymize /slides/ --output /anon/ --rename template --template "{prefix}_{date}_{index}.{ext}"
+pathsafe deidentify /slides/ --output /anon/ --rename template --template "{prefix}_{date}_{index}.{ext}"
 ```
 
 Available tokens: `{prefix}`, `{index}`, `{ext}`, `{sha8}`, `{format}`, `{date}`
@@ -335,7 +335,7 @@ All rename modes automatically write a `manifest.csv` to the output folder mappi
 
 ### GUI
 
-In the GUI, check **"Rename Output Files"** in the Anonymize tab, then choose a mode (Auto-sequential, From mapping file, or Custom pattern). A live preview shows how your files will be renamed before you click Anonymize.
+In the GUI, check **"Rename Output Files"** in the De-identify tab, then choose a mode (Auto-sequential, From mapping file, or Custom pattern). A live preview shows how your files will be renamed before you click De-identify.
 
 ## Update Checker
 
@@ -369,7 +369,7 @@ PathSafe requires explicit confirmation for in-place modification. Either:
 
 ### "Some files still contain PHI!"
 
-If verification finds remaining PHI, run anonymize again on the flagged files. This can happen with unusual file structures. Report persistent issues to your IT team.
+If verification finds remaining PHI, run de-identify again on the flagged files. This can happen with unusual file structures. Report persistent issues to your IT team.
 
 ### GUI won't launch
 
@@ -386,5 +386,5 @@ If PySide6 is not installed at all, PathSafe will fall back to the Tkinter GUI a
 ```bash
 pathsafe --help
 pathsafe scan --help
-pathsafe anonymize --help
+pathsafe deidentify --help
 ```

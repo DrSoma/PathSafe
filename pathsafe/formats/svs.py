@@ -1,6 +1,6 @@
 """Aperio SVS format handler.
 
-Handles PHI detection and anonymization for SVS files, including:
+Handles PHI detection and deidentification for SVS files, including:
 - Tag 270 (ImageDescription): pipe-delimited key=value metadata
   containing ScanScope ID, Filename, Date, Time, User
 - Tag 306 (DateTime): scan date/time
@@ -53,7 +53,7 @@ SVS_PHI_FIELDS = {
     "LineAreaYOffset",
 }
 
-# Date/time sentinel values indicating already anonymized
+# Date/time sentinel values indicating already deidentified
 ANON_DATE = "01/01/00"
 ANON_TIME = "00:00:00"
 
@@ -109,14 +109,14 @@ class SVSHandler(TiffFormatHandler):
             file_size=file_size,
         )
 
-    def anonymize(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI in an SVS file in-place."""
+    def deidentify(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI in an SVS file in-place."""
         cleared: list[PHIFinding] = []
-        cleared += self._anonymize_tag270(filepath)
-        cleared += self._anonymize_datetime_tags(filepath)
-        cleared += self._anonymize_extra_metadata(filepath)
+        cleared += self._deidentify_tag270(filepath)
+        cleared += self._deidentify_datetime_tags(filepath)
+        cleared += self._deidentify_extra_metadata(filepath)
         cleared += self._blank_label_macro(filepath)
-        cleared += self._anonymize_regex(filepath, {f.offset for f in cleared})
+        cleared += self._deidentify_regex(filepath, {f.offset for f in cleared})
         return cleared
 
     def get_format_info(self, filepath: Path) -> dict[str, Any]:
@@ -189,7 +189,7 @@ class SVSHandler(TiffFormatHandler):
                             if field_name not in fields:
                                 continue
                             field_val = fields[field_name]
-                            if _is_field_anonymized(field_name, field_val):
+                            if _is_field_deidentified(field_name, field_val):
                                 continue
                             findings.append(
                                 PHIFinding(
@@ -204,8 +204,8 @@ class SVSHandler(TiffFormatHandler):
                         break  # Only one tag 270 per IFD
         return findings
 
-    def _anonymize_tag270(self, filepath: Path) -> list[PHIFinding]:
-        """Anonymize PHI fields in tag 270 ImageDescription across all IFDs."""
+    def _deidentify_tag270(self, filepath: Path) -> list[PHIFinding]:
+        """Deidentify PHI fields in tag 270 ImageDescription across all IFDs."""
         cleared = []
         with open(filepath, "r+b") as f:
             header = read_header(f)
@@ -218,7 +218,7 @@ class SVSHandler(TiffFormatHandler):
                         raw = read_tag_value_bytes(f, entry)
                         value = raw.rstrip(b"\x00").decode("ascii", errors="replace")
 
-                        # Split on pipe, anonymize PHI fields, rejoin
+                        # Split on pipe, deidentify PHI fields, rejoin
                         parts = value.split("|")
                         modified = False
                         for i, part in enumerate(parts):
@@ -229,10 +229,10 @@ class SVSHandler(TiffFormatHandler):
                             field_val = val.strip()
                             if field_name not in SVS_PHI_FIELDS:
                                 continue
-                            if _is_field_anonymized(field_name, field_val):
+                            if _is_field_deidentified(field_name, field_val):
                                 continue
 
-                            anon_val = _anonymize_field(field_name, field_val)
+                            anon_val = _deidentify_field(field_name, field_val)
                             parts[i] = f"{key}={' ' + anon_val}"
                             modified = True
                             cleared.append(
@@ -275,8 +275,8 @@ def _parse_tag270(value: str) -> dict[str, str]:
     return fields
 
 
-def _is_field_anonymized(field_name: str, value: str) -> bool:
-    """Check if a field value has already been anonymized."""
+def _is_field_deidentified(field_name: str, value: str) -> bool:
+    """Check if a field value has already been deidentified."""
     if not value or value.strip() == "":
         return True
     if all(c == "X" for c in value):
@@ -286,8 +286,8 @@ def _is_field_anonymized(field_name: str, value: str) -> bool:
     return bool(field_name == "Time" and value == ANON_TIME)
 
 
-def _anonymize_field(field_name: str, value: str) -> str:
-    """Generate anonymized replacement for a field value.
+def _deidentify_field(field_name: str, value: str) -> str:
+    """Generate deidentified replacement for a field value.
 
     Uses X's for string fields, sentinel values for date/time.
     """

@@ -2,13 +2,13 @@
 
 ## 1. Problem Statement
 
-PathSafe currently handles **anonymization** of whole-slide images: scan for PHI,
+PathSafe currently handles **de-identification** of whole-slide images: scan for PHI,
 strip it, rename files, verify, generate certificates. But a real institutional
-workflow has steps both before and after anonymization:
+workflow has steps both before and after de-identification:
 
 1. **Before**: Classify each slide (what stain? what case?) to decide *which*
    slides to process and *how* to organize them.
-2. **During**: Anonymize, rename, and group into per-patient folders.
+2. **During**: De-identify, rename, and group into per-patient folders.
 3. **After**: Transfer the cleaned output to a remote server (PACS, research
    storage, collaborator workstation).
 
@@ -21,7 +21,7 @@ command while keeping each phase independently useful.
 
 | Principle | Rationale |
 |---|---|
-| **Each phase is a standalone command** | Users must be able to run `classify`, `anonymize`, or `transfer` independently. The pipeline composes them; it does not replace them. |
+| **Each phase is a standalone command** | Users must be able to run `classify`, `deidentify`, or `transfer` independently. The pipeline composes them; it does not replace them. |
 | **Pipeline state flows via a manifest file** | Phases communicate through a well-defined JSON manifest on disk, not in-memory coupling. This makes the pipeline restartable after failure. |
 | **Optional dependencies stay optional** | OCR requires Tesseract + Pillow. Transfer requires paramiko. These must not be imported at startup or affect existing commands. |
 | **GUI gets a "Pipeline" tab, not a redesign** | The existing 4-step GUI workflow stays untouched. A new tab provides pipeline-specific controls. |
@@ -34,7 +34,7 @@ command while keeping each phase independently useful.
 ```
 pathsafe/
     cli.py                  # Extended: +classify, +transfer, +pipeline commands
-    anonymizer.py           # Unchanged
+    deidentifier.py           # Unchanged
     serializer.py           # Extended: +per-patient grouping, +lookup table support
     models.py               # Extended: +ClassificationResult, +TransferResult, +PipelineManifest
     scanner.py              # Unchanged
@@ -58,7 +58,7 @@ pathsafe/
     pipeline/
         __init__.py         # Public API: run_pipeline()
         manifest.py         # PipelineManifest read/write/merge logic
-        runner.py           # Orchestrates classify -> anonymize -> transfer
+        runner.py           # Orchestrates classify -> deidentify -> transfer
         resume.py           # Detects completed phases, resumes from failure point
 
     gui/
@@ -106,15 +106,15 @@ pipeline manifest is a superset.
   "updated": "2026-03-27T14:45:22Z",
   "config": {
     "input_path": "/slides/incoming/",
-    "output_path": "/slides/anonymized/",
+    "output_path": "/slides/deidentified/",
     "remote": "user@server:/data/research/",
     "classify": true,
-    "anonymize": true,
+    "deidentify": true,
     "transfer": true
   },
   "phases": {
     "classify": { "status": "completed", "started": "...", "finished": "..." },
-    "anonymize": { "status": "completed", "started": "...", "finished": "..." },
+    "deidentify": { "status": "completed", "started": "...", "finished": "..." },
     "transfer": { "status": "running", "started": "...", "finished": null }
   },
   "files": [
@@ -131,8 +131,8 @@ pipeline manifest is a superset.
         "label_image_extracted": true,
         "error": null
       },
-      "anonymization": {
-        "output_path": "/slides/anonymized/STUDY001/ANON_0001/ANON_0001_HE.ndpi",
+      "deidentification": {
+        "output_path": "/slides/deidentified/STUDY001/ANON_0001/ANON_0001_HE.ndpi",
         "serial_id": "ANON_0001",
         "patient_folder": "ANON_0001",
         "findings_cleared": 3,
@@ -177,13 +177,13 @@ pipeline manifest is a superset.
               filtered files + folder plan
                               |
                  +------------v-----------+
-                 |   anonymize            |
-                 |  existing anonymizer   |
+                 |   deidentify            |
+                 |  existing deidentifier   |
                  |  + serializer rename   |
                  |  + per-patient folders |
                  +------------+-----------+
                               |
-              manifest.files[*].anonymization
+              manifest.files[*].deidentification
                               |
                  +------------v-----------+
                  |   transfer (optional)  |
@@ -213,7 +213,7 @@ determine stain type and case identifier.
 `associated_images` API, which is format-agnostic.
 
 **Why not a FormatHandler method?** The format handlers are responsible for
-PHI scanning and anonymization of binary file structures. Classification is
+PHI scanning and de-identification of binary file structures. Classification is
 a higher-level operation (image analysis, text parsing) that operates on the
 label image, not the file structure. Mixing these concerns would bloat the
 handler interface and force every handler to implement OCR logic. Keeping
@@ -299,7 +299,7 @@ pathsafe classify /slides/incoming/ \
 
 Output formats: JSON (default, machine-readable), CSV (spreadsheet-friendly),
 or stdout table (human-readable). The JSON output doubles as a `--filter-file`
-input for the anonymize command -- the existing `load_filter_file()` already
+input for the de-identify command -- the existing `load_filter_file()` already
 accepts `{filename: anything}` dicts.
 
 #### Dependency Group
@@ -319,7 +319,7 @@ if missing.
 
 ### 5.2 Extended Serializer (Per-Patient Folder Grouping)
 
-**Purpose**: Group anonymized files into per-patient subdirectories within the
+**Purpose**: Group de-identified files into per-patient subdirectories within the
 output directory, using classification metadata (case_id) or a lookup table.
 
 **Integration point**: Extends `serializer.py` with new functions. No existing
@@ -360,7 +360,7 @@ After:   ANON_0001/ANON_0001_HE.ndpi
 #### Lookup Table Support (Excel/CSV)
 
 For study-specific workflows, a lookup table maps original case IDs to
-anonymized patient IDs. This is common in research where a study coordinator
+de-identified patient IDs. This is common in research where a study coordinator
 maintains a key file.
 
 ```csv
@@ -379,7 +379,7 @@ def load_grouping_lookup(path: Path) -> Dict[str, str]:
     """
 ```
 
-#### New CLI Options on `anonymize`
+#### New CLI Options on `deidentify`
 
 ```
 --group none|case_id|lookup|study   Folder grouping mode (default: none)
@@ -395,11 +395,11 @@ are ignored silently in in-place mode.
 
 ### 5.3 Transfer (`pathsafe transfer`)
 
-**Purpose**: Transfer anonymized output to a remote server with progress
+**Purpose**: Transfer de-identified output to a remote server with progress
 tracking, checksum verification, and resume support.
 
 **Integration point**: New module, new CLI command. Completely independent of
-the anonymization pipeline.
+the de-identification pipeline.
 
 #### Design Decision: rsync vs SCP
 
@@ -458,7 +458,7 @@ def transfer_scp(
 #### CLI Command
 
 ```
-pathsafe transfer /slides/anonymized/ \
+pathsafe transfer /slides/deidentified/ \
     --remote user@server:/data/research/ \
     --bwlimit 50000 \
     --checksum \
@@ -483,14 +483,14 @@ The transfer command checks for rsync first and falls back to paramiko.
 
 ### 5.4 Pipeline (`pathsafe pipeline`)
 
-**Purpose**: Chain classify, anonymize, and transfer into a single command
+**Purpose**: Chain classify, de-identify, and transfer into a single command
 with a shared manifest, progress tracking, and resume capability.
 
 **This is a new command, not a flag.** Rationale:
 
 | Approach | Pros | Cons |
 |---|---|---|
-| Flag on anonymize (`--pipeline`) | Fewer commands | Overloads an already complex command (20+ options). Confusing: is `--transfer` an anonymize option? |
+| Flag on de-identify (`--pipeline`) | Fewer commands | Overloads an already complex command (20+ options). Confusing: is `--transfer` an de-identify option? |
 | Composition via shell pipe | Unix-philosophy | No shared state, no resume, no unified progress |
 | **New `pipeline` command** | Clear intent, dedicated options, shared manifest, resumable | One more top-level command |
 
@@ -501,7 +501,7 @@ the individual commands.
 
 ```
 pathsafe pipeline /slides/incoming/ \
-    --output /slides/anonymized/ \
+    --output /slides/deidentified/ \
     --remote user@server:/data/research/ \
     --classify \
     --classify-rules custom-rules.json \
@@ -519,8 +519,8 @@ pathsafe pipeline /slides/incoming/ \
 ```
 
 Flags `--classify` and `--transfer` are opt-in. Without them, the pipeline
-degrades to the existing anonymize command. This means `pathsafe pipeline
---output /out /in` is equivalent to `pathsafe anonymize --output /out /in`.
+degrades to the existing de-identify command. This means `pathsafe pipeline
+--output /out /in` is equivalent to `pathsafe de-identify --output /out /in`.
 
 #### Resume Logic
 
@@ -542,13 +542,13 @@ of the classify phase.
 
 ```python
 def run_pipeline(config: PipelineConfig) -> PipelineResult:
-    """Execute the full pipeline: classify -> anonymize -> transfer.
+    """Execute the full pipeline: classify -> deidentify -> transfer.
 
     1. Collect files (respecting format filter and include/exclude).
     2. If --classify: run classify_batch(), write results to manifest.
     3. Apply filters using classification output (e.g., only H&E slides).
     4. Compute rename plan + grouping plan.
-    5. Run anonymize_batch() with precomputed pairs.
+    5. Run deidentify_batch() with precomputed pairs.
     6. If --transfer: run transfer_batch() on the output directory.
     7. Finalize manifest with all phase results.
 
@@ -580,9 +580,9 @@ rename (uses serializer to compute final filenames)
     |
     | outputs: precomputed (source, final_output) pairs
     v
-anonymize (uses precomputed pairs)
+deidentify (uses precomputed pairs)
     |
-    | outputs: anonymized files at final paths
+    | outputs: deidentified files at final paths
     v
 transfer (optional, operates on output directory)
 ```
@@ -671,14 +671,14 @@ class PipelineConfig:
 
     # Phase toggles
     do_classify: bool = False
-    do_anonymize: bool = True
+    do_deidentify: bool = True
     do_transfer: bool = False
 
     # Classify options
     classify_rules: Optional[Path] = None
     classify_lang: str = "eng"
 
-    # Anonymize options (mirrors existing CLI)
+    # Deidentify options (mirrors existing CLI)
     rename: str = "keep"
     prefix: str = "ANON"
     start: int = 1
@@ -718,7 +718,7 @@ class PipelineConfig:
 class PipelineResult:
     """Aggregate result of a pipeline run."""
     classification_results: List[ClassificationResult] = field(default_factory=list)
-    anonymization_result: Optional[BatchResult] = None
+    deidentification_result: Optional[BatchResult] = None
     transfer_result: Optional[TransferResult] = None
     manifest_path: Optional[Path] = None
     total_time_seconds: float = 0.0
@@ -783,12 +783,12 @@ is only visible when the `classify` and/or `transfer` extras are installed.
 | Pipeline Configuration                                            |
 |                                                                  |
 |  Input:    [/slides/incoming/         ] [Browse]                 |
-|  Output:   [/slides/anonymized/       ] [Browse]                 |
+|  Output:   [/slides/deidentified/       ] [Browse]                 |
 |  Remote:   [user@server:/data/        ] (optional)               |
 |                                                                  |
 |  Phases:                                                         |
 |  [x] Classify   Rules: [default     v]  Lang: [eng+fra]         |
-|  [x] Anonymize  Rename: [auto       v]  Prefix: [ANON]          |
+|  [x] Deidentify  Rename: [auto       v]  Prefix: [ANON]          |
 |      Group: [case_id  v]  Study: [STUDY001]                      |
 |  [x] Transfer   Bandwidth: [50000 KB/s]  [x] Verify checksums   |
 |                                                                  |
@@ -798,7 +798,7 @@ is only visible when the `classify` and/or `transfer` extras are installed.
 |                                                                  |
 |  Phase Progress:                                                 |
 |  Classify:   [====================] 100%  450/450 files          |
-|  Anonymize:  [============        ]  60%  270/450 files          |
+|  Deidentify:  [============        ]  60%  270/450 files          |
 |  Transfer:   [                    ]   0%  waiting                |
 |                                                                  |
 |  Log Output:                                                     |
@@ -846,14 +846,14 @@ After the extension, PathSafe's command tree looks like this:
 ```
 pathsafe
     scan          # Existing: read-only PHI scan
-    anonymize     # Existing: strip PHI (+ new --group options)
+    deidentify     # Existing: strip PHI (+ new --group options)
     verify        # Existing: re-scan to confirm clean
     convert       # Existing: format conversion
     info          # Existing: file metadata
     gui           # Existing: launch GUI
     classify      # NEW: OCR labels, classify stain/case
     transfer      # NEW: rsync/SCP to remote
-    pipeline      # NEW: chained classify->anonymize->transfer
+    pipeline      # NEW: chained classify->deidentify->transfer
 ```
 
 ---
@@ -862,13 +862,13 @@ pathsafe
 
 | Scenario | Behavior |
 |---|---|
-| OCR fails for one file (no label, Tesseract crash) | Log warning, set `classification.error` in manifest, continue. File is included in anonymization with `stain: "unknown"`. |
-| Anonymization fails for one file | Log error, set `anonymization.error` in manifest, continue. File is excluded from transfer. |
+| OCR fails for one file (no label, Tesseract crash) | Log warning, set `classification.error` in manifest, continue. File is included in de-identification with `stain: "unknown"`. |
+| De-identification fails for one file | Log error, set `deidentification.error` in manifest, continue. File is excluded from transfer. |
 | Transfer fails mid-batch (network drop) | Stop transfer phase. Manifest records which files transferred. `--resume` picks up from last successful file. |
 | rsync not found, paramiko not installed | Error message with install instructions. Transfer phase skipped with exit code 1. |
 | Tesseract not found | Error message: "Install tesseract-ocr (apt/brew)". Classify phase skipped. |
 | Manifest file corrupted | Refuse to resume. Print error, suggest `--no-resume` to start fresh. |
-| Disk full during anonymization | Existing preflight check catches this. Pipeline inherits the same safeguard. |
+| Disk full during de-identification | Existing preflight check catches this. Pipeline inherits the same safeguard. |
 
 ---
 
@@ -887,7 +887,7 @@ The work is structured to land in 4 independent, reviewable pull requests:
 - `GroupingConfig` dataclass
 - `compute_rename_plan()` extended signature (backward-compatible)
 - `load_grouping_lookup()` function
-- New `--group*` CLI options on `anonymize`
+- New `--group*` CLI options on `deidentify`
 - `lookup` dependency group in pyproject.toml
 - Tests: folder structure assertions, lookup table loading, edge cases
 
@@ -918,15 +918,15 @@ The work is structured to land in 4 independent, reviewable pull requests:
   through a JSON file on disk. This makes the pipeline restartable, inspectable,
   and debuggable. No hidden in-memory state.
 
-- **Per-patient grouping extends the serializer, not the anonymizer.** The
-  anonymizer does not know about folder structure. The serializer computes
+- **Per-patient grouping extends the serializer, not the de-identifier.** The
+  de-identifier does not know about folder structure. The serializer computes
   `(source, output_with_subfolder)` pairs and passes them as `precomputed_pairs`
-  to `anonymize_batch()` -- the same mechanism already used for rename plans.
+  to `deidentify_batch()` -- the same mechanism already used for rename plans.
 
 - **Pipeline is a new command, not a flag.** It deserves its own option namespace
-  rather than overloading the already complex `anonymize` command.
+  rather than overloading the already complex `deidentify` command.
 
-- **All new dependencies are optional.** The core `pathsafe scan`, `anonymize`,
+- **All new dependencies are optional.** The core `pathsafe scan`, `deidentify`,
   `verify`, `convert`, and `info` commands work with zero new dependencies.
   Classification needs Pillow + pytesseract. Transfer needs paramiko (or system
   rsync). The `all` extra installs everything.

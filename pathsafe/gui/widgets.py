@@ -91,9 +91,9 @@ class DropZoneWidget(QWidget):
 
 
 class StepIndicator(QFrame):
-    """Visual workflow indicator: Select Files -> Scan -> Anonymize -> Verify."""
+    """Visual workflow indicator: Select Files -> Scan -> Deidentify -> Verify."""
 
-    STEPS = ["Select Files", "Scan", "Anonymize", "Verify"]
+    STEPS = ["Select Files", "Scan", "Deidentify", "Verify"]
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

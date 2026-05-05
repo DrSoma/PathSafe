@@ -1,7 +1,7 @@
 """Tests for the PHI detection scanner."""
 
 from pathsafe.scanner import (
-    is_date_anonymized,
+    is_date_deidentified,
     scan_bytes_for_dates,
     scan_bytes_for_phi,
     scan_string_for_phi,
@@ -33,7 +33,7 @@ class TestScanBytesForPHI:
         assert len(findings) == 1
         assert findings[0][3] == "Accession_Padded"
 
-    def test_skip_already_anonymized(self):
+    def test_skip_already_deidentified(self):
         data = b"\x00XXXXXXXXXXXX\x00"
         findings = scan_bytes_for_phi(data)
         assert len(findings) == 0
@@ -70,22 +70,22 @@ class TestScanDates:
         findings = scan_bytes_for_dates(data)
         assert len(findings) == 1
 
-    def test_skip_anonymized_date(self):
+    def test_skip_deidentified_date(self):
         data = b"1900:01:01 00:00:00"
         findings = scan_bytes_for_dates(data)
         assert len(findings) == 0
 
 
-class TestIsDateAnonymized:
+class TestIsDateDeidentified:
     def test_1900_sentinel(self):
-        assert is_date_anonymized("1900:01:01 00:00:00")
+        assert is_date_deidentified("1900:01:01 00:00:00")
 
     def test_zero_sentinel(self):
-        assert is_date_anonymized("0000:00:00 00:00:00")
+        assert is_date_deidentified("0000:00:00 00:00:00")
 
     def test_empty(self):
-        assert is_date_anonymized("")
-        assert is_date_anonymized("\x00\x00")
+        assert is_date_deidentified("")
+        assert is_date_deidentified("\x00\x00")
 
     def test_real_date(self):
-        assert not is_date_anonymized("2024:06:15 10:30:00")
+        assert not is_date_deidentified("2024:06:15 10:30:00")

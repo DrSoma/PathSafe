@@ -2,7 +2,7 @@
 
 import pytest
 
-from pathsafe.anonymizer import anonymize_batch
+from pathsafe.deidentifier import deidentify_batch
 from tests.conftest import build_tiff
 
 
@@ -92,25 +92,25 @@ class TestBatchWorkerEdgeCases:
     def test_workers_exceed_files(self, tmp_path):
         """workers=4 with only 1 file -- should still process correctly."""
         _make_ndpi(tmp_path, "single.ndpi")
-        result = anonymize_batch(tmp_path, workers=4)
+        result = deidentify_batch(tmp_path, workers=4)
         assert result.total_files == 1
-        assert result.files_anonymized == 1
+        assert result.files_deidentified == 1
         assert result.files_errored == 0
 
     def test_many_workers_few_files(self, tmp_path):
         """workers=8 with only 3 files -- should still work."""
         for i in range(3):
             _make_ndpi(tmp_path, f"slide_{i}.ndpi")
-        result = anonymize_batch(tmp_path, workers=8)
+        result = deidentify_batch(tmp_path, workers=8)
         assert result.total_files == 3
-        assert result.files_anonymized == 3
+        assert result.files_deidentified == 3
 
     def test_sequential_fallback_single_file(self, tmp_path):
         """workers=4 with total=1 uses sequential path (workers>1 but total<=1)."""
         _make_ndpi(tmp_path, "solo.ndpi")
-        result = anonymize_batch(tmp_path, workers=4)
+        result = deidentify_batch(tmp_path, workers=4)
         assert result.total_files == 1
-        assert result.files_anonymized == 1
+        assert result.files_deidentified == 1
 
 
 class TestProgressCallback:
@@ -124,7 +124,7 @@ class TestProgressCallback:
         def cb(index, total, filepath, result):
             calls.append((index, total, filepath, result))
 
-        anonymize_batch(tmp_path, progress_callback=cb, workers=1)
+        deidentify_batch(tmp_path, progress_callback=cb, workers=1)
         assert len(calls) == 1
         idx, total, fp, res = calls[0]
         assert idx == 1
@@ -141,7 +141,7 @@ class TestProgressCallback:
         def cb(index, total, filepath, result):
             calls.append((index, total))
 
-        anonymize_batch(tmp_path, progress_callback=cb, workers=3)
+        deidentify_batch(tmp_path, progress_callback=cb, workers=3)
         assert len(calls) == 5
         assert all(total == 5 for _, total in calls)
 
@@ -153,7 +153,7 @@ class TestProgressCallback:
             raise ValueError("callback crash")
 
         with pytest.raises(ValueError, match="callback crash"):
-            anonymize_batch(tmp_path, progress_callback=bad_cb, workers=1)
+            deidentify_batch(tmp_path, progress_callback=bad_cb, workers=1)
 
 
 class TestMixedFormatBatch:
@@ -165,10 +165,10 @@ class TestMixedFormatBatch:
         _make_svs(tmp_path, "slide.svs")
         _make_bif(tmp_path, "slide.bif")
         _make_scn(tmp_path, "slide.scn")
-        result = anonymize_batch(tmp_path, workers=4)
+        result = deidentify_batch(tmp_path, workers=4)
         assert result.total_files == 4
         assert result.files_errored == 0
-        assert result.files_anonymized == 4
+        assert result.files_deidentified == 4
 
 
 class TestPartialFailureBatch:
@@ -181,9 +181,9 @@ class TestPartialFailureBatch:
         # Create a corrupt file (invalid TIFF header)
         corrupt = tmp_path / "bad.ndpi"
         corrupt.write_bytes(b"\x00" * 10)
-        result = anonymize_batch(tmp_path, workers=2)
+        result = deidentify_batch(tmp_path, workers=2)
         assert result.total_files == 3
-        assert result.files_anonymized == 2
+        assert result.files_deidentified == 2
         # Corrupt file is either errored or "clean" (no PHI found in garbled data)
         assert result.files_errored + result.files_already_clean >= 1
 
@@ -195,9 +195,9 @@ class TestSequentialBatches:
         """Second run should see files as already_clean."""
         for i in range(3):
             _make_ndpi(tmp_path, f"slide_{i}.ndpi")
-        result1 = anonymize_batch(tmp_path, workers=2)
-        assert result1.files_anonymized == 3
+        result1 = deidentify_batch(tmp_path, workers=2)
+        assert result1.files_deidentified == 3
 
-        result2 = anonymize_batch(tmp_path, workers=2)
+        result2 = deidentify_batch(tmp_path, workers=2)
         assert result2.files_already_clean == 3
-        assert result2.files_anonymized == 0
+        assert result2.files_deidentified == 0

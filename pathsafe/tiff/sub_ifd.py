@@ -128,7 +128,7 @@ def scan_exif_sub_ifd_tags(
     Args:
         entries: The entries of the EXIF sub-IFD (not the main IFD).
 
-    Returns list of (entry, value_preview) for tags with non-empty, non-anonymized content.
+    Returns list of (entry, value_preview) for tags with non-empty, non-deidentified content.
     """
     findings = []
     for entry in entries:

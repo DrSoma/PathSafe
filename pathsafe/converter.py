@@ -91,7 +91,7 @@ def convert_file(
     tile_size: int = 256,
     quality: int = 90,
     extract: str | None = None,
-    anonymize: bool = False,
+    deidentify: bool = False,
     reset_timestamps: bool = False,
 ) -> ConversionResult:
     """Convert a single WSI file to a target format.
@@ -104,7 +104,7 @@ def convert_file(
         quality: JPEG compression quality 1-100 (default 90).
         extract: If set, extract an associated image instead of converting.
                  One of "label", "macro", "thumbnail".
-        anonymize: If True, run PathSafe anonymization on the output.
+        deidentify: If True, run PathSafe deidentification on the output.
         reset_timestamps: If True, reset file timestamps to epoch after conversion.
 
     Returns:
@@ -149,21 +149,21 @@ def convert_file(
             result.error = f"Unsupported target format: {target_format}"
             return result
 
-        # Optional anonymization
-        if anonymize and result.error is None:
+        # Optional deidentification
+        if deidentify and result.error is None:
             try:
-                from pathsafe.anonymizer import anonymize_file
+                from pathsafe.deidentifier import deidentify_file
 
-                anon_result = anonymize_file(output_path, verify=True)
+                anon_result = deidentify_file(output_path, verify=True)
                 if anon_result.error:
                     result.error = (
-                        f"Conversion succeeded but anonymization failed: {anon_result.error}"
+                        f"Conversion succeeded but deidentification failed: {anon_result.error}"
                     )
                 else:
-                    result.anonymized = anon_result.findings_cleared > 0 or anon_result.verified
+                    result.deidentified = anon_result.findings_cleared > 0 or anon_result.verified
             except Exception as e:
                 result.error = (
-                    f"Conversion succeeded but anonymization failed: {_sanitize_error(e)}"
+                    f"Conversion succeeded but deidentification failed: {_sanitize_error(e)}"
                 )
 
     except ImportError:
@@ -432,7 +432,7 @@ def convert_batch(
     target_format: str = "tiff",
     tile_size: int = 256,
     quality: int = 90,
-    anonymize: bool = False,
+    deidentify: bool = False,
     format_filter: str | None = None,
     progress_callback: Callable[[int, int, Path, ConversionResult], None] | None = None,
     workers: int = 1,
@@ -447,7 +447,7 @@ def convert_batch(
         target_format: Output format -- "tiff", "png", or "jpeg".
         tile_size: Tile size in pixels for pyramidal TIFF.
         quality: JPEG compression quality 1-100.
-        anonymize: Run PathSafe anonymization on each converted file.
+        deidentify: Run PathSafe deidentification on each converted file.
         format_filter: Only process files of this format.
         progress_callback: Called with (index, total, filepath, result) after each file.
         workers: Number of parallel workers. 1 = sequential (default).
@@ -456,7 +456,7 @@ def convert_batch(
     Returns:
         ConversionBatchResult with summary statistics.
     """
-    from pathsafe.anonymizer import collect_wsi_files
+    from pathsafe.deidentifier import collect_wsi_files
 
     input_path = Path(input_path)
     output_dir = Path(output_dir)
@@ -488,7 +488,7 @@ def convert_batch(
             target_format=target_format,
             tile_size=tile_size,
             quality=quality,
-            anonymize=anonymize,
+            deidentify=deidentify,
             reset_timestamps=reset_timestamps,
         )
 

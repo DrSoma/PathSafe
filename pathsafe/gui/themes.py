@@ -65,13 +65,13 @@ QPushButton#btn_scan {
 QPushButton#btn_scan:hover {
     background-color: #264b73;
 }
-QPushButton#btn_anonymize {
+QPushButton#btn_deidentify {
     background-color: #1e3f2e;
     border-color: #a6e3a1;
     color: #a6e3a1;
     font-weight: bold;
 }
-QPushButton#btn_anonymize:hover {
+QPushButton#btn_deidentify:hover {
     background-color: #2b5a3e;
 }
 QPushButton#btn_verify {
@@ -341,13 +341,13 @@ QPushButton#btn_scan {
 QPushButton#btn_scan:hover {
     background-color: #c5d8ee;
 }
-QPushButton#btn_anonymize {
+QPushButton#btn_deidentify {
     background-color: #dcf0de;
     border-color: #2e8b3e;
     color: #2e8b3e;
     font-weight: bold;
 }
-QPushButton#btn_anonymize:hover {
+QPushButton#btn_deidentify:hover {
     background-color: #c0e4c4;
 }
 QPushButton#btn_verify {
@@ -591,7 +591,7 @@ THEME_COLORS = {
     },
 }
 
-# Format filter items shared between Anonymize and Convert tabs
+# Format filter items shared between Deidentify and Convert tabs
 _FORMAT_FILTER_ITEMS = [
     "All formats",
     "NDPI",

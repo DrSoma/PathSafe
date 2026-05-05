@@ -12,7 +12,7 @@ from pydicom.uid import ExplicitVRLittleEndian, generate_uid  # noqa: E402
 from pathsafe.formats.dicom import (  # noqa: E402
     PATHSAFE_UID_ROOT,
     DICOMHandler,
-    _anonymize_sequences,
+    _deidentify_sequences,
     _remap_uid,
     _scan_sequences,
 )
@@ -105,8 +105,8 @@ class TestDeeplyNestedSequences:
         # Level 7 is at depth 6 (> 5) and should NOT be found
         assert len(patient_findings) == 6  # levels 1-6 found, level 7 not
 
-    def test_anonymize_clears_3_levels(self, tmp_path):
-        """Anonymize clears PHI at 3 nesting levels."""
+    def test_deidentify_clears_3_levels(self, tmp_path):
+        """Deidentify clears PHI at 3 nesting levels."""
         filepath = _make_dicom_file(tmp_path / "nested3.dcm")
         ds = pydicom.dcmread(str(filepath))
 
@@ -115,16 +115,16 @@ class TestDeeplyNestedSequences:
         ds.save_as(str(filepath))
 
         handler = DICOMHandler()
-        handler.anonymize(filepath)
+        handler.deidentify(filepath)
 
         ds_after = pydicom.dcmread(str(filepath), force=True)
-        # _anonymize_sequences should clear PatientName at all reachable levels
+        # _deidentify_sequences should clear PatientName at all reachable levels
         findings = _scan_sequences(ds_after)
         patient_findings = [f for f in findings if "PatientName" in f.tag_name]
         assert len(patient_findings) == 0
 
-    def test_depth_guard_stops_anonymization(self, tmp_path):
-        """Anonymize stops at depth > 5 -- unreachable PHI remains."""
+    def test_depth_guard_stops_deidentification(self, tmp_path):
+        """Deidentify stops at depth > 5 -- unreachable PHI remains."""
         filepath = _make_dicom_file(tmp_path / "nested7.dcm")
         ds = pydicom.dcmread(str(filepath))
 
@@ -132,7 +132,7 @@ class TestDeeplyNestedSequences:
         ds.add_new(Tag(0x0040, 0x0555), "SQ", seq)
         ds.save_as(str(filepath))
 
-        cleared = _anonymize_sequences(ds)
+        cleared = _deidentify_sequences(ds)
         # Only levels 1-6 cleared (depth 0-5), level 7 untouched
         patient_cleared = [c for c in cleared if "PatientName" in c.tag_name]
         assert len(patient_cleared) == 6
@@ -163,18 +163,18 @@ class TestSequenceEdgeCases:
         patient_findings = [f for f in findings if "PatientName" in f.tag_name]
         assert len(patient_findings) == 100
 
-    def test_mixed_anonymized_and_not(self):
-        """Sequence with mix of anonymized and un-anonymized items."""
+    def test_mixed_deidentified_and_not(self):
+        """Sequence with mix of deidentified and un-deidentified items."""
         ds = Dataset()
         item_anon = Dataset()
-        item_anon.add_new(Tag(0x0010, 0x0010), "PN", "")  # Already anonymized
+        item_anon.add_new(Tag(0x0010, 0x0010), "PN", "")  # Already deidentified
         item_phi = Dataset()
         item_phi.add_new(Tag(0x0010, 0x0010), "PN", "Doe^John")  # Has PHI
         ds.add_new(Tag(0x0040, 0x0555), "SQ", Sequence([item_anon, item_phi]))
 
         findings = _scan_sequences(ds)
         patient_findings = [f for f in findings if "PatientName" in f.tag_name]
-        assert len(patient_findings) == 1  # Only un-anonymized one found
+        assert len(patient_findings) == 1  # Only un-deidentified one found
 
     def test_sequence_with_date_phi(self):
         """Sequence item with StudyDate -- should be found."""
@@ -192,23 +192,23 @@ class TestSequenceEdgeCases:
         assert len(date_findings) == 0
 
 
-class TestReAnonymizeDICOM:
-    """Test double-anonymization is a no-op."""
+class TestReDeidentifyDICOM:
+    """Test double-deidentification is a no-op."""
 
-    def test_double_anonymize_noop(self, handler, tmp_path):
-        """Anonymize twice -- second run clears nothing."""
+    def test_double_deidentify_noop(self, handler, tmp_path):
+        """Deidentify twice -- second run clears nothing."""
         filepath = _make_dicom_file(tmp_path / "double.dcm")
-        cleared1 = handler.anonymize(filepath)
+        cleared1 = handler.deidentify(filepath)
         assert len(cleared1) > 0
 
-        cleared2 = handler.anonymize(filepath)
+        cleared2 = handler.deidentify(filepath)
         assert len(cleared2) == 0
 
     def test_scan_clean_after_double(self, handler, tmp_path):
-        """Scan is clean after double anonymization."""
+        """Scan is clean after double deidentification."""
         filepath = _make_dicom_file(tmp_path / "double2.dcm")
-        handler.anonymize(filepath)
-        handler.anonymize(filepath)
+        handler.deidentify(filepath)
+        handler.deidentify(filepath)
 
         result = handler.scan(filepath)
         assert result.is_clean

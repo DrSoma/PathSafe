@@ -13,7 +13,7 @@ version: "1.1.0"
 date-released: "2026-03-17"
 keywords:
   - pathology
-  - anonymization
+  - deidentification
   - de-identification
   - whole-slide-image
   - PHI
@@ -26,12 +26,12 @@ abstract: >-
   PathSafe is an open-source tool for removing Protected Health Information
   (PHI) from whole-slide image (WSI) files used in digital pathology. It
   supports all major scanner formats (NDPI, SVS, MRXS, BIF, SCN, DICOM,
-  generic TIFF), implements Level IV anonymization as defined by Bisson et al.
+  generic TIFF), implements Level IV deidentification as defined by Bisson et al.
   (2023), and generates verifiable compliance documentation. PathSafe provides
   both a graphical interface and a command-line tool for batch processing.
 references:
   - type: article
-    title: "Anonymization of whole slide images in histopathology for research and education"
+    title: "Deidentification of whole slide images in histopathology for research and education"
     authors:
       - family-names: Bisson
         given-names: "Rémi"
