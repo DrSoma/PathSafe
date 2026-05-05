@@ -13,9 +13,7 @@
 
 When pathology scanners create digital slide files, they often embed hidden patient data inside the file: accession numbers, scan dates, operator names, and even photographs of the slide label. This information is invisible when viewing the slide image, but anyone with the right tools can extract it. PathSafe finds and removes all of this hidden data so your slides are safe to share for research or education.
 
-PathSafe works with all major scanner brands, can process thousands of files at once, and can double-check its own work to make sure nothing was missed.
-
-> **v1.1.0 released.** File renaming/serialization (auto-sequential, CSV mapping, custom patterns), auto-worker detection, update checker with toast notifications, DICOM lazy loading, dynamic PDF report columns, type annotations across all modules, ARM64 Linux support, and hardened error handling.
+PathSafe works with all major scanner brands, can process thousands of files at once, and includes a built-in verification step to re-check its output.
 
 ---
 
@@ -31,6 +29,20 @@ PathSafe works with all major scanner brands, can process thousands of files at 
 | **Creates compliance reports** | Generates PDF reports and certificates documenting exactly what was found, what was removed, and proof that each file is clean |
 | **Easy to use** | A visual interface guides you through four simple steps with no typing commands required |
 | **Handles large batches** | Process hundreds or thousands of slides at once, with parallel processing to speed things up |
+
+---
+
+## Important: validate the default pattern set against your accession formats
+
+PathSafe's built-in regex patterns for accession-number detection were derived from the formats used at one institution (for example, `AS-YY-NNNNN`, `AC-YY-NNNNN`, `SP-YY-NNNNN`, `CH#####`, `00000AS#####`). **They will not match every hospital's accession format.** If your accession numbers do not match one of the built-in patterns, PathSafe may not detect them in raw byte regions of the file -- a false negative.
+
+Before you trust PathSafe with real slides:
+
+1. Run `pathsafe scan` on a representative sample of your slides.
+2. Confirm that your accession numbers, MRNs, and any other institution-specific identifiers are reported as findings.
+3. If they are not, add your patterns to a JSON file and pass it via `--patterns custom_patterns.json`. The schema is documented in `docs/COMPLIANCE.md` and follows `pathsafe.scanner.PatternConfig.from_json()`.
+
+The standard DICOM and TIFF tag-based detection is institution-agnostic; this caveat applies specifically to regex-based pattern scanning of raw byte regions.
 
 ---
 
