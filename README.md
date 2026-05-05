@@ -356,7 +356,7 @@ For a detailed technical breakdown of exactly which fields are cleaned in each f
   
   There are other WSI de-identification tools out there. What sets PathSafe apart is that it's built for the people who actually need to use it: pathologists, lab techs, and research coordinators who shouldn't have to learn command-line tools to de-identify slides. PathSafe has a full graphical interface that walks you through the process in four steps.
   
-  It also implements [Level IV de-identification (Bisson et al., 2023)](https://doi.org/10.1177/20552076231171475), covering filename detection, label/macro image destruction, and complete metadata removal across 7 scanner formats.
+  PathSafe is designed against the criteria described as Level IV in [Bisson et al. (2023)](https://doi.org/10.1177/20552076231171475) -- filename detection, label/macro image destruction, complete metadata removal, EXIF/GPS sub-IFD scrubbing, and raw-byte regex sweeps -- across the 7 supported scanner formats. A formal conformance audit mapping each Bisson criterion to specific tests has not yet been published; treat the alignment as design intent, not a verified claim, until that document exists.
   
   ---
   

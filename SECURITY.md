@@ -2,12 +2,12 @@
 
 ## Supported Versions
 
-Security fixes are applied to the latest release on `master`.
+Security fixes are applied to the latest release on `main`.
 
 | Version | Supported          |
 |---------|--------------------|
-| 1.1.0   | Yes                |
-| < 1.1.0 | Best effort        |
+| 2.0.x   | Yes                |
+| < 2.0   | Best effort        |
 
 ## Reporting a Vulnerability
 

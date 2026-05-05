@@ -26,7 +26,7 @@ pytest tests/ -v --tb=short
 
 ## Pull Request Process
 
-1. Create a branch from `master`.
+1. Create a branch from `main`.
 2. Make your changes with tests when applicable.
 3. Ensure the test suite passes locally.
 4. Open a pull request with:

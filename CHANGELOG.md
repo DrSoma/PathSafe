@@ -7,10 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-05-05
+
 ### Fixed
-- Auto-install icon and `.desktop` file on first Linux launch
-- 6 bugs found by code audit: PHI masking and GUI improvements
-- Mapping row layout: tighter Skip combo with centered text
+- PyInstaller spec referenced the pre-split `pathsafe/cli.py` path, breaking
+  v2.0.0 installer builds on all platforms. Spec now points at
+  `pathsafe/cli/__main__.py` and includes the new `pathsafe.cli.*` and
+  `pathsafe.gui.*` submodules in `hiddenimports`.
+- Conversion timing used `time.monotonic()` whose ~16 ms resolution on
+  Windows could record 0.0 ms for fast operations and trip the
+  `conversion_time_ms > 0` test. Switched to `time.perf_counter()`.
+
+### Changed
+- Bumped pinned GitHub Actions to Node 24-compatible versions ahead of the
+  2026-06-02 forced upgrade (`actions/checkout` v6, `actions/setup-python`
+  v6, `actions/upload-artifact` v7, `actions/download-artifact` v8).
+
+## [2.0.0] - 2026-05-05
+
+### Changed (BREAKING)
+- Renamed every "anonymizer" / "anonymize" / "anonymization" identifier to
+  the medically and regulatorially correct "de-identifier" / "deidentify"
+  / "deidentification". HIPAA, DICOM PS3.15, and the medical literature
+  all use de-identification; "anonymization" implies a mathematical
+  irreversibility that this tool does not provide.
+  - `pathsafe.anonymizer` -> `pathsafe.deidentifier`
+  - `anonymize_file()` -> `deidentify_file()`
+  - `anonymize_batch()` -> `deidentify_batch()`
+  - `AnonymizationResult` -> `DeidentificationResult`
+  - `pathsafe anonymize PATH` -> `pathsafe deidentify PATH`
+  - Compliance-certificate JSON keys renamed accordingly.
+  No compatibility shims; update scripts before upgrading.
+- Markdown prose uses the hyphenated form (`de-identify`,
+  `de-identifier`, `de-identification`); Python identifiers and the CLI
+  subcommand use the unhyphenated form because Python identifiers cannot
+  contain hyphens.
+- Dropped "Production-tested" from the package description, CLI banner,
+  and GUI About dialog.
+
+### Added
+- README now carries an explicit institution-pattern validation warning.
+  The built-in regex patterns for accession-number detection were derived
+  from one institution's formats; users must validate against their own
+  accession schemes (and supply custom patterns via
+  `--patterns custom_patterns.json` if needed).
+
+### Fixed
+- Auto-install icon and `.desktop` file on first Linux launch.
+- 6 bugs found by code audit: PHI masking and GUI improvements.
+- Mapping-row layout: tighter Skip combo with centered text.
+
+### Internal
+- Split `gui/window.py` (2047 lines) into a main shell plus
+  `menus.py`, `dialogs.py`, `panels/deidentify_panel.py`, and
+  `panels/convert_panel.py` mixins.
+- Split `cli.py` (1334 lines) into a `pathsafe.cli` package with one
+  module per subcommand.
 
 ## [1.1.0] - 2026-03-17
 
@@ -112,7 +164,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standalone builds for Windows, macOS, and Linux
 - Apache 2.0 license
 
-[Unreleased]: https://github.com/DrSoma/PathSafe/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/DrSoma/PathSafe/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/DrSoma/PathSafe/compare/v2.0.0...v2.0.1
+[2.0.0]: https://github.com/DrSoma/PathSafe/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/DrSoma/PathSafe/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/DrSoma/PathSafe/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/DrSoma/PathSafe/compare/v1.0.2...v1.0.3
