@@ -112,7 +112,7 @@ def convert_file(
     """
     source = Path(source)
     output_path = Path(output_path)
-    t0 = time.monotonic()
+    t0 = time.perf_counter()
 
     openslide = _require_openslide()
 
@@ -176,7 +176,7 @@ def convert_file(
     if reset_timestamps and result.error is None and output_path.exists():
         os.utime(output_path, (0, 0))
 
-    result.conversion_time_ms = (time.monotonic() - t0) * 1000
+    result.conversion_time_ms = (time.perf_counter() - t0) * 1000
     return result
 
 
@@ -460,7 +460,7 @@ def convert_batch(
 
     input_path = Path(input_path)
     output_dir = Path(output_dir)
-    t0 = time.monotonic()
+    t0 = time.perf_counter()
 
     files = collect_wsi_files(input_path, format_filter)
     total = len(files)
@@ -511,7 +511,7 @@ def convert_batch(
         )
 
     batch.results = results
-    batch.total_time_seconds = time.monotonic() - t0
+    batch.total_time_seconds = time.perf_counter() - t0
     return batch
 
 
