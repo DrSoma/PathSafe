@@ -77,7 +77,7 @@ class DeidentifyPanelMixin:
         institution_row = QHBoxLayout()
         institution_row.addWidget(QLabel("Institution (optional):"))
         self.institution_edit = QLineEdit()
-        self.institution_edit.setMinimumHeight(28)
+        self.institution_edit.setMinimumHeight(32)
         self.institution_edit.setPlaceholderText('e.g. "Memorial General Hospital"')
         self.institution_edit.setToolTip(
             "Institution name displayed on PDF scan reports\n"
@@ -143,6 +143,7 @@ class DeidentifyPanelMixin:
         self.filter_include_edit = QLineEdit()
         self.filter_include_edit.setPlaceholderText("Pattern, e.g. *HE*")
         self.filter_include_edit.setFixedWidth(150)
+        self.filter_include_edit.setMinimumHeight(32)
         self.filter_include_edit.setEnabled(False)
         self.filter_include_edit.setToolTip(
             "Glob pattern to match filenames.\n\n"
@@ -158,6 +159,7 @@ class DeidentifyPanelMixin:
         self.filter_exclude_edit = QLineEdit()
         self.filter_exclude_edit.setPlaceholderText("Exclude, e.g. *IHC*")
         self.filter_exclude_edit.setFixedWidth(150)
+        self.filter_exclude_edit.setMinimumHeight(32)
         self.filter_exclude_edit.setEnabled(False)
         self.filter_exclude_edit.setToolTip(
             "Glob pattern to exclude filenames.\n\n"
@@ -171,6 +173,7 @@ class DeidentifyPanelMixin:
         filter_row.addSpacing(8)
         self.filter_file_edit = QLineEdit()
         self.filter_file_edit.setPlaceholderText("Filter file (optional)...")
+        self.filter_file_edit.setMinimumHeight(32)
         self.filter_file_edit.setEnabled(False)
         self.filter_file_edit.setToolTip(
             "Load a text, CSV, or JSON file listing which slides to include.\n\n"
