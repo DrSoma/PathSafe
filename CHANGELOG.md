@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-05-20
+
+### Added
+- Bisson Level IV conformance suite: 26 tests in
+  `tests/test_bisson_conformance.py` mapped 1:1 to the criteria in Bisson
+  et al. (2023), plus a per-criterion paper-to-code-to-test matrix in
+  `docs/BISSON_CONFORMANCE.md`. Covers Levels I-IV for SVS, NDPI, MRXS,
+  and BIF; Philips iSyntax is documented as a known gap; Level V is
+  out of scope per the paper. Total test suite: 950 passing (was 924).
+- MRXS PHI field coverage: `SCANNER_HARDWARE_ID`,
+  `SLIDE_UTC_CREATIONDATETIME`, and `ProfileName` added to
+  `GENERAL_PHI_FIELDS` to match Bisson Appendix A.
+- BIF (Ventana) PHI attribute coverage for the older XML schema:
+  `JP2FileName`, `UnitNumber`, `UserName`, `Barcode1D`, `Barcode2D`,
+  `BaseName`, and `BuildDate` added to `XMP_PHI_ATTRIBUTES` alongside the
+  existing modern iScan attribute set.
+
+### Changed
+- README Bisson conformance claim upgraded from soft "design intent"
+  wording to a verified Level IV claim backed by the new conformance
+  suite. A regression that breaks Level IV will now surface as a test
+  failure.
+- SECURITY.md updated to list the 2.0.x line as supported (was 1.1.0).
+
+### Fixed
+- GUI: the four Deidentify Options inputs (Institution plus three Filter
+  files fields) clipped the descenders of the 14 px theme font because
+  they used 28 px or Qt's compact default height. Minimum height set to
+  32 px on all four so they match the surrounding combo boxes and
+  buttons.
+- Stale `master` branch references replaced with `main` in `SECURITY.md`,
+  `CONTRIBUTING.md`, and `.github/workflows/test.yml` (the workflow
+  previously triggered on `[master, main]` but `master` no longer
+  exists).
+
 ## [2.0.1] - 2026-05-05
 
 ### Fixed
