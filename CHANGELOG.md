@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bumped pinned third-party GitHub Actions to Node 24-compatible
+  versions ahead of the 2026-06-02 forced upgrade:
+  `softprops/action-gh-release` v2 -> v3.0.0 (runtime-only major bump
+  per upstream release notes, no API changes) and
+  `Minionguyjpro/Inno-Setup-Action` v1.2.4 -> v1.2.8.
+
 ## [2.0.2] - 2026-05-20
 
 ### Added

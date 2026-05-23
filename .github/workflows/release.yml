@@ -47,7 +47,7 @@ jobs:
         run: pyinstaller pathsafe.spec
 
       - name: Build installer with Inno Setup
-        uses: Minionguyjpro/Inno-Setup-Action@0aa2e2f0ff0885d9a036b4c12521d46784d31647  # v1.2.4
+        uses: Minionguyjpro/Inno-Setup-Action@202dd0c4950ef315b6ba13359998fe120179b147  # v1.2.8
         with:
           path: installer/pathsafe.iss
           options: /DMyAppVersion=${{ env.VERSION }}
@@ -64,7 +64,7 @@ jobs:
         shell: cmd
 
       - name: Upload to release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           files: |
             dist/${{ env.WIN_ASSET }}
@@ -121,7 +121,7 @@ jobs:
         run: shasum -a 256 "dist/${{ env.MAC_ASSET }}" > "dist/${{ env.MAC_ASSET }}.sha256"
 
       - name: Upload to release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           files: |
             dist/${{ env.MAC_ASSET }}
@@ -186,12 +186,12 @@ jobs:
           cyclonedx-py environment -o pathsafe-sbom.json
 
       - name: Upload SBOM to release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           files: pathsafe-sbom.json
 
       - name: Upload to release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe  # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           files: |
             dist/${{ env.LINUX_ASSET }}
