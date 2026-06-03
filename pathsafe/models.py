@@ -47,7 +47,7 @@ class DeidentificationResult:
     mode: str  # "copy" | "inplace"
     findings_cleared: int = 0
     findings: list[PHIFinding] = field(default_factory=list)  # detailed findings
-    verified: bool = False
+    verified: bool | None = None  # None=verify not run, True=clean, False=verification failed
     deidentification_time_ms: float = 0.0
     image_integrity_verified: bool | None = None  # None=not checked, True=matched, False=mismatch
     filename_has_phi: bool = False  # True if output filename still contains PHI patterns

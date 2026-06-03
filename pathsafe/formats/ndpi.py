@@ -199,11 +199,14 @@ class NDPIHandler(TiffFormatHandler):
             cleared += self._deidentify_fallback(filepath)
 
         # Label/macro blanking must always be attempted, even if tag
-        # deidentification failed above -- labels contain photographed PHI
+        # deidentification failed above -- labels contain photographed PHI.
+        # A blanking failure must NOT be swallowed: surfacing it as an error
+        # prevents a silent false-clean (the label may still contain PHI).
         try:
             cleared += self._blank_label_macro(filepath)
         except Exception as e:
             logger.error("Label/macro blanking failed for %s: %s", filepath, e)
+            raise
 
         cleared += self._deidentify_companion_files(filepath)
         cleared += self._deidentify_regex(filepath, {f.offset for f in cleared})
@@ -480,6 +483,17 @@ class NDPIHandler(TiffFormatHandler):
                             w, h = get_ifd_image_size(header, entries, f)
                             blanked = blank_ifd_image_data(f, header, entries)
                             if blanked > 0:
+                                # Persist + confirm the blank before unlinking
+                                # (unlink hides the IFD from the scanner, so we
+                                # must never unlink an un-blanked label/macro).
+                                f.flush()
+                                os.fsync(f.fileno())
+                                if not is_ifd_image_blanked(f, header, entries):
+                                    raise RuntimeError(
+                                        f"{img_type} blanking could not be "
+                                        f"confirmed on disk (IFD at offset "
+                                        f"{ifd_offset}); aborting before unlink"
+                                    )
                                 unlink_ifd(f, header, ifd_offset)
                                 cleared.append(
                                     PHIFinding(

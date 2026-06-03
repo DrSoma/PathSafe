@@ -32,6 +32,11 @@ from pathsafe.utils import _sanitize_error  # noqa: E402
 # File extensions considered for batch processing
 WSI_EXTENSIONS = {".ndpi", ".svs", ".tif", ".tiff", ".scn", ".bif", ".mrxs", ".dcm", ".dicom"}
 
+# Suffix marker for the temporary staging file used during deidentification.
+# Files whose name contains this marker are skipped by collect_wsi_files so a
+# crashed run's PHI-bearing staging copy is never re-ingested as a slide.
+PENDING_MARKER = ".pathsafe_pending"
+
 # Mapping from format filter name to file extensions
 FORMAT_EXT_MAP = {
     "ndpi": {".ndpi"},
@@ -248,18 +253,34 @@ def deidentify_file(
             mode=mode,
             findings_cleared=len(scan_result.findings),
             findings=scan_result.findings,
-            verified=False,
+            verified=None,
             deidentification_time_ms=elapsed,
         )
 
-    # Copy mode: copy to a staging file first, deidentify there, then
-    # atomically rename to the final name.  This prevents Ctrl+C or a
-    # crash from leaving a partially-deidentified (PHI-leaking) file at
-    # the final output path.
+    # Staging: copy to a temporary file, deidentify it, then atomically
+    # os.replace() it onto the target.  This prevents Ctrl+C or a crash from
+    # leaving a partially-deidentified (PHI-leaking) file at the target path.
+    #
+    # We stage in BOTH copy mode and in-place mode.  In-place staging means we
+    # never write into the original slide directly -- the original may be open
+    # in a viewer, cloud-synced (OneDrive), or on a network share, where
+    # in-place writes can silently fail to persist; the original is only ever
+    # touched by the final atomic os.replace().  Exception: multi-file MRXS
+    # slides (which have a companion data directory) are deidentified directly
+    # in place, because a single atomic file swap cannot cover the companion
+    # files.
     copy_hash_hex = None
-    staging = None  # Path of the staging file (set in copy mode)
-    if mode == "copy":
-        staging = target.parent / (target.stem + ".pathsafe_pending" + target.suffix)
+    staging = None  # Path of the staging file (set when staging is used)
+    companion_dir = filepath.parent / filepath.stem
+    # Stage in copy mode always; in in-place mode stage single-file slides only.
+    # MRXS is identified by EXTENSION (not a sibling directory, which a
+    # single-file slide could coincidentally have).  Multi-file slides (MRXS, or
+    # NDPI with annotation sidecars) are de-identified directly in place because
+    # a single atomic file swap cannot cover their companion files.
+    is_mrxs = filepath.suffix.lower() == ".mrxs"
+    use_staging = mode == "copy" or not _has_companion_artifacts(filepath)
+    if use_staging:
+        staging = target.parent / (target.stem + PENDING_MARKER + target.suffix)
         if io_semaphore:
             io_semaphore.acquire()
         try:
@@ -288,21 +309,20 @@ def deidentify_file(
             if copy_hasher is not None:
                 copy_hash_hex = copy_hasher.hexdigest()
             shutil.copystat(str(filepath), str(staging))
-            # MRXS: also copy companion data directory (slide/ next to slide.mrxs)
-            # Use the staging file stem so _get_data_dir() can find it during
-            # deidentification; it will be renamed alongside the .mrxs file later.
-            companion_dir = filepath.parent / filepath.stem
-            if companion_dir.is_dir():
+            # MRXS (copy mode only): also copy the companion data directory
+            # (slide/ next to slide.mrxs) using the staging stem so
+            # _get_data_dir() can find it during deidentification; it is
+            # renamed alongside the .mrxs file later.  (In-place MRXS does not
+            # stage, so companion_dir.is_dir() here implies copy mode.)
+            if is_mrxs and companion_dir.is_dir():
                 staging_companion = staging.parent / staging.stem
                 if not staging_companion.exists():
                     shutil.copytree(str(companion_dir), str(staging_companion))
-        except Exception:
-            # Clean up staging file on copy failure
-            if staging and staging.exists():
-                staging.unlink(missing_ok=True)
-            staging_comp = staging.parent / staging.stem if staging else None
-            if staging_comp and staging_comp.is_dir():
-                shutil.rmtree(str(staging_comp), ignore_errors=True)
+        except BaseException:
+            # Clean up the staging copy on any failure or interrupt (incl.
+            # Ctrl-C / SystemExit) so a PHI-bearing partial copy is never left
+            # behind, then propagate.
+            _cleanup_staging(staging)
             raise
         finally:
             if io_semaphore:
@@ -326,16 +346,23 @@ def deidentify_file(
     # Pre-hash tile data for integrity verification
     pre_hashes = {}
     if verify_integrity and not dry_run:
-        if io_semaphore:
-            io_semaphore.acquire()
+        acquired = False
         try:
+            if io_semaphore:
+                io_semaphore.acquire()
+                acquired = True
             if phase_callback:
                 phase_callback("Hashing tiles", filepath)
             from pathsafe.tiff import compute_image_hashes
 
             pre_hashes = compute_image_hashes(work_path)
+        except BaseException:
+            # Interrupt/error (incl. while blocked acquiring the semaphore or
+            # hashing the PHI-bearing staging copy) -- clean up, then propagate.
+            _cleanup_staging(staging)
+            raise
         finally:
-            if io_semaphore:
+            if acquired:
                 io_semaphore.release()
 
     # Deidentify
@@ -344,16 +371,8 @@ def deidentify_file(
     try:
         findings = handler.deidentify(work_path)
     except Exception as e:
-        # Clean up staging file to prevent PHI leak in output dir
-        if staging is not None:
-            try:
-                staging.unlink(missing_ok=True)
-                # Also clean up MRXS companion directory copy
-                staging_companion = staging.parent / staging.stem
-                if staging_companion.is_dir():
-                    shutil.rmtree(str(staging_companion), ignore_errors=True)
-            except OSError as cleanup_err:
-                logger.error("Failed to clean up staging file %s: %s", staging.name, cleanup_err)
+        # Per-file failure: clean up the staging copy and report an error.
+        _cleanup_staging(staging)
         elapsed = (time.monotonic() - t0) * 1000
         return DeidentificationResult(
             source_path=filepath,
@@ -362,6 +381,11 @@ def deidentify_file(
             deidentification_time_ms=elapsed,
             error=_sanitize_error(e),
         )
+    except BaseException:
+        # Interrupt (Ctrl-C / SystemExit): clean up the PHI-bearing staging
+        # copy before propagating so it is not left at rest.
+        _cleanup_staging(staging)
+        raise
 
     # Post-deidentification phases: wrap in try/except to clean up staging on failure
     try:
@@ -378,30 +402,49 @@ def deidentify_file(
                 if io_semaphore:
                     io_semaphore.release()
 
-        # Verify -- always re-scan when verify is enabled (not just when findings > 0)
-        verified = False
+        # Verify -- re-scan after deidentification.  When enabled this is
+        # AUTHORITATIVE: if any residual PHI remains (or the scan errors), the
+        # file is reported as an ERROR and the staging copy is NOT promoted, so a
+        # run never silently reports success while PHI survives on disk.
+        verified = None
         if verify:
             if phase_callback:
                 phase_callback("Verifying clean", filepath)
             from pathsafe.verify import verify_file
 
             verify_result = verify_file(work_path)
-            verified = verify_result.is_clean and not verify_result.error
+            # Filename PHI is surfaced separately as a (non-fatal) warning
+            # (filename_has_phi) -- the file CONTENT is what must be clean here.
+            content_findings = [f for f in verify_result.findings if f.source != "filename"]
+            if verify_result.error or content_findings:
+                _cleanup_staging(staging)  # discard the unverified copy; do not promote
+                elapsed = (time.monotonic() - t0) * 1000
+                if verify_result.error:
+                    detail = f"post-deidentification verification could not run: {verify_result.error}"
+                else:
+                    detail = (
+                        f"post-deidentification verification found "
+                        f"{len(content_findings)} residual PHI finding(s)"
+                    )
+                return DeidentificationResult(
+                    source_path=filepath,
+                    output_path=target,
+                    mode=mode,
+                    findings_cleared=len(findings),
+                    findings=findings,
+                    verified=False,
+                    deidentification_time_ms=elapsed,
+                    error=detail,
+                )
+            verified = True
 
         # Check if output filename still contains PHI patterns
         from pathsafe.scanner import scan_filename_for_phi
 
         filename_has_phi = len(scan_filename_for_phi(target)) > 0
-    except Exception:
-        # Clean up staging file and MRXS companion to prevent PHI leak
-        if staging is not None:
-            try:
-                staging.unlink(missing_ok=True)
-                staging_companion = staging.parent / staging.stem
-                if staging_companion.is_dir():
-                    shutil.rmtree(str(staging_companion), ignore_errors=True)
-            except OSError:
-                pass
+    except BaseException:
+        # Clean up the staging copy on failure or interrupt, then propagate.
+        _cleanup_staging(staging)
         raise
 
     # Finalize: compute SHA-256 (only when requested) and reset timestamps.
@@ -414,9 +457,11 @@ def deidentify_file(
             # Nothing was modified after the copy -- the copy hash is valid.
             file_sha256 = copy_hash_hex
         else:
-            if io_semaphore:
-                io_semaphore.acquire()
+            acquired = False
             try:
+                if io_semaphore:
+                    io_semaphore.acquire()
+                    acquired = True
                 if phase_callback:
                     phase_callback("Finalizing", filepath)
                 try:
@@ -441,22 +486,39 @@ def deidentify_file(
                     logger.warning(
                         "Failed to compute SHA-256 checksum for %s: %s", work_path.name, e
                     )
+            except BaseException:
+                # Interrupt (incl. while blocked acquiring the semaphore or
+                # hashing the staging copy) -- clean up, then propagate.
+                _cleanup_staging(staging)
+                raise
             finally:
-                if io_semaphore:
+                if acquired:
                     io_semaphore.release()
 
-    # Atomic rename: promote staging file to final target path.
-    # os.replace() is atomic on the same filesystem and overwrites any
-    # existing file at the destination.  If the process is interrupted
-    # before this point, only the .pathsafe_pending file exists -- the
-    # final target path never contains un-deidentified data.
+    # Atomic promote: os.replace() the staging file onto the target path.
+    # It is atomic on the same filesystem and overwrites any existing file at
+    # the destination (the original slide, in in-place mode).  If the process
+    # is interrupted before this point, the target still holds the original
+    # file and only the .pathsafe_pending staging copy exists -- the target
+    # never contains partially-deidentified data.
     if staging is not None and staging.exists():
         try:
+            # Durably persist the deidentified staging data before the swap so
+            # a crash cannot leave the promoted file referencing unwritten
+            # blocks; a failing fsync surfaces a contended handle loudly.
+            try:
+                _fd = os.open(str(staging), os.O_RDWR)
+                try:
+                    os.fsync(_fd)
+                finally:
+                    os.close(_fd)
+            except OSError as fsync_err:
+                logger.warning("fsync of staging file failed: %s", _sanitize_error(fsync_err))
             os.replace(str(staging), str(target))
             # Also rename MRXS companion directory from staging stem to target stem
             staging_companion = staging.parent / staging.stem
             target_companion = target.parent / target.stem
-            if staging_companion.is_dir() and not target_companion.exists():
+            if is_mrxs and staging_companion.is_dir() and not target_companion.exists():
                 os.rename(str(staging_companion), str(target_companion))
         except OSError as rename_err:
             staging.unlink(missing_ok=True)
@@ -471,13 +533,20 @@ def deidentify_file(
                 deidentification_time_ms=elapsed,
                 error=f"Failed to rename staging file: {_sanitize_error(rename_err)}",
             )
+        except BaseException:
+            # Interrupt during fsync/replace (the fsync can block for seconds on
+            # a contended/cloud handle) -- clean up the staging copy, then propagate.
+            _cleanup_staging(staging)
+            raise
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps:
         os.utime(target, (0, 0))
-        # Also reset MRXS companion directory and files
+        # Also reset the MRXS companion directory and files (MRXS only -- keyed
+        # on extension so a single-file slide's coincidental sibling dir is not
+        # touched).
         companion_dir = target.parent / target.stem
-        if companion_dir.is_dir():
+        if is_mrxs and companion_dir.is_dir():
             for root, dirs, filenames in os.walk(companion_dir):
                 for fname in filenames:
                     try:
@@ -515,6 +584,81 @@ def deidentify_file(
     )
 
 
+def _has_companion_artifacts(filepath: Path) -> bool:
+    """True if a slide has companion files/dirs that in-place staging cannot
+    atomically swap, so it must be de-identified directly in place.
+
+    MRXS always has a companion data directory.  NDPI may have ``.ndpa``/``.ndpis``
+    annotation sidecars, which the NDPI handler locates by the slide's own name
+    (and deletes) -- so they must sit alongside the file the handler operates on;
+    staging (which renames the base) would orphan the real PHI sidecars.
+    """
+    suffix = filepath.suffix.lower()
+    if suffix == ".mrxs":
+        return True
+    if suffix == ".ndpi":
+        parent = filepath.parent
+        name = filepath.name
+        if (parent / (name + ".ndpa")).exists() or (parent / (name + ".ndpis")).exists():
+            return True
+        try:
+            next(iter(parent.glob(f"{name}_*.ndpa")))
+            return True
+        except StopIteration:
+            pass
+    return False
+
+
+def _cleanup_staging(staging: Path | None) -> None:
+    """Best-effort removal of a staging file and its MRXS companion directory.
+
+    Used on every failure/interrupt path so a PHI-bearing staging copy is never
+    left at rest.
+    """
+    if staging is None:
+        return
+    try:
+        staging.unlink(missing_ok=True)
+    except OSError as e:
+        logger.error("Failed to remove staging file %s: %s", staging.name, _sanitize_error(e))
+    staging_companion = staging.parent / staging.stem
+    if staging_companion.is_dir():
+        shutil.rmtree(str(staging_companion), ignore_errors=True)
+
+
+def _is_staging_name(name: str) -> bool:
+    """True if a name is a PathSafe staging artifact (staging file or MRXS
+    companion dir), e.g. ``slide.pathsafe_pending.svs`` or ``slide.pathsafe_pending``.
+
+    Matches the marker only as a whole dotted component, so an unrelated slide
+    whose name merely contains the substring is not skipped/removed.
+    """
+    return name.endswith(PENDING_MARKER) or (PENDING_MARKER + ".") in name
+
+
+def _sweep_stale_staging(directory: Path) -> None:
+    """Remove leftover staging artifacts (a previously interrupted run's
+    PHI-bearing ``*.pathsafe_pending*`` copies) from a directory before
+    processing.  Best-effort and precise-matched, so it only removes PathSafe's
+    own reserved-marker files/dirs.
+    """
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if not _is_staging_name(entry.name):
+            continue
+        try:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(str(entry), ignore_errors=True)
+            else:
+                entry.unlink(missing_ok=True)
+            logger.warning("Removed stale staging artifact: %s", entry.name)
+        except OSError as e:
+            logger.warning("Failed to remove stale staging artifact %s: %s", entry.name, e)
+
+
 def collect_wsi_files(path: Path, format_filter: str | None = None) -> list[Path]:
     """Collect all WSI files from a path (file or directory).
 
@@ -527,6 +671,9 @@ def collect_wsi_files(path: Path, format_filter: str | None = None) -> list[Path
         # a sensitive file outside the intended directory tree.
         if path.is_symlink():
             logger.warning("Skipping symlinked file: %s", path.name)
+            return []
+        # Skip leftover staging files (a crashed run's PHI-bearing copy).
+        if _is_staging_name(path.name):
             return []
         if format_filter:
             allowed = FORMAT_EXT_MAP.get(format_filter, WSI_EXTENSIONS)
@@ -546,6 +693,9 @@ def collect_wsi_files(path: Path, format_filter: str | None = None) -> list[Path
             fpath = Path(root) / fname
             if fpath.is_symlink():
                 logger.warning("Skipping symlinked file: %s", fpath.name)
+                continue
+            # Skip leftover staging files (a crashed run's PHI-bearing copy).
+            if _is_staging_name(fname):
                 continue
             if Path(fname).suffix.lower() in extensions:
                 files.append(fpath)
@@ -628,6 +778,13 @@ def deidentify_batch(
             else:
                 out = None
             file_pairs.append((filepath, out))
+
+    # Remove any stale staging artifacts (a previously interrupted run's
+    # PHI-bearing copies) from the directories we are about to write to.
+    if not dry_run:
+        sweep_dirs = {(out.parent if out is not None else src.parent) for src, out in file_pairs}
+        for _dir in sweep_dirs:
+            _sweep_stale_staging(_dir)
 
     batch = BatchResult(total_files=total)
 

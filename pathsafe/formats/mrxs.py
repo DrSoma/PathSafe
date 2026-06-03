@@ -739,16 +739,30 @@ def _get_image_offset_size(
 
 
 def _is_image_blanked(dat_path: Path, config: configparser.ConfigParser, section_name: str) -> bool:
-    """Check if an associated image has already been blanked."""
+    """Check if an associated image has already been blanked.
+
+    A blanked region is all zeros across its full extent (_blank_associated_images
+    overwrites the whole region with zeros).  Stream the whole region and exit
+    at the first non-zero byte, so a region whose leading bytes were zeroed but
+    whose body still holds pixel data is correctly reported as NOT blanked. A
+    region with real pixel data exits fast; a genuinely blanked region is read
+    in full.
+    """
     offset, size = _get_image_offset_size(config, section_name, dat_path)
     if size <= 0:
         return True
 
-    # Check first 8 bytes for all zeros
     try:
         with open(dat_path, "rb") as f:
             f.seek(offset)
-            head = f.read(min(size, 8))
-            return head == b"\x00" * len(head)
+            remaining = size
+            while remaining > 0:
+                chunk = f.read(min(remaining, 1 << 20))
+                if not chunk:
+                    return False  # truncated -- cannot confirm zero
+                if chunk.strip(b"\x00"):
+                    return False  # found a non-zero (pixel) byte
+                remaining -= len(chunk)
+        return True
     except OSError:
         return False

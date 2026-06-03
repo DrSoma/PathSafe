@@ -1,0 +1,53 @@
+name: Build Standalone (test build)
+
+# Builds the standalone, no-install PathSafe executables and uploads them as
+# downloadable artifacts -- so a fix/feature branch can be tested on Windows
+# BEFORE it is merged or a release is published. Trigger it manually from the
+# Actions tab ("Run workflow") or automatically on push to a fix/* or feat/*
+# branch. Does NOT create a GitHub Release (see release.yml for that).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/**'
+      - 'feat/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    name: Build standalone Windows .exe
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all,dev]"
+          pip install pyinstaller
+
+      - name: Build standalone executables with PyInstaller
+        run: pyinstaller pathsafe.spec
+
+      # The PyInstaller spec is one-file mode, so these are single, no-install
+      # executables: pathsafe-gui.exe (GUI) and pathsafe.exe (CLI).
+      - name: Upload standalone executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: pathsafe-standalone-windows
+          path: |
+            dist/pathsafe-gui.exe
+            dist/pathsafe.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Run test suite on Windows (informational)
+        run: pytest tests/ -q

@@ -13,6 +13,7 @@ Subclasses customize behavior via class attributes and method overrides.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -527,6 +528,20 @@ class TiffFormatHandler(FormatHandler):
                     w, h = get_ifd_image_size(header, entries, f)
                     blanked = blank_ifd_image_data(f, header, entries)
                     if blanked > 0:
+                        # Durably persist the blanked pixels and CONFIRM they
+                        # landed before unlinking. Unlinking hides the IFD from
+                        # the chain-walking scanner/verifier, so we must never
+                        # unlink a label whose pixels are not actually gone on
+                        # disk -- a failed/contended write would otherwise become
+                        # a silent false-clean.
+                        f.flush()
+                        os.fsync(f.fileno())
+                        if not is_ifd_image_blanked(f, header, entries):
+                            raise RuntimeError(
+                                f"{img_type} blanking could not be confirmed on "
+                                f"disk (IFD at offset {ifd_offset}); aborting "
+                                "before unlink"
+                            )
                         unlink_ifd(f, header, ifd_offset)
                         cleared.append(
                             PHIFinding(

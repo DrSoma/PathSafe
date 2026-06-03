@@ -20,7 +20,7 @@ from pathsafe.tiff.parser import (  # noqa: E402
 
 
 # Minimal valid JPEG: a 1x1 white pixel with full JFIF headers, quantization
-# tables, Huffman tables, and scan data (630 bytes).  All JPEG decoders
+# tables, Huffman tables, and scan data (426 bytes).  All JPEG decoders
 # (including libjpeg used by OpenSlide) can parse this, unlike the bare
 # SOI+EOI (FFD8FFD9) which many decoders reject as "no image".
 # We pad the remaining strip/tile bytes with zeros after writing this.
@@ -194,11 +194,85 @@ def get_ifd_image_size(header: TIFFHeader, entries: list[IFDEntry], f: BinaryIO)
     return width, height
 
 
-def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader, entries: list[IFDEntry]) -> bool:
-    """Check if the image data in an IFD has been blanked.
+# Upper bound on strips/tiles we will inspect when deciding if an IFD is
+# blanked.  Label/macro images have at most a few thousand strips; a
+# full-resolution pyramid level has tens of thousands of tiles.  Above this
+# bound we never certify an IFD as "blanked": it is not a label/macro, and the
+# image-integrity check (which calls this to decide what to hash) should treat
+# such IFDs as real image data rather than skip them.
+MAX_STRIPS_TO_VERIFY = 8192
 
-    Detects both current format (630-byte minimal JPEG + zeros) and
-    legacy format (4-byte SOI+EOI + zeros) written by older versions.
+
+def _rest_is_zero(f: BinaryIO, start: int, end: int) -> bool:
+    """Return True if the file bytes in [start, end) are all zero.
+
+    Streams in chunks and exits at the first non-zero byte, so a strip that
+    holds pixel data exits fast; a genuinely blanked strip is read in full.
+    A truncated read (fewer bytes than expected) returns False -- we cannot
+    confirm the region is zero, so we conservatively treat it as not blanked.
+    """
+    if end <= start:
+        return True
+    f.seek(start)
+    remaining = end - start
+    while remaining > 0:
+        chunk = f.read(min(remaining, 65536))
+        if not chunk:
+            return False  # truncated -- cannot confirm zero
+        if chunk.strip(b"\x00"):
+            return False  # found a non-zero (pixel) byte
+        remaining -= len(chunk)
+    return True
+
+
+def _is_strip_blanked(f: BinaryIO, off: int, cnt: int) -> bool:
+    """Return True if the single strip/tile at (off, cnt) holds blanked content.
+
+    A blanked strip is an optional recognised blank-JPEG marker followed by
+    zeros all the way to the end (``blank_ifd_image_data`` writes _BLANK_JPEG
+    then zero-pads, or all zeros for strips smaller than _BLANK_JPEG).  The
+    ENTIRE strip after any marker must be zero -- a strip that merely looks
+    blank in its first bytes but holds pixel data later is NOT blanked.
+    Recognises the legacy SOI+EOI and pre-marker minimal-JPEG forms too.
+    """
+    if cnt <= 0:
+        return True  # no pixel data present to leak
+
+    f.seek(off)
+    head = f.read(min(cnt, 64))
+    if not head:
+        return False
+
+    # An optional leading blank-JPEG marker; everything after it must be zeros.
+    if head[:2] == b"\xff\xd8":
+        if cnt >= len(_BLANK_JPEG) and b"PATHSAFE" in head:  # current: minimal JPEG + PATHSAFE COM
+            # The current blank is _BLANK_JPEG verbatim followed by zeros. Verify
+            # the FULL marker bytes (not just the head), so a forged strip with a
+            # PATHSAFE-looking head but pixel data in the marker body cannot pass.
+            f.seek(off)
+            if f.read(len(_BLANK_JPEG)) != _BLANK_JPEG:
+                return False
+            return _rest_is_zero(f, off + len(_BLANK_JPEG), off + cnt)
+        if head[:4] == _LEGACY_BLANK_JPEG and head[4:8] == b"\x00" * 4:  # legacy SOI+EOI + zeros
+            return _rest_is_zero(f, off + 8, off + cnt)
+        # Any other JPEG content is NOT certified blanked: we cannot verify its
+        # body is free of pixel data (the body bytes are unknown), so it is
+        # treated conservatively as un-blanked and will be re-blanked.  (Files
+        # blanked by an older pre-PATHSAFE-marker version fall here and are
+        # simply re-blanked into the current verifiable form -- harmless.)
+        return False
+
+    # No JPEG marker -- the entire strip must be zeros.
+    return _rest_is_zero(f, off, off + cnt)
+
+
+def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader, entries: list[IFDEntry]) -> bool:
+    """Check whether EVERY image strip/tile in an IFD has been blanked.
+
+    Inspects all strips/tiles (a bounded read per strip), not just the first:
+    a label/macro whose first strip was blanked but whose later strips still
+    hold pixel data is NOT blanked.  Recognises the current (minimal JPEG +
+    PATHSAFE marker + zeros), legacy (SOI+EOI + zeros), and all-zeros forms.
     """
     offset_entry = None
     count_entry = None
@@ -215,45 +289,18 @@ def is_ifd_image_blanked(f: BinaryIO, header: TIFFHeader, entries: list[IFDEntry
     if offset_entry is None or count_entry is None:
         return False
 
+    # Bound the work: a many-stripped/tiled IFD is a pyramid level, never a
+    # label/macro -- do not certify it as blanked (and don't read all its tiles).
+    if offset_entry.count > MAX_STRIPS_TO_VERIFY or count_entry.count > MAX_STRIPS_TO_VERIFY:
+        return False
+
     offsets = read_tag_long_array(f, header, offset_entry)
     counts = read_tag_long_array(f, header, count_entry)
-    if not offsets or not counts:
+    if not offsets or not counts or len(offsets) != len(counts):
         return False
 
-    first_off = offsets[0]
-    first_cnt = counts[0]
-    if first_cnt < 8:
-        return False
-
-    f.seek(first_off)
-    head = f.read(min(first_cnt, 32))
-
-    # All zeros = blanked
-    if head == b"\x00" * len(head):
-        return True
-
-    # Must start with JPEG SOI marker
-    if head[:2] != b"\xff\xd8":
-        return False
-
-    # Positive identification: PATHSAFE marker in JPEG COM segment
-    if b"PATHSAFE" in head:
-        return True
-
-    # Legacy format: SOI + EOI (FFD8FFD9) + zeros
-    if head[:4] == _LEGACY_BLANK_JPEG and head[4:8] == b"\x00" * 4:
-        return True
-
-    # Pre-marker format: minimal JPEG (no PATHSAFE marker) + zeros.
-    # A real macro/label image has dense JPEG data throughout, so check
-    # for zeros right after our known JPEG length.
-    if first_cnt > len(_BLANK_JPEG) + 8:
-        f.seek(first_off + len(_BLANK_JPEG))
-        trail = f.read(8)
-        if trail == b"\x00" * len(trail):
-            return True
-
-    return False
+    # Blanked only if EVERY strip/tile is blanked.
+    return all(_is_strip_blanked(f, off, cnt) for off, cnt in zip(offsets, counts, strict=False))
 
 
 def get_ifd_image_data_size(header: TIFFHeader, entries: list[IFDEntry], f: BinaryIO) -> int:

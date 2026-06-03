@@ -79,6 +79,12 @@ from pathsafe.report import generate_certificate
     help="Verify image tile data integrity via SHA-256 checksums (default: off).",
 )
 @click.option(
+    "--verify/--no-verify",
+    default=True,
+    help="Re-scan each output for residual PHI and FAIL the file (non-zero exit) "
+    "if any remains (default: on). Use --no-verify to skip the re-scan.",
+)
+@click.option(
     "--checksum",
     is_flag=True,
     default=False,
@@ -167,6 +173,7 @@ def deidentify(
     log: str | None,
     reset_timestamps: bool,
     verify_integrity: bool,
+    verify: bool,
     checksum: bool,
     institution: str,
     patterns: str | None,
@@ -410,6 +417,7 @@ def deidentify(
             progress_callback=progress,
             workers=workers,
             reset_timestamps=reset_timestamps,
+            verify=verify,
             verify_integrity=verify_integrity,
             compute_checksum=checksum,
         )

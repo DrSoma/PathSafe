@@ -223,7 +223,8 @@ class TestIsIFDImageBlanked:
         f = io.BytesIO(content)
         header = read_header(f)
         _, entries = iter_ifds(f, header)[0]
-        # is_ifd_image_blanked requires first_cnt >= 8
+        # A bare 4-byte SOI+EOI with no trailing zeros is not a recognized blank
+        # form (no PATHSAFE marker; the legacy form needs trailing zero padding).
         assert is_ifd_image_blanked(f, header, entries) is False
 
     def test_blanked_then_verified(self):
