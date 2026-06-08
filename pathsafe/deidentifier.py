@@ -420,7 +420,9 @@ def deidentify_file(
                 _cleanup_staging(staging)  # discard the unverified copy; do not promote
                 elapsed = (time.monotonic() - t0) * 1000
                 if verify_result.error:
-                    detail = f"post-deidentification verification could not run: {verify_result.error}"
+                    detail = (
+                        f"post-deidentification verification could not run: {verify_result.error}"
+                    )
                 else:
                     detail = (
                         f"post-deidentification verification found "
