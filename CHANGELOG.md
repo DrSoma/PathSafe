@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-06-08
+
+### Fixed
+- In-place de-identification false-clean on Windows: blanking write could
+  fail to persist (OneDrive/network/locked handle) while the IFD-unlink
+  succeeded, leaving the scanner reporting clean despite PHI still visible.
+  Staging-copy + atomic replace prevents the original from ever being
+  written directly.
+- `is_ifd_image_blanked` now verifies every strip/tile (was first-strip-only),
+  closing a multi-strip false-clean path. MRXS blanking streams the whole
+  region.
+- Label/macro IFD unlink is now gated on fsync + re-read confirmation of
+  the blank; an unconfirmed blank raises instead of silently becoming a
+  false-clean.
+- Post-deidentification verify is authoritative: residual content PHI
+  blocks staging promotion and exits non-zero. `DeidentificationResult.verified`
+  is tri-state (`None`/`True`/`False`). CLI gains `--verify`/`--no-verify`
+  (default on).
+
+### Added
+- Regression tests: `test_blank_all_strips`, `test_inplace_staging`,
+  `test_verify_before_unlink`, `test_authoritative_verify`.
+- On-demand `build-standalone` workflow producing a no-install Windows
+  `.exe` artifact for pre-merge testing.
+
 ### Changed
 - Bumped pinned third-party GitHub Actions to Node 24-compatible
   versions ahead of the 2026-06-02 forced upgrade:
@@ -206,7 +231,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standalone builds for Windows, macOS, and Linux
 - Apache 2.0 license
 
-[Unreleased]: https://github.com/DrSoma/PathSafe/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/DrSoma/PathSafe/compare/v2.0.3...HEAD
+[2.0.3]: https://github.com/DrSoma/PathSafe/compare/v2.0.2...v2.0.3
+[2.0.2]: https://github.com/DrSoma/PathSafe/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/DrSoma/PathSafe/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/DrSoma/PathSafe/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/DrSoma/PathSafe/compare/v1.0.4...v1.1.0
