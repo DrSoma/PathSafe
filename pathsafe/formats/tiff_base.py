@@ -542,7 +542,9 @@ class TiffFormatHandler(FormatHandler):
                         try:
                             os.fsync(f.fileno())
                         except OSError:
-                            logger.debug("fsync failed during %s blanking; re-read check follows", img_type)
+                            logger.debug(
+                                "fsync failed during %s blanking; re-read check follows", img_type
+                            )
                         if not is_ifd_image_blanked(f, header, entries):
                             raise RuntimeError(
                                 f"{img_type} blanking could not be confirmed on "
