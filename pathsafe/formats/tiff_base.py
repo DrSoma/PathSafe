@@ -13,8 +13,11 @@ Subclasses customize behavior via class attributes and method overrides.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 from typing import Any, BinaryIO
 
 from pathsafe.formats.base import FormatHandler
@@ -535,7 +538,10 @@ class TiffFormatHandler(FormatHandler):
                         # disk -- a failed/contended write would otherwise become
                         # a silent false-clean.
                         f.flush()
-                        os.fsync(f.fileno())
+                        try:
+                            os.fsync(f.fileno())
+                        except OSError:
+                            logger.debug("fsync failed during %s blanking; re-read check follows", img_type)
                         if not is_ifd_image_blanked(f, header, entries):
                             raise RuntimeError(
                                 f"{img_type} blanking could not be confirmed on "

@@ -509,7 +509,7 @@ def deidentify_file(
             # a crash cannot leave the promoted file referencing unwritten
             # blocks; a failing fsync surfaces a contended handle loudly.
             try:
-                _fd = os.open(str(staging), os.O_RDWR)
+                _fd = os.open(str(staging), os.O_RDWR | getattr(os, "O_BINARY", 0))
                 try:
                     os.fsync(_fd)
                 finally:
@@ -543,7 +543,10 @@ def deidentify_file(
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps:
-        os.utime(target, (0, 0))
+        try:
+            os.utime(target, (0, 0))
+        except OSError as e:
+            logger.warning("Failed to reset timestamp for %s: %s", target, e)
         # Also reset the MRXS companion directory and files (MRXS only -- keyed
         # on extension so a single-file slide's coincidental sibling dir is not
         # touched).

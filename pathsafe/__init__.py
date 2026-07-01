@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 
 from pathsafe.deidentifier import deidentify_batch, deidentify_file
 from pathsafe.models import (

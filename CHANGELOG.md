@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-07-01
+
+### Fixed
+- `WinError 87` (The parameter is incorrect) crash on Windows when
+  de-identifying slides on network shares, OneDrive, or cloud-synced
+  folders. The `os.fsync()` calls added in v2.0.3 for blanking confirmation
+  are now guarded; the `is_ifd_image_blanked()` re-read remains the
+  authoritative safety check.
+- `os.utime(path, (0, 0))` timestamp reset crash on FAT32/exFAT drives
+  (common hospital USB media) where epoch-zero is not representable. Now
+  warns instead of aborting.
+- Staging file `os.open()` missing `O_BINARY` flag on Windows.
+
 ## [2.0.3] - 2026-06-08
 
 ### Fixed

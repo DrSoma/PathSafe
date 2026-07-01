@@ -174,7 +174,10 @@ def convert_file(
 
     # Reset filesystem timestamps to epoch (removes temporal PHI)
     if reset_timestamps and result.error is None and output_path.exists():
-        os.utime(output_path, (0, 0))
+        try:
+            os.utime(output_path, (0, 0))
+        except OSError as e:
+            logger.warning("Failed to reset timestamp for %s: %s", output_path, e)
 
     result.conversion_time_ms = (time.perf_counter() - t0) * 1000
     return result

@@ -487,7 +487,10 @@ class NDPIHandler(TiffFormatHandler):
                                 # (unlink hides the IFD from the scanner, so we
                                 # must never unlink an un-blanked label/macro).
                                 f.flush()
-                                os.fsync(f.fileno())
+                                try:
+                                    os.fsync(f.fileno())
+                                except OSError:
+                                    logger.debug("fsync failed during %s blanking; re-read check follows", img_type)
                                 if not is_ifd_image_blanked(f, header, entries):
                                     raise RuntimeError(
                                         f"{img_type} blanking could not be "
