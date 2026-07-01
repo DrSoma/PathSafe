@@ -16,8 +16,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 from typing import Any, BinaryIO
 
 from pathsafe.formats.base import FormatHandler
@@ -47,6 +45,9 @@ from pathsafe.tiff import (
     scan_sub_ifds,
     unlink_ifd,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class TiffFormatHandler(FormatHandler):
