@@ -104,7 +104,7 @@ class PathSafeWindow(
 
         # Check for updates on startup (if enabled)
         self._update_thread = None
-        if self._settings.value("check_updates", "false") == "true":
+        if self._settings.value("check_updates", "true") == "true":
             QTimer.singleShot(500, self._check_for_updates)
 
     def _build_ui(self) -> None:

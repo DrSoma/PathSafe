@@ -104,7 +104,7 @@ class MenuBuilderMixin:
         self._update_check_action = QAction("Check for &updates on startup", self)
         self._update_check_action.setCheckable(True)
         self._update_check_action.setChecked(
-            self._settings.value("check_updates", "false") == "true"
+            self._settings.value("check_updates", "true") == "true"
         )
         self._update_check_action.setToolTip(
             "When enabled, PathSafe checks GitHub for new releases\n"
